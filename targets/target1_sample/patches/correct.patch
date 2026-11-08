@@ -1,0 +1,30 @@
+--- targets/target1_sample/src/main.c	2026-11-08 18:08:52
++++ targets/target1_sample/versions/patch_correct/src/main.c	2026-11-08 18:09:10
+@@ -21,16 +21,21 @@
+     }
+ 
+     const char *val_start = eq + 1;
++    size_t val_len = strlen(val_start);
+ 
+     /*
+-     * VULNERABILITY (Base Version):
+-     * Unbounded copy into a 64-byte stack buffer!
+-     * If the value exceeds 64 bytes, it overflows the stack buffer.
+-     * In release build with canary: triggers __stack_chk_fail (SIGABRT).
+-     * In sanitized build: ASan triggers stack-buffer-overflow.
++     * CORRECT PATCH:
++     * Properly validates value length before copying into the 64-byte buffer.
++     * Prevents buffer overflow and safely returns an error code without crashing.
+      */
+-    strcpy(value, val_start);
++    if (val_len >= sizeof(value)) {
++        fprintf(stderr, "Error: Value exceeds buffer size\n");
++        return 1;
++    }
+ 
++    strncpy(value, val_start, sizeof(value) - 1);
++    value[sizeof(value) - 1] = '\0';
++
+     printf("OK: %s (value length: %zu)\n", arg, strlen(value));
+     return 0;
+ }
