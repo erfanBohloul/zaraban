@@ -31,3 +31,7 @@ zaraban = "zaraban.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["zaraban*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
