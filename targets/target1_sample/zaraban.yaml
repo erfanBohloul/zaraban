@@ -1,0 +1,42 @@
+name: "token_parser"
+input_method: "file"
+
+build:
+  binary_path: "token_parser"
+  release_cmd: "make release"
+  sanitized_cmd: "make sanitized"
+  clean_cmd: "make clean"
+
+limits:
+  timeout_seconds: 2.0
+  memory_limit_mb: 128
+
+valid_tests:
+  - name: "valid_ping"
+    input_file: "tests/valid/valid_1_ping.txt"
+    expected_exit_code: 0
+    expected_output: "PONG"
+  - name: "valid_echo"
+    input_file: "tests/valid/valid_2_echo.txt"
+    expected_exit_code: 0
+    expected_output: "Hello Zaraban Security Engine"
+  - name: "valid_set"
+    input_file: "tests/valid/valid_3_set.txt"
+    expected_exit_code: 0
+    expected_output: "OK: name=alice"
+
+boundary_tests:
+  - name: "boundary_empty"
+    input_file: "tests/boundary/boundary_empty.txt"
+    expected_exit_code: 0
+  - name: "boundary_max_safe"
+    input_file: "tests/boundary/boundary_max_safe.txt"
+    expected_exit_code: 0
+
+security_tests:
+  - name: "exploit_primary"
+    input_file: "tests/exploits/exploit_primary.txt"
+    description: "Stack buffer overflow via large SET value (120 bytes)"
+  - name: "exploit_secondary"
+    input_file: "tests/exploits/exploit_secondary.txt"
+    description: "Bypasses incomplete patch naive 100-byte check with 80 bytes"
