@@ -1,0 +1,13 @@
+services:
+  zaraban:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: zaraban:latest
+    platform: linux/amd64
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    command: /bin/bash
