@@ -1,0 +1,7 @@
+{
+  "user": {
+    "name": "alice",
+    "roles": ["admin", "developer"],
+    "active": true
+  }
+}

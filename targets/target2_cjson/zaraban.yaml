@@ -1,0 +1,42 @@
+name: "cjson_parser"
+input_method: "file"
+
+build:
+  binary_path: "cjson_tool"
+  release_cmd: "make release"
+  sanitized_cmd: "make sanitized"
+  clean_cmd: "make clean"
+
+limits:
+  timeout_seconds: 2.0
+  memory_limit_mb: 128
+
+valid_tests:
+  - name: "valid_simple"
+    input_file: "tests/valid/valid_simple.json"
+    expected_exit_code: 0
+    expected_output: "Successfully parsed JSON"
+  - name: "valid_nested"
+    input_file: "tests/valid/valid_nested.json"
+    expected_exit_code: 0
+    expected_output: "Successfully parsed JSON"
+  - name: "valid_negative"
+    input_file: "tests/valid/valid_negative.json"
+    expected_exit_code: 0
+    expected_output: "Successfully parsed JSON"
+
+boundary_tests:
+  - name: "boundary_empty"
+    input_file: "tests/boundary/boundary_empty.json"
+    expected_exit_code: 0
+  - name: "boundary_max_safe"
+    input_file: "tests/boundary/boundary_max_safe.json"
+    expected_exit_code: 0
+
+security_tests:
+  - name: "exploit_large_number"
+    input_file: "tests/exploits/exploit_primary.json"
+    description: "Stack buffer overflow via 80-digit numeric literal exceeding 32-byte stack buffer"
+  - name: "exploit_bypass_shallow"
+    input_file: "tests/exploits/exploit_secondary.json"
+    description: "Secondary exploit with 45-digit number bypassing incomplete 64 check"

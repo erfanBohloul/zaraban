@@ -1,0 +1,37 @@
+name: Zaraban CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install System Dependencies (C/C++ Toolchain & Sanitizers)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential gcc g++ clang llvm lld binutils file
+
+      - name: Install Python Dependencies
+        run: |
+          pip install pyyaml
+
+      - name: Run Unit Tests
+        run: |
+          python3 -m unittest discover tests
+
+      - name: Run Full Evaluation Matrix (Targets 1 & 2)
+        run: |
+          python3 scripts/run_matrix.py

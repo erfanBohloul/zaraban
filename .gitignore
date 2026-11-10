@@ -223,6 +223,9 @@ __marimo__/
 .DS_Store
 
 # Tool outputs
-report.json
+report*.json
 token_parser
+cjson_tool
 *.o
+*.dSYM/
+artifacts/

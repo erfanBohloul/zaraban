@@ -1,9 +1,15 @@
 """Command Line Interface (CLI) entrypoint for Zaraban."""
 
+from __future__ import annotations
 import argparse
 import sys
+from pathlib import Path
+
 from zaraban import __version__
 from zaraban.constants import ExitCode
+from zaraban.config import TargetConfig
+from zaraban.core.validator import PatchValidator
+from zaraban.reporter import ConsoleReporter, JsonReporter
 
 
 def parse_args(args=None):
@@ -39,6 +45,11 @@ def parse_args(args=None):
         help="Path to git diff file if not derived automatically"
     )
     parser.add_argument(
+        "--artifacts",
+        default="artifacts",
+        help="Directory to store reproducer bundles and regression suites (default: artifacts)"
+    )
+    parser.add_argument(
         "--verbose", "-v",
         action="store_true",
         help="Enable verbose output"
@@ -48,22 +59,41 @@ def parse_args(args=None):
 
 def main():
     args = parse_args()
-    print(f"[*] Zaraban v{__version__} - Starting patch validation...")
-    print(f"[*] Config: {args.config}")
-    
-    # Placeholder for execution flow until modules are connected:
-    # 1. Load config
-    # 2. Build Base and Patch (Release & Sanitized)
-    # 3. Check Binary Hardening
-    # 4. Reproduce Base Vulnerability
-    # 5. Run Dynamic Test Suite on Patch (Release & Sanitized)
-    # 6. Check for Functional Regressions
-    # 7. Correlate Crashes with Git Diff
-    # 8. Minimize any new/remnant crashing inputs
-    # 9. Generate Reproducer Bundle & JSON Report
-    # 10. Exit with designated ExitCode
-    
-    sys.exit(ExitCode.PASS)
+    config_path = Path(args.config).resolve()
+    if not config_path.is_file():
+        print(f"[!] Error: Configuration file not found: {args.config}", file=sys.stderr)
+        sys.exit(ExitCode.ERROR_CONFIG_OR_BUILD)
+
+    try:
+        config = TargetConfig.from_file(config_path)
+    except Exception as e:
+        print(f"[!] Error parsing configuration file: {e}", file=sys.stderr)
+        sys.exit(ExitCode.ERROR_CONFIG_OR_BUILD)
+
+    # Determine base and patch directories
+    target_root = config_path.parent
+    base_dir = Path(args.base_dir).resolve() if args.base_dir else target_root
+    patch_dir = Path(args.patch_dir).resolve() if args.patch_dir else target_root
+    diff_file = Path(args.diff).resolve() if args.diff else (target_root / config.diff_file if config.diff_file else None)
+
+    validator = PatchValidator(
+        config=config,
+        base_dir=base_dir,
+        patch_dir=patch_dir,
+        diff_file=diff_file,
+        artifacts_dir=args.artifacts
+    )
+
+    try:
+        summary = validator.validate()
+    except Exception as e:
+        print(f"[!] Unexpected error during validation: {e}", file=sys.stderr)
+        sys.exit(ExitCode.ERROR_CONFIG_OR_BUILD)
+
+    ConsoleReporter.print_summary(summary)
+    JsonReporter.save_report(summary, args.report)
+
+    sys.exit(int(summary.exit_code))
 
 
 if __name__ == "__main__":

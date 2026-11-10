@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 import os
+import platform
+import shutil
 import signal
 import subprocess
 import time
@@ -29,6 +31,7 @@ class ExecutionResult:
     duration_seconds: float = 0.0
     detection_mechanism: Optional[str] = None
     error_summary: Optional[str] = None
+    crash_report: Optional[Any] = None
 
     @property
     def is_crash(self) -> bool:
@@ -72,8 +75,19 @@ class SafeRunner:
 
         # Configure sanitizer options if sanitized build
         if is_sanitized:
-            run_env["ASAN_OPTIONS"] = run_env.get("ASAN_OPTIONS", "") + f":max_allocation_size_mb={memory_limit_mb}:abort_on_error=1:symbolize=1"
-            run_env["UBSAN_OPTIONS"] = run_env.get("UBSAN_OPTIONS", "") + ":abort_on_error=1:symbolize=1:print_stacktrace=1"
+            has_llvm_symbolizer = shutil.which("llvm-symbolizer") is not None
+            sym_flag = "1" if has_llvm_symbolizer else "0"
+            asan_defaults = f":max_allocation_size_mb={memory_limit_mb}:abort_on_error=1:symbolize={sym_flag}"
+            if "ASAN_OPTIONS" not in run_env:
+                run_env["ASAN_OPTIONS"] = asan_defaults.lstrip(":")
+            else:
+                run_env["ASAN_OPTIONS"] += asan_defaults
+            
+            ubsan_defaults = f":abort_on_error=1:symbolize={sym_flag}:print_stacktrace=1"
+            if "UBSAN_OPTIONS" not in run_env:
+                run_env["UBSAN_OPTIONS"] = ubsan_defaults.lstrip(":")
+            else:
+                run_env["UBSAN_OPTIONS"] += ubsan_defaults
 
         stdin_stream = None
         stdin_bytes = None
@@ -95,9 +109,9 @@ class SafeRunner:
                 cpu_limit = max(1, int(timeout_seconds) + 1)
                 resource.setrlimit(resource.RLIMIT_CPU, (cpu_limit, cpu_limit + 1))
 
-                # 3. Memory limit for non-sanitized builds
+                # 3. Memory limit for non-sanitized builds on Linux
                 # (Notice: DO NOT set RLIMIT_AS for ASan builds, as ASan reserves 16TB+ shadow space)
-                if not is_sanitized:
+                if not is_sanitized and platform.system() == "Linux":
                     mem_bytes = memory_limit_mb * 1024 * 1024
                     try:
                         resource.setrlimit(resource.RLIMIT_DATA, (mem_bytes, mem_bytes))
@@ -117,7 +131,7 @@ class SafeRunner:
         try:
             process = subprocess.Popen(
                 cmd,
-                stdin=subprocess.PIPE if stdin_bytes is not None else None,
+                stdin=subprocess.PIPE if stdin_bytes is not None else subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 cwd=cwd,
@@ -152,35 +166,19 @@ class SafeRunner:
             if sig_num == signal.SIGXCPU:
                 cpu_exceeded = True
 
-        # Detect detection mechanism
-        detection_mechanism = None
-        error_summary = None
+        from zaraban.correlator.crash_parser import CrashParser
+        crash_rep = CrashParser.parse_execution(
+            stdout=stdout_text,
+            stderr=stderr_text,
+            exit_code=exit_code,
+            signal_num=sig_num,
+            signal_name=sig_name,
+            timed_out=timed_out,
+            cpu_exceeded=cpu_exceeded
+        )
 
-        if timed_out:
-            detection_mechanism = "ResourceLimit/Timeout"
-            error_summary = f"Execution exceeded wall-clock limit ({timeout_seconds:.1f}s)"
-        elif cpu_exceeded or sig_num == signal.SIGXCPU:
-            detection_mechanism = "ResourceLimit/CPU"
-            error_summary = "Execution exceeded CPU time limit (SIGXCPU)"
-        elif "AddressSanitizer" in stderr_text:
-            detection_mechanism = "Sanitizer/ASan"
-            # Extract first line of ASan report
-            for line in stderr_text.splitlines():
-                if "ERROR: AddressSanitizer:" in line or "SUMMARY: AddressSanitizer:" in line:
-                    error_summary = line.strip()
-                    break
-        elif "UndefinedBehaviorSanitizer" in stderr_text:
-            detection_mechanism = "Sanitizer/UBSan"
-            for line in stderr_text.splitlines():
-                if "runtime error:" in line:
-                    error_summary = line.strip()
-                    break
-        elif "*** buffer overflow detected ***" in stderr_text or "__stack_chk_fail" in stderr_text:
-            detection_mechanism = "BinaryProtection/StackCanary"
-            error_summary = "Stack canary corruption detected (__stack_chk_fail)"
-        elif sig_num is not None:
-            detection_mechanism = f"OS_Signal/{sig_name}"
-            error_summary = f"Process terminated by signal {sig_name} (code {sig_num})"
+        detection_mechanism = crash_rep.detection_mechanism if crash_rep else None
+        error_summary = crash_rep.raw_summary if crash_rep else None
 
         return ExecutionResult(
             stdout=stdout_text,
@@ -190,9 +188,10 @@ class SafeRunner:
             signal_name=sig_name,
             timed_out=timed_out,
             cpu_limit_exceeded=cpu_exceeded,
-            memory_limit_exceeded=False,  # updated via ASan / rusage checks
+            memory_limit_exceeded=False,
             peak_rss_kb=peak_rss_kb,
             duration_seconds=duration,
             detection_mechanism=detection_mechanism,
-            error_summary=error_summary
+            error_summary=error_summary,
+            crash_report=crash_rep
         )

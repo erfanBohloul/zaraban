@@ -1,0 +1,20 @@
+--- targets/target2_cjson/src/cJSON.c	2026-11-10 18:17:04
++++ targets/target2_cjson/versions/patch_correct/src/cJSON.c	2026-11-10 18:17:04
+@@ -60,11 +60,15 @@
+ 
+     size_t len = (size_t)(p - num);
+ 
+-    /* VULNERABLE: Direct unbounded copy into fixed stack buffer */
++    /* CORRECT PATCH: Validate length before copying */
++    if (len >= sizeof(num_buf)) {
++        return NULL;
++    }
++
+     for (i = 0; i < len; i++) {
+         num_buf[i] = num[i];
+     }
+-    num_buf[i] = '\0';
++    num_buf[len] = '\0';
+ 
+     item->valuedouble = atof(num_buf);
+     if (item->valuedouble >= 2147483647.0) item->valueint = 2147483647;
