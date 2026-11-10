@@ -1,0 +1,16 @@
+{
+  "target": {
+    "title": "Goodbye!",
+    "author": {
+      "givenName": "John",
+      "familyName": "Doe"
+    }
+  },
+  "patch": {
+    "title": "Hello!",
+    "phoneNumber": "+01-123-456-7890",
+    "author": {
+      "familyName": null
+    }
+  }
+}

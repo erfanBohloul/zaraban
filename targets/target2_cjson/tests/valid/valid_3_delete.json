@@ -1,0 +1,9 @@
+{
+  "target": {
+    "active": true,
+    "deprecated_key": "remove_this"
+  },
+  "patch": {
+    "deprecated_key": null
+  }
+}

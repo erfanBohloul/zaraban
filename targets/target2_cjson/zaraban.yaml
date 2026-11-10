@@ -1,0 +1,44 @@
+name: "cjson_merge_patch"
+input_method: "file"
+
+build:
+  binary_path: "cjson_patcher"
+  release_cmd: "make release"
+  sanitized_cmd: "make sanitized"
+  clean_cmd: "make clean"
+
+limits:
+  timeout_seconds: 2.0
+  memory_limit_mb: 128
+
+valid_tests:
+  - name: "valid_rfc7386"
+    input_file: "tests/valid/valid_1_rfc7386.json"
+    expected_exit_code: 0
+    expected_output: '{"title":"Hello!","phoneNumber":"+01-123-456-7890","author":{"givenName":"John"}}'
+  - name: "valid_replace"
+    input_file: "tests/valid/valid_2_replace.json"
+    expected_exit_code: 0
+    expected_output: '{"status":"completed","count":2}'
+  - name: "valid_delete"
+    input_file: "tests/valid/valid_3_delete.json"
+    expected_exit_code: 0
+    expected_output: '{"active":true}'
+
+boundary_tests:
+  - name: "boundary_empty"
+    input_file: "tests/boundary/boundary_empty.json"
+    expected_exit_code: 0
+    expected_output: '{}'
+  - name: "boundary_scalars"
+    input_file: "tests/boundary/boundary_scalars.json"
+    expected_exit_code: 0
+    expected_output: '"scalar_new"'
+
+security_tests:
+  - name: "exploit_primary"
+    input_file: "tests/exploits/exploit_primary.json"
+    description: "Heap use-after-free in merge_patch via non-object patch aliasing target subtree"
+  - name: "exploit_secondary"
+    input_file: "tests/exploits/exploit_secondary.json"
+    description: "Heap use-after-free bypassing incomplete patch via object patch in non-object target"

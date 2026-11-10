@@ -1,0 +1,44 @@
+--- targets/target2_cjson/src/cJSON_Utils.c	2026-11-10 16:04:13
++++ targets/target2_cjson/versions/patch_correct/src/cJSON_Utils.c	2026-11-10 16:07:50
+@@ -1321,21 +1321,27 @@
+ static cJSON *merge_patch(cJSON *target, const cJSON * const patch, const cJSON_bool case_sensitive)
+ {
+     cJSON *patch_child = NULL;
++    cJSON *patch_copy = NULL;
++    const cJSON *effective_patch = patch;
+ 
+     if (!cJSON_IsObject(patch))
+     {
+-        /* scalar value, array or NULL, just duplicate */
++        /* Correct patch (PR #1109): Duplicate patch first if it is a subtree */
++        cJSON *duplicate = cJSON_Duplicate(patch, 1);
+         cJSON_Delete(target);
+-        return cJSON_Duplicate(patch, 1);
++        return duplicate;
+     }
+ 
+     if (!cJSON_IsObject(target))
+     {
++        /* Correct patch (PR #1109): Duplicate patch first if it is a subtree of target */
++        patch_copy = cJSON_Duplicate(patch, 1);
+         cJSON_Delete(target);
+         target = cJSON_CreateObject();
++        effective_patch = patch_copy;
+     }
+ 
+-    patch_child = patch->child;
++    patch_child = effective_patch->child;
+     while (patch_child != NULL)
+     {
+         if (cJSON_IsNull(patch_child))
+@@ -1375,6 +1381,10 @@
+         }
+         patch_child = patch_child->next;
+     }
++    if (patch_copy != NULL)
++    {
++        cJSON_Delete(patch_copy);
++    }
+     return target;
+ }
+ 

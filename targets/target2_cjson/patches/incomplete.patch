@@ -1,0 +1,16 @@
+--- targets/target2_cjson/src/cJSON_Utils.c	2026-11-10 16:04:13
++++ targets/target2_cjson/versions/patch_incomplete/src/cJSON_Utils.c	2026-11-10 16:07:50
+@@ -1324,9 +1324,11 @@
+ 
+     if (!cJSON_IsObject(patch))
+     {
+-        /* scalar value, array or NULL, just duplicate */
++        /* Incomplete patch (PR #1060): Duplicate patch before deleting target,
++         * but ONLY handles case where patch is not an object. */
++        cJSON *duplicate = cJSON_Duplicate(patch, 1);
+         cJSON_Delete(target);
+-        return cJSON_Duplicate(patch, 1);
++        return duplicate;
+     }
+ 
+     if (!cJSON_IsObject(target))

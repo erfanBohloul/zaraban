@@ -1,0 +1,4 @@
+{
+  "target": "scalar_old",
+  "patch": "scalar_new"
+}
