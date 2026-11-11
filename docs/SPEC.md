@@ -770,9 +770,188 @@ records the warning `REPEATS_TOO_LOW`.
 
 ---
 
+## 8. Findings
+
+### 8.1 What a finding is
+
+A **finding** is one reportable problem, found by comparing how the tests
+behave on base and on patch. Every finding has one of the five categories of
+§3.1 of the spec:
+
+| Category | Meaning |
+|---|---|
+| `FIXED` | An error that occurs on base no longer occurs on patch, within the tests run. |
+| `INCOMPLETE_FIX` | An error that occurs on base still occurs on patch. |
+| `NEW_ISSUE` | An error occurs on patch that does not occur on base. |
+| `FUNCTIONAL_REGRESSION` | A behavior that is correct on base is wrong on patch, without a crash. |
+| `INCONCLUSIVE` | Something abnormal was observed, but the evidence is not enough to put it in another category. |
+
+A finding can come from **several tests**. Crashes are grouped by signature
+(§7.4), so that one error reached by several inputs is one finding. This
+follows the spec's own description of an incomplete patch (§4): it blocks the
+original input, but the same vulnerability still occurs with a different
+input. Reporting the two inputs as one `FIXED` finding and one
+`INCOMPLETE_FIX` finding would describe the same error as both fixed and not
+fixed.
+
+Findings that do not involve a crash, and crashes without a reliable
+signature, are **one finding per test**, because there is no evidence that two
+such tests show the same problem.
+
+Findings are built from the combined results of §7.5: one result per test per
+build.
+
+### 8.2 Crash findings
+
+Crash findings use the **sanitized** builds, because only they give an error
+type and a stack trace reliable enough to compare.
+
+1. Collect every signature that appears in a stable `CRASH` result on
+   `base-sanitized` or `patch-sanitized`, from tests of any kind.
+2. For each signature S, find:
+   - **B**: the tests whose `base-sanitized` result is a crash with S;
+   - **P**: the tests whose `patch-sanitized` result is a crash with S.
+3. Create one finding for S:
+
+| B | P | Category |
+|---|---|---|
+| not empty | empty | `FIXED` |
+| not empty | not empty | `INCOMPLETE_FIX` |
+| empty | not empty | `NEW_ISSUE` |
+
+The finding lists every test in B and P, with that test's result on all four
+builds, including the release builds. The release results are reported next to
+the sanitized ones and never merged with them (§3.2 of the spec).
+
+Consequences of these rules:
+
+- **The worst case decides.** If even one test still reaches S on patch, the
+  finding is `INCOMPLETE_FIX`. The tests that are blocked on patch are listed
+  in the same finding, marked as blocked.
+- **A test can be in two findings.** If a test crashes on base with S1 and on
+  patch with a different S2, it appears in the finding for S1 (where it is no
+  longer reaching S1) and in a `NEW_ISSUE` finding for S2.
+- **Comparison is by signature, not by "both crashed".** Two crashes are the
+  same error only if their error type and top three functions are equal.
+
+### 8.3 Crashes without a signature
+
+A crash has no signature when its stack trace has no function names (§7.4).
+Such crashes are never grouped. For each test, using its sanitized results:
+
+| Base | Patch | Finding |
+|---|---|---|
+| crash without signature | no crash | `FIXED`. The base crash is gone, and nothing on patch needs to be compared. |
+| no crash | crash without signature, known error type | `NEW_ISSUE` |
+| no crash | crash without signature, error type `ABORT` or `UNKNOWN` | `INCONCLUSIVE`: an unclassified stop is not enough evidence of a security error (§3.5 of the spec, code 40). |
+| crash without signature | crash (with or without signature) | `INCONCLUSIVE`: there is no way to tell whether it is the same error. |
+
+A test whose **release** build crashes while its sanitized build of the same
+version does not gets an `INCONCLUSIVE` finding, with the release and
+sanitized results side by side. The release build is the real program, so the
+crash must be reported, but without a sanitizer report it cannot be
+classified.
+
+### 8.4 Functional findings
+
+These use the oracle results of runs that did **not** crash. Crashes are
+always handled by §8.2 and §8.3, so a crash on a valid input is a security
+finding (`NEW_ISSUE`), never a functional one. For each test:
+
+| Test kind | Condition | Finding |
+|---|---|---|
+| `valid`, `boundary`, `invalid` | Matches the oracle on both base builds, and does not match it on at least one patch build. | `FUNCTIONAL_REGRESSION` |
+| `valid`, `boundary`, `invalid` | Does not match the oracle on a base build. | `INCONCLUSIVE`: the test or its oracle is wrong, so it cannot judge the patch. |
+| `security` | Does not crash on patch, but does not match its oracle there. | `INCONCLUSIVE`: the patch avoids the crash but does not behave as expected. This is not a functional regression, because the base never had the expected behavior (§3.1 of the spec). |
+
+A `TIMEOUT` or `RESOURCE_LIMIT` result counts as "does not match the oracle".
+So a valid input that runs normally on base and hangs on patch is a
+`FUNCTIONAL_REGRESSION`, with the termination recorded as `TIMEOUT`. It is
+never a crash (§7.3).
+
+A `TIMEOUT` or `RESOURCE_LIMIT` on patch for a `security` or `regression` test
+gets an `INCONCLUSIVE` finding: the spec says that not every stop is an
+exploitable vulnerability (§3.2).
+
+### 8.5 Flaky results
+
+If any build of a test has a flaky result (§7.5), that test gets one
+`INCONCLUSIVE` finding that lists the flaky builds and the differing repeats.
+Flaky crash results are **not** used to build crash findings, because a
+signature that appears only in some repeats could be grouped wrongly.
+
+### 8.6 What is not a finding
+
+- A test that behaves as expected on both versions. Its results are still in
+  the execution logs (§12).
+- A `security` test that does **not** crash on base. This means the
+  vulnerability was not reproduced. It is a status condition with code `40`,
+  not a finding (§13).
+- A `regression` test that does not crash on base. In CI, base is often a
+  commit that already contains an earlier fix, so this is expected. It is
+  recorded as the warning `REGRESSION_BASE_CLEAN`. The test still runs on
+  patch, where a crash with its stored signature is an `INCOMPLETE_FIX`.
+
+### 8.7 Nothing is lost
+
+Grouping only changes how results are presented. It never removes one. To
+guarantee this, the tool checks at the end of every run that each abnormal
+result (a crash, an oracle mismatch, a timeout, a resource limit, or a flaky
+result, on any build) is referenced by at least one finding or status
+condition, and that each crash result with a signature is in exactly one
+crash finding. If the check fails, it is a bug in the tool: the run exits with
+code `30` and the error `TOOL_INTERNAL`.
+
+The raw results of every run are kept in any case (§12), independent of how
+findings are built.
+
+### 8.8 Contents of a finding
+
+Each finding records:
+
+- an **id**: `F-001`, `F-002`, …, numbered in the order the findings are first
+  observed in the run order of §7.1;
+- the **category**;
+- the **signature** and **error type**, or none for functional findings;
+- the **tests**: for each, its kind, and its outcome, detection mechanism,
+  signal or exit code, and oracle result on each of the four builds;
+- a **release** and a **sanitized** summary: what was observed on base and on
+  patch in each profile;
+- the **link to the patch** (§9);
+- the **evidence**: paths of the raw run files it is based on;
+- the **reproducer bundle** and **regression test**, if one was made (§10);
+- **notes**: a one-sentence explanation in plain words.
+
+The exact JSON format is defined in §12.
+
+### 8.9 Expected findings for the `token_parser` scenarios
+
+| Patch | Findings | Exit code |
+|---|---|---|
+| correct | F-001 `FIXED` `STACK_BUFFER_OVERFLOW @ handle_set_command < process_input < main`, tests `exploit_primary` and `exploit_secondary`, both blocked on patch. | `0` |
+| incomplete | F-001 `INCOMPLETE_FIX`, same signature: `exploit_primary` blocked on patch, `exploit_secondary` still crashing. | `10` |
+| regression | F-001 `FIXED` as for the correct patch; F-002 `FUNCTIONAL_REGRESSION` for `valid_set`, which is rejected by the new key-length check. | `20` |
+
+These expectations go into the target's `scenarios.yaml` (§14), so that the
+scenario script checks the findings, not only the exit code.
+
+### 8.10 Change from current code
+
+| Behavior | Current code | This spec |
+|---|---|---|
+| Unit of a finding | One finding per test, for every test, including tests that behave normally on both versions (reported as `Fixed`). | One finding per crash signature, or per test for other problems. Normal tests produce no finding. |
+| Same error on base and patch | Both crashed with the same signal and detection mechanism. | Same signature: same error type and same top three functions. |
+| Different error on patch | Reported as `Incomplete Fix`. | A `NEW_ISSUE` finding for the new signature. |
+| Crash on a valid input on patch | `Functional Regression` (code 20). | `NEW_ISSUE` (code 10). |
+| Release results | Not part of findings. | Reported next to the sanitized results. |
+| Base fails a valid test's oracle | Not detected. | `INCONCLUSIVE`. |
+| Flaky results | Not detected (one run per test). | `INCONCLUSIVE`. |
+| Completeness check | None. | Every abnormal result must be referenced. |
+
+---
+
 ## Sections still to be written
 
-- 8. Findings
 - 9. Linking findings to the patch
 - 10. Minimization, reproducer bundles and regression tests
 - 11. Binary hardening
