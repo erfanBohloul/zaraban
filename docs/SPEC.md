@@ -7,8 +7,7 @@ agent) implementing the tool.
 The course specification is [`project1_spec.pdf`](project1_spec.pdf). This
 document cites it as "the spec", with section numbers such as §3.1.
 
-> **Status:** draft, written section by section on branch `docs/spec`.
-> Sections marked *(to be written)* are not decided yet.
+> **Status:** draft for team review, on branch `docs/spec`.
 
 Where a section changes something that exists in the current code, it says so
 under **Change from current code**. "Current code" means the `main` branch plus
@@ -33,7 +32,7 @@ These words have one fixed meaning throughout this document.
 | **Run** | One execution of one test on one build. |
 | **Repeat** | Each test is run several times on each build (default 3) to detect unstable results. |
 | **Signature** | A short identifier of a crash: error type plus the top three functions of the stack trace, for example `STACK_BUFFER_OVERFLOW @ handle_set_command < process_input < main`. |
-| **Finding** | One reportable problem, built from one or more tests. Defined in §8 *(to be written)*. |
+| **Finding** | One reportable problem, built from one or more tests. Defined in §8. |
 
 ---
 
@@ -86,7 +85,7 @@ python -m zaraban.cli -c <config> --patch <patch> [options]
 | `-c`, `--config` | yes | | Path to the target's `zaraban.yaml`. |
 | `--patch` | yes, except with `--check-config` | | The patched version. See §3.2 for accepted forms. |
 | `--base` | no | `base_dir` from the config | The base version. See §3.2. |
-| `--out` | no | `out/` | Directory where all outputs of this run are written (§ outputs, *to be written*). |
+| `--out` | no | `out/` | Directory where all outputs of this run are written (§12). |
 | `--repeats` | no | `repeats` from the config (3) | How many times each test runs on each build. |
 | `--no-promote` | no | off | Do not copy new regression tests into the target's `tests/regression/` directory. They are still written to the run's output directory. |
 | `--keep-work` | no | off | Keep the temporary build directories after the run, for debugging. |
@@ -139,7 +138,7 @@ Why accept all three forms: at the defense session, unseen patches are given
 to us through an agreed interface (§4 of the spec), most likely as diff files
 or commits. In CI, the natural input is a pair of commits. For the delivered
 scenarios, the repository stores both full version directories and diff files
-(see the target layout, *to be written*), and both must give the same result.
+(§14.2), and both must give the same result.
 
 The tool must never depend on the file name or identity of the patch. Its
 verdict comes only from building and running the code (§4 of the spec).
@@ -191,7 +190,7 @@ python -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
 The same scenario, giving the patch as a full directory. The result must be
 identical. (This requires the version directory to be a complete tree with
 its own Makefile. On `main` today, `versions/patch_*` contain only `src/`;
-the target layout section will fix this.)
+see §14.2.)
 
 ```bash
 python -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
@@ -1275,9 +1274,487 @@ four builds. Its expectation is: on base, a crash with `signature` if
 
 ---
 
-## Sections still to be written
+## 11. Binary hardening
 
-- 11. Binary hardening
-- 12. Outputs and their formats
-- 13. Status and exit codes
-- 14. Repository layout and deliverables
+### 11.1 What is checked
+
+Section 3.4 of the spec requires the tool to check NX, PIE, RELRO and the stack
+canary of the normal (release) build, with evidence for each, and to warn when
+a protection is unintentionally lost in the new version, for example because
+the build script changed.
+
+The tool checks the two **release** binaries, `base-release` and
+`patch-release`. Sanitized builds are not checked: they are instrumented and do
+not represent the delivered program.
+
+### 11.2 Checks and evidence
+
+All checks read the ELF file directly (program headers, dynamic section and
+symbol tables). Each result records the evidence it was based on.
+
+| Protection | Result | Rule | Evidence recorded |
+|---|---|---|---|
+| NX | enabled / disabled | Enabled when a `PT_GNU_STACK` header exists and does not have the execute flag. Disabled when the flag is set, or when the header is missing (the stack is then executable by default). | Presence and flags of `PT_GNU_STACK`. |
+| PIE | enabled / disabled | Enabled when the ELF type is `ET_DYN` and the file has a `PT_INTERP` header (an executable, not a shared library). Disabled for `ET_EXEC`. | ELF type, presence of `PT_INTERP`, `DF_1_PIE` flag if present. |
+| RELRO | none / partial / full | None without a `PT_GNU_RELRO` header. Full with `PT_GNU_RELRO` and immediate binding (`DT_BIND_NOW`, or `DF_BIND_NOW` in `DT_FLAGS`, or `DF_1_NOW` in `DT_FLAGS_1`). Partial otherwise. | Presence of `PT_GNU_RELRO` and the binding tag found. |
+| Stack canary | present / absent | Present when the symbol tables reference `__stack_chk_fail`. | The symbol and the table it was found in. |
+
+### 11.3 Comparison and warnings
+
+For each protection, the patch result is compared with the base result.
+Protections are ordered from weak to strong: disabled < enabled for NX, PIE
+and the canary, and none < partial < full for RELRO.
+
+- **Weaker on patch**: the warning `HARDENING_DOWNGRADE`, naming the
+  protection, both values and both pieces of evidence.
+- **Stronger on patch**: recorded as an improvement, without a warning.
+- **Equal**: recorded as unchanged.
+
+Hardening results never change the exit code: the spec asks for a warning, and
+none of the exit codes of §3.5 covers hardening.
+
+The report always includes two notes required by §3.4 of the spec:
+
+- A PIE binary does not prove that ASLR is active at runtime.
+- Evidence of a stack canary does not mean every function is protected.
+
+### 11.4 Change from current code
+
+| Behavior | Current code | This spec |
+|---|---|---|
+| Implementation | Two separate versions: an NX-only checker using `pyelftools` on the `hardening` branch, and a hand-written ELF parser covering all four protections on the engine branch. | One checker. The hand-written parser can be kept, with the changes below. |
+| Canary | Searches the raw bytes of the file for the string `__stack_chk_fail`. | Looks the symbol up in the symbol tables. |
+| PIE | `ET_DYN` only, which is also true for shared libraries. | `ET_DYN` with `PT_INTERP`. |
+| Mach-O support | A fallback for macOS binaries. | Removed; the spec covers Linux ELF only. |
+| Downgrades | Added to the report's errors, but do not change the exit code. | Reported as warnings. |
+
+---
+
+## 12. Outputs and their formats
+
+### 12.1 Output directory
+
+Every run writes all its outputs to one new directory:
+
+```
+out/<target name>/<run id>/
+```
+
+The run id is the UTC start time and the first 8 hex digits of the diff's
+SHA-256 hash, for example `20261111-183002-3f2a91c0`. Its contents:
+
+```
+report.json                       the full structured report (§12.4)
+summary.txt                       the human-readable summary (§12.5)
+errors.log                        full error details, only if the tool itself failed
+inputs/
+  config.yaml                     copy of the config used
+  patch.diff                      the diff used
+builds/<build>/                   one per build (§6)
+  build.json
+  build.log
+  bin/<binary>
+runs/<test>/<build>/              one per test and build (§7)
+  <n>.json  <n>.stdout  <n>.stderr        n = 1 … repeats
+reproducers/<finding id>/         one per bundle (§10.3)
+regression/                       new regression tests of this run (§10.6)
+```
+
+The temporary build copies (`work/`) are deleted at the end of the run, unless
+`--keep-work` is given. `out/` is listed in `.gitignore`.
+
+### 12.2 Conventions
+
+- JSON files are UTF-8 and start with `"schema_version": 1`.
+- Paths inside JSON files are relative to the run directory.
+- Times are ISO 8601 in UTC. Durations are in seconds. Sizes are in bytes.
+- Hashes are SHA-256, written as lowercase hex.
+- A value that does not apply is `null`, never omitted.
+- Program output (standard output and standard error) is never placed inside
+  JSON. It is stored byte for byte in its own files.
+
+### 12.3 Build and run records
+
+**`builds/<build>/build.json`** has the fields listed in §6.4: `build`,
+`version`, `profile`, `status` (`ok` or `failed`), `cmd`, `env`, `cwd`,
+`compiler`, `exit_code`, `duration_s`, `log`, `binary` (`path`, `size`,
+`sha256`) and `sanitizers_verified`.
+
+**`runs/<test>/<build>/<n>.json`** has one record per run:
+
+| Field | Content |
+|---|---|
+| `test`, `kind`, `build`, `repeat` | Which run this is. |
+| `cmd`, `env`, `cwd` | The exact command, environment and working directory. |
+| `input` | `method`, file `name`, `size`, `sha256`. |
+| `exit_code`, `signal` | How the program ended. One of the two is `null`. |
+| `timed_out`, `limit_hit` | `true`/`false`, and `cpu`, `memory` or `null`. |
+| `duration_s`, `peak_rss_kb` | Duration and peak memory. |
+| `stdout`, `stderr` | `path`, `bytes`, `sha256`, `truncated`. |
+| `analysis` | `outcome`, `detection`, `error_type`, `summary` (the first line of the sanitizer or runtime report), `frames` (list of `index`, `function`, `file`, `line`, `runtime`), `signature`. |
+| `oracle` | `checked`, `passed`, and `reasons` (for example `exit code 1, expected 0`). |
+
+### 12.4 `report.json`
+
+Top-level fields, in this order:
+
+| Field | Content |
+|---|---|
+| `schema_version`, `tool` | Format version; tool name and version. |
+| `run_id`, `started_at`, `duration_s` | The run. |
+| `target` | `name`, `config` (path of the copy), `config_sha256`. |
+| `versions` | `base` and `patch`: `form` (`directory`, `diff` or `git`), `ref` (as given), `git_commit`, `tree_sha256`, and for a diff `strip_level`. `diff`: `path`, `sha256`, changed `files`, number of `hunks`. |
+| `environment` | `os`, `kernel`, `arch`, `docker_image`, `python`, `gcc`, `clang`, `llvm_symbolizer` (path or `null`). |
+| `settings` | `repeats`, `limits`, `sanitizer_options`. |
+| `builds` | For each build: `status`, `binary_sha256`, `details` (path of `build.json`). |
+| `hardening` | `base` and `patch`: for each protection its value and evidence; `changes` (protection, from, to, `downgrade` or `improvement`); `notes` (§11.3). |
+| `execution_logs` | For each build, for each test: the combined result (below). |
+| `findings` | List of findings (below). |
+| `regression_added` | List of regression tests handled in this run (below). |
+| `status` | Checks, conditions and exit code (§13). |
+| `warnings`, `errors` | Lists of `{code, message, details}` (§12.6). |
+
+**`execution_logs`**: keyed by build (`base-release`, `base-sanitized`,
+`patch-release`, `patch-sanitized`), then by test name. Each entry is the
+combined result of the repeats (§7.5):
+
+```json
+"patch-sanitized": {
+  "exploit_secondary": {
+    "kind": "security", "outcome": "CRASH", "exit_code": null, "signal": "SIGABRT",
+    "detection": "ASAN", "error_type": "STACK_BUFFER_OVERFLOW",
+    "signature": "STACK_BUFFER_OVERFLOW @ handle_set_command < process_input < main",
+    "top_frame": "handle_set_command src/main.c:37",
+    "oracle_passed": null, "flaky": false,
+    "runs": "runs/exploit_secondary/patch-sanitized/"
+  }
+}
+```
+
+**`findings`**: one object per finding, with the contents of §8.8:
+
+```json
+{
+  "id": "F-001",
+  "category": "INCOMPLETE_FIX",
+  "signature": "STACK_BUFFER_OVERFLOW @ handle_set_command < process_input < main",
+  "error_type": "STACK_BUFFER_OVERFLOW",
+  "tests": [
+    {"test": "exploit_primary", "kind": "security", "on_patch": "blocked",
+     "results": {"base-release": {"outcome": "CRASH", "detection": "FORTIFY", "signal": "SIGABRT"},
+                 "base-sanitized": {"outcome": "CRASH", "detection": "ASAN", "signal": "SIGABRT"},
+                 "patch-release": {"outcome": "NORMAL", "exit_code": 1},
+                 "patch-sanitized": {"outcome": "NORMAL", "exit_code": 1}}},
+    {"test": "exploit_secondary", "kind": "security", "on_patch": "reaches", "results": {"…": "…"}}
+  ],
+  "release":   {"base": "CRASH FORTIFY SIGABRT", "patch": "CRASH FORTIFY SIGABRT"},
+  "sanitized": {"base": "CRASH ASAN SIGABRT",    "patch": "CRASH ASAN SIGABRT"},
+  "link": {
+    "level": "IN_CHANGED_HUNK", "side": "patch",
+    "file": "src/main.c", "function": "handle_set_command", "line": 37, "frame": 1,
+    "hunk": "@@ -21,14 +21,19 @@", "executed_changed_lines": null,
+    "comparative_tests": ["exploit_primary", "exploit_secondary"],
+    "explanation": "Frame #1 handle_set_command (src/main.c:37) of the crash on patch lies inside hunk @@ -21,14 +21,19 @@. The patch blocks exploit_primary but exploit_secondary still reaches the same error."
+  },
+  "evidence": ["runs/exploit_primary/", "runs/exploit_secondary/"],
+  "reproducer": "reproducers/F-001/",
+  "regression_test": "regression/reg-exploit_secondary-3f2a91c0.yaml",
+  "notes": "The added length check (>= 100) does not protect the 64-byte buffer."
+}
+```
+
+`on_patch` is `reaches` (the test still shows the signature on patch),
+`blocked` (it no longer crashes), or `other_error` (it crashes on patch with a
+different signature, reported in another finding).
+
+**`regression_added`**: one object per regression test considered in this
+run: `name`, `from_finding`, `path`, `input_sha256`, `status` (`added`,
+`already_present` or `not_added`), and `promoted_to` (the target directory, or
+`null` with `--no-promote`).
+
+### 12.5 `summary.txt`
+
+The same text is printed at the end of the run. It has these parts, in order:
+the target and run id; base and patch; the state of the four builds; the
+hardening comparison; the number of tests, builds and repeats, and how many
+results were flaky; one block per finding; the final exit code and name; the
+path of `report.json`. Tests without findings are only counted, not listed.
+
+```
+ZARABAN 0.2.0  token_parser  run 20261111-183002-3f2a91c0
+base:  targets/target1_sample (directory)
+patch: targets/target1_sample/patches/incomplete.patch (diff, -p2)
+
+BUILDS     base-release ok · base-sanitized ok · patch-release ok · patch-sanitized ok
+HARDENING  NX on→on · PIE on→on · RELRO full→full · canary on→on   (no changes)
+TESTS      9 tests × 4 builds × 3 repeats   flaky: 0
+
+FINDINGS
+  F-001 INCOMPLETE_FIX  STACK_BUFFER_OVERFLOW @ handle_set_command < process_input < main
+        tests:     exploit_primary blocked · exploit_secondary reaches
+        release:   FORTIFY/SIGABRT → FORTIFY/SIGABRT
+        sanitized: ASAN/SIGABRT → ASAN/SIGABRT
+        link:      IN_CHANGED_HUNK  src/main.c:37 handle_set_command (patch side)
+        bundle:    reproducers/F-001  94 → 69 bytes, replay 3/3
+
+RESULT     exit 10  VULN_REMAINS
+report:    out/token_parser/20261111-183002-3f2a91c0/report.json
+```
+
+### 12.6 Warning and error codes
+
+Every entry in `warnings` and `errors` has a fixed `code`, a `message` for
+people, and `details` with the relevant values and paths. Warnings never change
+the exit code. Every error gives exit code `30`.
+
+| Warning | Meaning | Defined in |
+|---|---|---|
+| `NO_INVALID_TESTS` | The config has no invalid tests. | §4.5 |
+| `NO_DEBUG_INFO` | A sanitized binary has no debug information. | §6.3 |
+| `FORTIFY_IN_SANITIZED` | A sanitized binary uses fortify checks. | §6.3 |
+| `NO_SYMBOLIZER` | `llvm-symbolizer` was not found. | §7.2 |
+| `OUTPUT_TRUNCATED` | A run's output was cut at 1 MB. | §7.3 |
+| `REPEATS_TOO_LOW` | `repeats` is 1. | §7.5 |
+| `REGRESSION_BASE_CLEAN` | A regression test does not crash on the current base. | §8.6 |
+| `MINIMIZE_LIMIT` | Minimization stopped at its budget. | §10.2 |
+| `REGRESSION_NOT_ADDED` | A minimized input failed its check on base. | §10.6 |
+| `HARDENING_DOWNGRADE` | A protection is weaker on patch. | §11.3 |
+
+| Error | Meaning | Defined in |
+|---|---|---|
+| `ARGUMENT_INVALID` | Invalid command-line arguments. | §3.3 |
+| `SOURCE_NOT_FOUND` | A `--base` or `--patch` that is not a file, a directory, or a known git revision. | §3.2 |
+| `PATCH_APPLY_FAILED` | The diff does not apply with any strip level. | §3.2 |
+| `CONFIG_INVALID` | The config, or a regression test file, is invalid. All problems are listed in `details`. | §4.5 |
+| `BUILD_FAILED` | A build command failed, timed out, or did not produce the binary. | §6.2 |
+| `SANITIZER_MISSING` | A sanitized binary lacks a sanitizer. | §6.3 |
+| `PROFILE_MIXED` | A release binary contains AddressSanitizer. | §6.3 |
+| `TOOL_INTERNAL` | A bug in the tool, including a failed completeness check. Details are in `errors.log`. | §8.7 |
+
+### 12.7 Change from current code
+
+| Output | Current code | This spec |
+|---|---|---|
+| Location | `report.json` at `--report` (default: current directory) and artifacts under `--artifacts`, shared and overwritten by every run. | One new directory per run. |
+| Summary | Printed only. | Printed and saved as `summary.txt`. |
+| Raw run output | Not saved. | Every run's standard output, standard error and record. |
+| Build records | None. | `build.json` and `build.log` per build. |
+| Report: versions, environment, settings, builds | Missing. | Present (§3.5 of the spec: "versions and run settings"). |
+| `execution_logs` | Partly filled (§7.6), keys `base_release` and so on. | Every test on every build, keys `base-release` and so on. |
+| Warnings | None. | A separate list with fixed codes. |
+| Errors | Free-text strings. | Fixed codes with details. |
+
+---
+
+## 13. Status and exit codes
+
+### 13.1 Exit codes
+
+The exit codes and their names are exactly those of §3.5 of the spec:
+
+| Code | Name | Meaning |
+|---|---|---|
+| `0` | `PASS` | The error was reproduced on base and is not observed on patch within the tests; no other confirmed security error was recorded; all functional tests and required checks succeeded. |
+| `10` | `VULN_REMAINS` or `NEW_ISSUE` | The original error still occurs, or another security error with valid evidence was confirmed. |
+| `20` | `FUNC_REGRESSION` | At least one valid functional test that succeeded on base fails on patch. |
+| `30` | `BUILD_OR_CONFIG_ERROR` | The target did not build, the config is invalid, or the environment or the tool itself failed. |
+| `40` | `INCONCLUSIVE` | A required check could not be completed with sufficient evidence. |
+
+When several conditions hold at once, the exit code is the first in the
+order `30`, `10`, `20`, `40`, `0`.
+
+### 13.2 Required checks
+
+`PASS` is only possible when every required check succeeded. The report lists
+each check with its result:
+
+| Check | Succeeds when | If it fails |
+|---|---|---|
+| `builds_ok` | All four builds succeeded (§6.2). | Error, code `30`. |
+| `profiles_verified` | All four binaries passed profile verification (§6.3). | Error, code `30`. |
+| `all_runs_completed` | Every test ran `repeats` times on every build. | `TOOL_INTERNAL`, code `30`. |
+| `base_reproduced` | Every `security` test crashes on `base-sanitized` (§5.5). | Condition `INCONCLUSIVE`, code `40`, naming the tests. |
+| `results_stable` | No result is flaky (§7.5). | Covered by the `INCONCLUSIVE` findings of §8.5. |
+| `bundles_replayed` | Every reproducer bundle is stable (§10.4). | Covered by the `INCONCLUSIVE` findings of §10.4. |
+| `hardening_checked` | Both release binaries were inspected (§11). | Error `TOOL_INTERNAL`, code `30`. |
+
+### 13.3 Conditions
+
+A **condition** is one reason for an exit code. The tool collects all of them:
+
+| Condition | Code | Created when |
+|---|---|---|
+| `BUILD_OR_CONFIG_ERROR` | `30` | There is at least one error (§12.6). |
+| `VULN_REMAINS` | `10` | There is at least one `INCOMPLETE_FIX` finding. |
+| `NEW_ISSUE` | `10` | There is at least one `NEW_ISSUE` finding. |
+| `FUNC_REGRESSION` | `20` | There is at least one `FUNCTIONAL_REGRESSION` finding. |
+| `INCONCLUSIVE` | `40` | There is at least one `INCONCLUSIVE` finding, or `base_reproduced` failed. |
+| `PASS` | `0` | None of the above, and there is at least one `FIXED` finding. |
+
+If there are no conditions at all and no `FIXED` finding, which cannot happen
+when `base_reproduced` succeeded, the result is `INCONCLUSIVE`.
+
+Each condition records its code, its name, a reason in plain words, and the
+findings and tests that caused it.
+
+### 13.4 Final status
+
+The final exit code is the highest-priority condition (§13.1). If both
+`VULN_REMAINS` and `NEW_ISSUE` are present, the exit name is `VULN_REMAINS`.
+All conditions stay in the report, including those that did not decide the
+exit code (§3.5 of the spec).
+
+```json
+"status": {
+  "checks": {"builds_ok": true, "profiles_verified": true, "all_runs_completed": true,
+             "base_reproduced": true, "results_stable": true, "bundles_replayed": true,
+             "hardening_checked": true},
+  "conditions": [
+    {"code": 10, "name": "VULN_REMAINS", "reason": "F-001: the overflow is still reached by exploit_secondary",
+     "findings": ["F-001"], "tests": ["exploit_secondary"]}
+  ],
+  "exit_code": 10,
+  "exit_name": "VULN_REMAINS",
+  "reason": "VULN_REMAINS (F-001) has the highest priority among: VULN_REMAINS."
+}
+```
+
+What does **not** change the exit code: warnings (§12.6), and an
+`UNDETERMINED` link to the patch (§9.6).
+
+If the tool itself fails, it still writes the report with everything collected
+so far, adds the error `TOOL_INTERNAL`, and exits with `30`.
+
+### 13.5 Change from current code
+
+| Behavior | Current code | This spec |
+|---|---|---|
+| Names | `VULN_OR_NEW_ISSUE`, `ERROR_CONFIG_OR_BUILD`. | `VULN_REMAINS`, `NEW_ISSUE`, `BUILD_OR_CONFIG_ERROR`. |
+| Conditions | `candidate_codes`: a list of numbers. | Conditions with name, reason, findings and tests. |
+| Required checks | None; for example, `PASS` is returned although the patched release build never ran. | `PASS` requires every check of §13.2. |
+| Verdict text | One fixed sentence per code. | The reason of this run. |
+
+---
+
+## 14. Repository layout and deliverables
+
+### 14.1 Repository
+
+```
+zaraban/                      the tool (Python package; existing packages are kept)
+tests/                        unit tests of the tool (pytest)
+targets/<target>/             one directory per target (§14.2)
+scripts/run_matrix.py         runs and checks all delivered scenarios (§14.3)
+results/<target>/<scenario>/  committed outputs of the delivered scenarios
+docs/SPEC.md                  this document
+docs/DECISIONS.md             design decisions and their reasons
+README.md                     overview and the independent run guide
+Dockerfile, docker-compose.yml
+.github/workflows/zaraban.yml the CI pipeline (§14.4)
+out/                          run outputs (ignored by git)
+```
+
+### 14.2 Target directory
+
+```
+targets/<target>/
+  zaraban.yaml               the config (§4)
+  ORACLE.md                  the source of every expected behavior (§5.6)
+  scenarios.yaml             the delivered scenarios and their expected results (§14.3)
+  Makefile                   with `release` and `sanitized` rules
+  src/                       the base version
+  patches/correct.patch      the diff of each patched version against src/
+  patches/incomplete.patch
+  patches/regression.patch
+  versions/patch_correct/    each patched version as a complete tree: Makefile and src/
+  versions/patch_incomplete/
+  versions/patch_regression/
+  tests/valid/  tests/boundary/  tests/invalid/  tests/exploits/
+  tests/regression/          generated regression tests (§10.6)
+```
+
+Section 4 of the spec requires the four versions of each target to be ready in
+the repository. Each patched version is stored both as a complete tree, which
+is easy to read and build, and as a diff, which is the form used at the defense
+and for linking findings. The two must always agree (§14.3).
+
+**Change from current code**: on `main`, the `versions/patch_*` directories
+contain only `src/`, so they cannot be given as `--patch` directories. A copy
+of the Makefile must be added to each, as the engine branch already does.
+
+### 14.3 Scenarios
+
+`scenarios.yaml` lists the delivered scenarios of a target. The tool never
+reads it; it is used only by `scripts/run_matrix.py`.
+
+```yaml
+- name: correct
+  patch: patches/correct.patch
+  version_dir: versions/patch_correct
+  expect_exit: 0
+  expect_findings:
+    - {category: FIXED, tests: [exploit_primary, exploit_secondary]}
+- name: incomplete
+  patch: patches/incomplete.patch
+  version_dir: versions/patch_incomplete
+  expect_exit: 10
+  expect_findings:
+    - {category: INCOMPLETE_FIX, tests: [exploit_primary, exploit_secondary]}
+```
+
+For each scenario of each target, `scripts/run_matrix.py`:
+
+1. checks that `patch` equals the diff between `src/` and `version_dir`;
+2. runs the tool with `--patch` set to the diff file, and again with
+   `--patch` set to the version directory;
+3. checks that both runs give `expect_exit` and the expected findings
+   (category and tests);
+4. with `--save`, copies the run's output to `results/<target>/<scenario>/`,
+   without the `builds/*/bin/` binaries (the bundles keep their own copy);
+5. exits with `0` only if every scenario matched.
+
+### 14.4 CI pipeline
+
+`.github/workflows/zaraban.yml` runs on every push and pull request:
+
+1. Build the Docker image.
+2. Inside the image, run the tool's unit tests with `pytest`.
+3. Inside the image, run `scripts/run_matrix.py`.
+4. Upload `out/` as a build artifact, so every report and bundle can be
+   downloaded.
+
+The job fails when any step fails, so the tool's exit codes decide the
+pipeline result (§3.5 of the spec).
+
+### 14.5 Docker image
+
+The image is the isolated test environment required by §5 of the spec:
+
+- Ubuntu 22.04 on x86-64, with gcc, clang, llvm (for `llvm-symbolizer`), gdb,
+  binutils, `universal-ctags`, git and Python 3 with the tool's dependencies.
+- The tool runs as a non-root user.
+- `docker-compose.yml` sets resource limits on the container: memory
+  (`mem_limit`), CPU (`cpus`) and number of processes (`pids_limit`), and
+  disables networking (`network_mode: none`).
+
+**Change from current code**: the current image has no `universal-ctags`, runs
+as root, and the compose file sets no resource limits and leaves networking
+enabled.
+
+### 14.6 Deliverables
+
+Section 5 of the spec lists what must be delivered. Where each one is:
+
+| Deliverable | Location |
+|---|---|
+| Tool code | `zaraban/` |
+| Configuration | `targets/<target>/zaraban.yaml` |
+| Exact versions of the targets | `targets/<target>/src/`, `versions/`, `patches/` |
+| Tests | `targets/<target>/tests/`, with `ORACLE.md` |
+| Reproducer bundles | `results/<target>/<scenario>/reproducers/` |
+| Generated reports | `results/<target>/<scenario>/report.json` and `summary.txt` |
+| Pipeline file | `.github/workflows/zaraban.yml` |
+| Independent run guide | `README.md` |
+
+Both targets, their four versions and their oracles must be approved by the
+instructor during the design phase (§4 of the spec).
