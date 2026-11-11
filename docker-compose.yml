@@ -1,13 +1,51 @@
+# Zaraban containers (SPEC §14.5)
+#
+#   docker compose build                      build the image
+#   docker compose run --rm zaraban           interactive shell, no network
+#   docker compose run --rm zaraban pytest -q
+#   docker compose run --rm zaraban python3 -m zaraban.cli -c targets/<t>/zaraban.yaml --patch <p>
+#   docker compose run --rm zaraban-online    same image WITH network, only for
+#                                             fetching upstream sources (git clone)
+#
+# On Linux, build with your own user ids so files in out/ belong to you:
+#   UID=$(id -u) GID=$(id -g) docker compose build
+
 services:
   zaraban:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        USER_UID: ${UID:-1000}
+        USER_GID: ${GID:-1000}
     image: zaraban:latest
     platform: linux/amd64
     volumes:
       - .:/workspace
     working_dir: /workspace
+
+    # Isolation: the programs under test are crashing, possibly exploitable
+    # binaries, so the test container has no network and bounded resources.
+    network_mode: none
+    cpus: 2
+    mem_limit: 2g
+    memswap_limit: 2g
+    pids_limit: 512
+    ulimits:
+      core: 0
+
+    # Needed only for gdb (manual debugging). Remove it if nobody uses gdb.
+    cap_add:
+      - SYS_PTRACE
+
     stdin_open: true
     tty: true
     command: /bin/bash
+
+  # Same image and limits, with network. Use it only to fetch upstream sources
+  # in Phase 0 (for example: git clone cJSON); never to run the tool.
+  zaraban-online:
+    extends:
+      service: zaraban
+    network_mode: bridge
+    profiles: ["online"]
