@@ -391,9 +391,134 @@ checking exit codes would wrongly report that as a regression.
 
 ---
 
+## 5. Test inputs and oracles
+
+### 5.1 Test kinds
+
+Section 3.2 of the spec asks for valid, boundary and invalid inputs, and §4
+asks for inputs that trigger the vulnerability. Each kind has one purpose:
+
+| Kind | Config list | Purpose |
+|---|---|---|
+| `valid` | `valid_tests` | Normal inputs. Detect functional regressions. |
+| `boundary` | `boundary_tests` | Valid inputs at the edges of what the program accepts (empty input, maximum safe length, and so on). Detect off-by-one fixes and over-strict checks. |
+| `invalid` | `invalid_tests` | Malformed or unacceptable inputs. The program must reject them without crashing. Detect new crashes on error paths. |
+| `security` | `security_tests` | Inputs that trigger the vulnerability in the base version, including the alternative input that bypasses the incomplete patch (§4 of the spec). |
+| `regression` | generated files in `regression_dir` | Minimized crashing inputs found by earlier runs (§10). Never written by hand. |
+
+### 5.2 Input data
+
+- **`input_file`**: the file's bytes are given to the program exactly as they
+  are. Nothing is added, removed or re-encoded; no newline is appended.
+  Files live under `tests/<kind>/` (`tests/exploits/` for security tests).
+  The extension is free (`.txt`, `.json`, `.bin`). The maximum size is 1 MB.
+- **`input_data`**: the string from the config, encoded as UTF-8. Intended for
+  short text inputs only.
+- **No input**: allowed with `input_method: stdin` (the program gets an empty
+  standard input) and with `input_method: args` (only the test's `args` are
+  passed).
+
+### 5.3 How the input reaches the program
+
+Each run happens in its own empty run directory, which is also the program's
+working directory. The command is always the build's binary followed by the
+test's `args`, with the input added according to `input_method`:
+
+| `input_method` | What the tool does |
+|---|---|
+| `file` | Writes the input to a file named `input` plus the original extension (for example `input.txt`) in the run directory. If the test's `args` contain the placeholder (`{input_file}` by default), the placeholder is replaced by this file's path. Otherwise the path is added as the last argument. |
+| `stdin` | Writes the input to the program's standard input, then closes it, so the program sees end-of-file. |
+| `args` | Adds the input as one extra argument after the test's `args`. An input that contains a NUL byte cannot be passed this way and is a config error (exit code `30`). |
+
+The input file always has the same name and relative path, for all four
+builds and all repeats. A difference in path length could otherwise change
+memory layout and crash behavior between builds.
+
+Example: with `input_method: file`, `args: []` and
+`input_file: tests/exploits/exploit_primary.txt`, the command is
+`<binary> input.txt`, run inside the run directory.
+
+### 5.4 Oracle matching
+
+A run **matches its oracle** when all of the following hold:
+
+1. The program ended normally: no crash, no timeout, no resource limit hit.
+2. If `expected_exit_code` is given, the exit code equals it.
+3. If `expected_output` is given, standard output matches it according to
+   `output_match`:
+
+| `output_match` | Rule |
+|---|---|
+| `contains` | The UTF-8 bytes of `expected_output` appear somewhere in standard output. |
+| `exact` | Standard output is byte-for-byte equal to the UTF-8 bytes of `expected_output`, including spaces and newlines. |
+| `regex` | Python `re.search` with the `MULTILINE` flag finds the pattern in standard output, decoded as UTF-8 (invalid bytes replaced). |
+
+Standard error is not compared. It is stored with every run (§12) and used to
+analyse crashes (§7).
+
+YAML note for `exact`: a block written with `|` keeps the final newline, and
+`|-` removes it. Most programs end their output with a newline, so `|` is
+usually right.
+
+```yaml
+expected_output: |
+  OK: name=alice (value length: 5)
+  OK: role=engineer (value length: 8)
+output_match: exact
+```
+
+### 5.5 Expected behavior of each kind
+
+This table defines what each kind must do on each version. What the tool
+reports when a test does not behave as expected is defined in §8.
+
+| Kind | On base | On patch |
+|---|---|---|
+| `valid`, `boundary` | Must match the oracle. If it does not, the test or its oracle is wrong, and no judgement about the patch can be made from this test. | Must match the oracle. |
+| `invalid` | Must not crash. If the oracle gives an exit code or output, must match it. | Same as base. |
+| `security` | **Must crash.** This is how the tool shows the vulnerability is reproduced. | Must not crash. If the oracle gives an exit code or output (for example, "rejects the input with exit code 1"), must match it. |
+| `regression` | Must show the crash signature stored with the test (§10). | Must not show that signature, and must not crash. |
+
+For `security` tests, the oracle fields describe the expected behavior of the
+patched version only. On base, the test is expected to crash, so the oracle is
+not checked there.
+
+### 5.6 Where oracles come from
+
+Section 2 of the spec says the expected behavior must be defined before
+evaluation, from the program's documentation or from independent reference
+tests, and approved by the instructor. The output of the patched version, or
+the opinion of a language model, is not a valid source on its own.
+
+So each target has a file `ORACLE.md` next to its config. For every test it
+states the expected behavior and its source. For example, for the cJSON
+target (`invalid_truncated` is a test still to be written):
+
+| Test | Expected behavior | Source |
+|---|---|---|
+| `valid_rfc7386` | Prints `{"title":"Hello!",…}` and exits with `0`. | RFC 7386, §3 example |
+| `valid_delete` | A key whose patch value is `null` is removed from the result. | RFC 7386, §2 |
+| `invalid_truncated` | Prints an error and exits with `1`, without crashing. | `main.c` usage contract |
+
+The tool does not read `ORACLE.md`. It exists for review, for the instructor's
+approval, and for the defense.
+
+### 5.7 Change from current code
+
+| Behavior | Current code | This spec |
+|---|---|---|
+| Input path with `input_method: file` | The absolute path of the test file inside the base directory, always added as the last argument. | A fixed `input.<ext>` in the run directory; placeholder supported. |
+| Input with `input_method: args` | Only `input_data` is passed; `input_file` is ignored. | Either is passed as one argument. |
+| Working directory | The directory of the binary, which is shared by all runs of a build. | A fresh, empty directory for every run. |
+| `expected_exit_code` | Never checked. | Checked when given. |
+| `expected_output` | Stripped of surrounding whitespace, then searched as a substring. | Compared exactly as written, with three matching modes. |
+| Oracle on security tests | Not supported. | Optional, checked on the patched version. |
+| Invalid inputs and `ORACLE.md` | Do not exist. | Required for every target. |
+
+---
+
 ## Sections still to be written
 
-- 5. Test inputs and oracles
 - 6. Builds
 - 7. Runs and repeats
 - 8. Findings
