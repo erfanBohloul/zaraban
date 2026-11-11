@@ -86,7 +86,6 @@ python -m zaraban.cli -c <config> --patch <patch> [options]
 | `--patch` | yes, except with `--check-config` | | The patched version. See §3.2 for accepted forms. |
 | `--base` | no | `base_dir` from the config | The base version. See §3.2. |
 | `--out` | no | `out/` | Directory where all outputs of this run are written (§12). |
-| `--repeats` | no | `repeats` from the config (3) | How many times each test runs on each build. |
 | `--no-promote` | no | off | Do not copy new regression tests into the target's `tests/regression/` directory. They are still written to the run's output directory. |
 | `--keep-work` | no | off | Keep the temporary build directories after the run, for debugging. |
 | `--check-config` | no | off | Only validate the config file and its referenced files, then exit with `0` (valid) or `30` (invalid). Nothing is built or run. |
@@ -107,21 +106,24 @@ required check (for example, skipping the release builds) could produce a
 - `--patch` is now required. Currently, base and patch both default to the
   config's own directory, so running the tool without arguments silently
   compares a version with itself.
-- `--check-config`, `--repeats`, `--no-promote` and `--keep-work` are new.
+- `--check-config`, `--no-promote` and `--keep-work` are new.
 
 ### 3.2 Forms of `--patch` and `--base`
 
-The patched version can be given in three forms. The tool decides the form
-from the argument itself:
+The patched version can be given in two forms. The tool decides the form from
+the argument itself:
 
 | Form | How it is recognized | What the tool does |
 |---|---|---|
 | **Diff file** | The argument is an existing file. | Copies the base tree and applies the diff to the copy with `git apply`. |
 | **Directory** | The argument is an existing directory. | Uses the directory as the complete patched source tree. It must have the same layout as the base (Makefile, `src/`, and so on). |
-| **Git revision** | Neither a file nor a directory. | Treats the argument as a commit, branch or tag of the repository that contains `base_dir`, and extracts the `base_dir` subtree at that revision (with `git archive`). |
 
-`--base` accepts the **directory** and **git revision** forms. A diff file is
-not accepted for `--base`, because a diff has nothing to apply to.
+`--base` must be a directory. A diff file is not accepted for `--base`,
+because a diff has nothing to apply to.
+
+A patch that exists as a git commit is given as a diff file, for example
+`git diff <base commit> <patch commit> -- targets/<target> > change.patch`,
+with the base commit checked out as the base directory.
 
 Rules for diff files:
 
@@ -134,11 +136,10 @@ Rules for diff files:
   `-p0` to `-p4` with `git apply --check` and uses the first that applies. The
   chosen level is recorded in the report.
 
-Why accept all three forms: at the defense session, unseen patches are given
-to us through an agreed interface (§4 of the spec), most likely as diff files
-or commits. In CI, the natural input is a pair of commits. For the delivered
-scenarios, the repository stores both full version directories and diff files
-(§14.2), and both must give the same result.
+Why accept both forms: at the defense session, unseen patches are given to us
+through an agreed interface (§4 of the spec), most likely as diff files. For
+the delivered scenarios, the repository stores both full version directories
+and diff files (§14.2), and both must give the same result.
 
 The tool must never depend on the file name or identity of the patch. Its
 verdict comes only from building and running the code (§4 of the spec).
@@ -195,13 +196,6 @@ see §14.2.)
 ```bash
 python -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
   --patch targets/target1_sample/versions/patch_incomplete
-```
-
-In CI, compare the previous commit with the current one:
-
-```bash
-python -m zaraban.cli -c targets/target2_cjson/zaraban.yaml \
-  --base "$BASE_SHA" --patch "$HEAD_SHA"
 ```
 
 Check a config after editing it, without building anything:
@@ -278,7 +272,7 @@ Every entry in `valid_tests`, `boundary_tests`, `invalid_tests` and
 | `args` | list of strings | no | `[]` | Extra command-line arguments. May contain the placeholder (§5). |
 | `expected_exit_code` | integer | no | not checked | Exit code the program must return. |
 | `expected_output` | string | no | not checked | Expected standard output, compared according to `output_match`. |
-| `output_match` | `contains` \| `exact` \| `regex` | no | `contains` | How `expected_output` is compared with the real output (§5). |
+| `output_match` | `contains` \| `exact` | no | `contains` | How `expected_output` is compared with the real output (§5). |
 
 A test has at most one of `input_file` and `input_data`.
 
@@ -302,8 +296,6 @@ The following are errors:
 - A test that has both `input_file` and `input_data`.
 - With `input_method: file`, a test with neither `input_file` nor
   `input_data`.
-- An `expected_output` with `output_match: regex` that is not a valid regular
-  expression.
 - No `valid_tests` or no `security_tests`. Without them, the tool cannot detect
   functional regressions or reproduce the base vulnerability.
 
@@ -380,7 +372,7 @@ they are checked:
 | `base_dir` | Default `"base"`, a directory that does not exist in our targets. | Default `"."`. |
 | `file_arg_placeholder` | Parsed, never used; the input path is always appended to the command. | Applied as defined in §5. |
 | `expected_exit_code` | Default `0`, and never checked. | Default "not checked", and checked when given. |
-| `expected_output` | Substring match only. | Substring by default; `exact` and `regex` through `output_match`. |
+| `expected_output` | Substring match only. | Substring by default; `exact` through `output_match`. |
 | `invalid_tests` | Not supported. | New. |
 | `repeats`, `env`, `regression_dir` | Not supported. | New, all optional. |
 
@@ -450,7 +442,6 @@ A run **matches its oracle** when all of the following hold:
 |---|---|
 | `contains` | The UTF-8 bytes of `expected_output` appear somewhere in standard output. |
 | `exact` | Standard output is byte-for-byte equal to the UTF-8 bytes of `expected_output`, including spaces and newlines. |
-| `regex` | Python `re.search` with the `MULTILINE` flag finds the pattern in standard output, decoded as UTF-8 (invalid bytes replaced). |
 
 Standard error is not compared. It is stored with every run (§12) and used to
 analyse crashes (§7).
@@ -510,7 +501,7 @@ approval, and for the defense.
 | Input with `input_method: args` | Only `input_data` is passed; `input_file` is ignored. | Either is passed as one argument. |
 | Working directory | The directory of the binary, which is shared by all runs of a build. | A fresh, empty directory for every run. |
 | `expected_exit_code` | Never checked. | Checked when given. |
-| `expected_output` | Stripped of surrounding whitespace, then searched as a substring. | Compared exactly as written, with three matching modes. |
+| `expected_output` | Stripped of surrounding whitespace, then searched as a substring. | Compared exactly as written, as a substring or as the whole output. |
 | Oracle on security tests | Not supported. | Optional, checked on the patched version. |
 | Invalid inputs and `ORACLE.md` | Do not exist. | Required for every target. |
 
@@ -585,11 +576,11 @@ this.
 ### 6.4 What is recorded
 
 For each build, the tool records the command, the environment, the working
-directory, the compiler and its version, the exit code, the duration, the
-path of `build.log`, and the binary's path, size and SHA-256 hash. The
-compiler version is taken from the output of `gcc --version` and
-`clang --version` in the build environment. The exact file format is defined
-in §12.
+directory, the exit code, the duration, the path of `build.log`, and the
+binary's path, size and SHA-256 hash. The compiler versions are recorded once
+per run, in the report's environment (§12.4), from the output of
+`gcc --version` and `clang --version`. The exact file format is defined in
+§12.
 
 This information is required for the reproducer bundles (§3.3 of the spec:
 "build settings" and "binary hash").
@@ -638,7 +629,7 @@ Each run uses:
 Sanitizer options, identical for `base-sanitized` and `patch-sanitized`:
 
 ```
-ASAN_OPTIONS=abort_on_error=1:detect_leaks=0:symbolize=1:disable_coredump=1:hard_rss_limit_mb=<limit>:max_allocation_size_mb=<limit>
+ASAN_OPTIONS=abort_on_error=1:detect_leaks=0:symbolize=1:disable_coredump=1:max_allocation_size_mb=<limit>
 UBSAN_OPTIONS=halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1
 ASAN_SYMBOLIZER_PATH=<path of llvm-symbolizer>
 ```
@@ -661,14 +652,13 @@ ASAN_SYMBOLIZER_PATH=<path of llvm-symbolizer>
 |---|---|---|
 | Wall-clock time (`timeout_seconds`) | The tool kills the program's whole process group with `SIGKILL` when the time is up. | `TIMEOUT` |
 | CPU time | `RLIMIT_CPU` set to `timeout_seconds` rounded up, plus 1 second. The kernel sends `SIGXCPU`. | `RESOURCE_LIMIT` (cpu) |
-| Memory, release builds | `RLIMIT_AS` set to `memory_limit_mb`. | `RESOURCE_LIMIT` (memory), when the program ends abnormally and its peak memory reached at least 90% of the limit |
-| Memory, sanitized builds | `RLIMIT_AS` cannot be used, because AddressSanitizer reserves terabytes of virtual address space. The tool sets `hard_rss_limit_mb` and `max_allocation_size_mb` instead. | `RESOURCE_LIMIT` (memory), when AddressSanitizer reports an exhausted RSS limit or a too-large allocation |
-| Output | Standard output and standard error are each stored up to 1 MB. The rest is read and discarded, so the program never blocks on a full pipe. | Not a failure. The run is marked truncated, with the warning `OUTPUT_TRUNCATED`. |
+| Memory, release builds | `RLIMIT_DATA` set to `memory_limit_mb`, as in the current code. | The program's allocations fail. How it then ends is judged by the normal rules of §7.4. |
+| Memory, sanitized builds | An address-space limit cannot be used, because AddressSanitizer reserves terabytes of virtual address space. The tool sets `max_allocation_size_mb` instead, as in the current code. | `RESOURCE_LIMIT` (memory), when AddressSanitizer reports an allocation that exceeds the limit |
+| Output | Standard output and standard error are each stored up to 1 MB; the rest is discarded. | Not a failure. The run is marked truncated, with the warning `OUTPUT_TRUNCATED`. |
 | Core dumps | `RLIMIT_CORE` set to 0. | |
 
 Each program runs in its own process group (`setsid`), so child processes are
-killed with it. Peak memory use is read from the kernel's resource usage
-(`wait4`).
+killed with it.
 
 Section 3.2 of the spec says that exceeding a time or resource limit must be
 reported separately, because not every stop is an exploitable vulnerability.
@@ -757,9 +747,8 @@ records the warning `REPEATS_TOO_LOW`.
 | Which tests run on which builds | Security tests on base release, base sanitized and patch sanitized. Valid and boundary tests on base and patch sanitized only. Nothing runs on the patched release build. | Every test on all four builds. |
 | Repeats | One run per test. | `repeats` runs per test per build. |
 | Environment | The whole host environment. | Minimal and identical. |
-| Memory limit, release builds | `RLIMIT_DATA` | `RLIMIT_AS`, which also covers memory obtained with `mmap`. |
-| Memory limit, sanitized builds | `max_allocation_size_mb` only. | Also `hard_rss_limit_mb`. |
-| Output size | Unlimited, kept in memory. | 1 MB per stream. |
+| Memory limits | `RLIMIT_DATA` for release, `max_allocation_size_mb` for sanitized. | Unchanged; an AddressSanitizer allocation-limit report becomes `RESOURCE_LIMIT`. |
+| Program output | Analysed, then discarded. | Stored, up to 1 MB per stream. |
 | Timeouts | Counted as crashes (`is_crash` is true). | A separate outcome. |
 | `*** buffer overflow detected ***` | Reported as a stack canary. | Reported as fortify. |
 | `*** stack smashing detected ***` | Not recognized. | Reported as a stack canary. |
@@ -1149,12 +1138,11 @@ Each bundle is a directory `reproducers/<finding id>/` in the run's output:
 `metadata.json` contains, as §3.3 of the spec requires:
 
 - the finding id, the source test, the version (`base` or `patch`) and build;
-- the **exact version identifier**: the git commit when the version came from a
-  git revision; otherwise the commit of the repository at run time, plus a
-  SHA-256 hash of the source tree, plus the SHA-256 hash of the diff;
+- the **exact version identifier**: the commit of the repository at run time,
+  plus a SHA-256 hash of the source tree, plus the SHA-256 hash of the diff;
 - the **binary hash** (SHA-256);
-- the **build settings**: build command, build environment, compiler and
-  version;
+- the **build settings**: build command, build environment, and compiler
+  versions;
 - the **environment variables** of the run, exactly as passed;
 - the **full run command**, the input method, and the input file name;
 - the **expected signature**, error type and detection mechanism;
@@ -1174,9 +1162,9 @@ the bundle's environment and command:
   and records that minimization produced an unstable input. If it is not
   stable either, the finding becomes `INCONCLUSIVE` and the bundle is kept,
   marked unstable (§3.3 of the spec: "unstable cases must be identified").
-- The input is also replayed three times on the release build of the same
-  version, and the results are recorded, so the bundle shows the error's
-  behavior in both profiles.
+
+The behavior of the release build is not replayed in the bundle. It is already
+recorded for every test of the finding (§8.2).
 
 ### 10.5 `reproduce.sh`
 
@@ -1265,10 +1253,9 @@ four builds. Its expectation is: on base, a crash with `signature` if
 | Minimization accepts | Any crash with the same detection mechanism (for example, any AddressSanitizer error). | Only the same signature. |
 | Replay counts as reproduced | Same signal, or same detection mechanism. | Same signature. |
 | Unstable minimized input | Reported as flaky; nothing else. | Fall back to the original input; `INCONCLUSIVE` if that is unstable too. |
-| Release behavior | Not recorded. | Three replays on release, recorded. |
 | `reproduce.sh` | Always feeds the input on standard input, even for programs that take a file; absolute binary path on the creator's machine; no hash check. | Recorded input method, relative paths, hash check, exit code says whether the error was reproduced. |
 | Environment in metadata | Default sanitizer options, not the real environment. | The exact environment of the run. |
-| Build settings in metadata | Only the build command. | Command, environment, compiler and version. |
+| Build settings in metadata | Only the build command. | Command, environment and compiler versions. |
 | Binary in bundle | Not included. | Included. |
 | Regression tests | A `.txt` input in the run's output, never verified, never run again. | Verified on base, deduplicated, stored with expectations in `regression_dir`, and run in every later run. |
 
@@ -1377,7 +1364,7 @@ The temporary build copies (`work/`) are deleted at the end of the run, unless
 
 **`builds/<build>/build.json`** has the fields listed in §6.4: `build`,
 `version`, `profile`, `status` (`ok` or `failed`), `cmd`, `env`, `cwd`,
-`compiler`, `exit_code`, `duration_s`, `log`, `binary` (`path`, `size`,
+`exit_code`, `duration_s`, `log`, `binary` (`path`, `size`,
 `sha256`) and `sanitizers_verified`.
 
 **`runs/<test>/<build>/<n>.json`** has one record per run:
@@ -1389,7 +1376,7 @@ The temporary build copies (`work/`) are deleted at the end of the run, unless
 | `input` | `method`, file `name`, `size`, `sha256`. |
 | `exit_code`, `signal` | How the program ended. One of the two is `null`. |
 | `timed_out`, `limit_hit` | `true`/`false`, and `cpu`, `memory` or `null`. |
-| `duration_s`, `peak_rss_kb` | Duration and peak memory. |
+| `duration_s` | Duration of the run. |
 | `stdout`, `stderr` | `path`, `bytes`, `sha256`, `truncated`. |
 | `analysis` | `outcome`, `detection`, `error_type`, `summary` (the first line of the sanitizer or runtime report), `frames` (list of `index`, `function`, `file`, `line`, `runtime`), `signature`. |
 | `oracle` | `checked`, `passed`, and `reasons` (for example `exit code 1, expected 0`). |
@@ -1403,7 +1390,7 @@ Top-level fields, in this order:
 | `schema_version`, `tool` | Format version; tool name and version. |
 | `run_id`, `started_at`, `duration_s` | The run. |
 | `target` | `name`, `config` (path of the copy), `config_sha256`. |
-| `versions` | `base` and `patch`: `form` (`directory`, `diff` or `git`), `ref` (as given), `git_commit`, `tree_sha256`, and for a diff `strip_level`. `diff`: `path`, `sha256`, changed `files`, number of `hunks`. |
+| `versions` | `base` and `patch`: `form` (`directory` or `diff`), `ref` (as given), `git_commit` (of the repository at run time), `tree_sha256`, and for a diff `strip_level`. `diff`: `path`, `sha256`, changed `files`, number of `hunks`. |
 | `environment` | `os`, `kernel`, `arch`, `docker_image`, `python`, `gcc`, `clang`, `llvm_symbolizer` (path or `null`). |
 | `settings` | `repeats`, `limits`, `sanitizer_options`. |
 | `builds` | For each build: `status`, `binary_sha256`, `details` (path of `build.json`). |
@@ -1523,7 +1510,7 @@ the exit code. Every error gives exit code `30`.
 | Error | Meaning | Defined in |
 |---|---|---|
 | `ARGUMENT_INVALID` | Invalid command-line arguments. | §3.3 |
-| `SOURCE_NOT_FOUND` | A `--base` or `--patch` that is not a file, a directory, or a known git revision. | §3.2 |
+| `SOURCE_NOT_FOUND` | A `--base` or `--patch` that does not exist, or a `--base` that is not a directory. | §3.2 |
 | `PATCH_APPLY_FAILED` | The diff does not apply with any strip level. | §3.2 |
 | `CONFIG_INVALID` | The config, or a regression test file, is invalid. All problems are listed in `details`. | §4.5 |
 | `BUILD_FAILED` | A build command failed, timed out, or did not produce the binary. | §6.2 |
@@ -1704,10 +1691,11 @@ reads it; it is used only by `scripts/run_matrix.py`.
 
 For each scenario of each target, `scripts/run_matrix.py`:
 
-1. checks that `patch` equals the diff between `src/` and `version_dir`;
-2. runs the tool with `--patch` set to the diff file, and again with
-   `--patch` set to the version directory;
-3. checks that both runs give `expect_exit` and the expected findings
+1. checks that `patch` equals the diff between `src/` and `version_dir`, so
+   that the two forms describe the same version and running the tool once is
+   enough;
+2. runs the tool with `--patch` set to the diff file;
+3. checks that the run gives `expect_exit` and the expected findings
    (category and tests);
 4. with `--save`, copies the run's output to `results/<target>/<scenario>/`,
    without the `builds/*/bin/` binaries (the bundles keep their own copy);
