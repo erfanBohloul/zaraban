@@ -213,9 +213,186 @@ python -m zaraban.cli -c targets/target2_cjson/zaraban.yaml --check-config
 
 ---
 
+## 4. Target config file (`zaraban.yaml`)
+
+### 4.1 What the config describes
+
+The config describes **one target**: how to build it, how to run it, which
+tests to run, and what each test is expected to do. It does **not** say which
+patch to validate; that comes from the command line (§3), because a new patch
+arrives on every CI run and at the defense session.
+
+Adding a new target requires only a new config file and the target's own
+files (sources, Makefile, tests). No tool code changes (§2 of the spec).
+
+The file is YAML. All paths in it are relative to the directory that contains
+the config file.
+
+### 4.2 Top-level fields
+
+| Field | Type | Required | Default | Meaning |
+|---|---|---|---|---|
+| `name` | string | yes | | Target name. Used in output paths, so it may contain only letters, digits, `_` and `-`. |
+| `base_dir` | path | no | `.` | The default base source tree, used when `--base` is not given. It is the directory that contains the target's Makefile and sources. |
+| `input_method` | `file` \| `stdin` \| `args` | no | `stdin` | How each test's input reaches the program (§5). |
+| `file_arg_placeholder` | string | no | `{input_file}` | Placeholder that is replaced by the input file path inside a test's `args` (§5). |
+| `repeats` | integer ≥ 1 | no | `3` | How many times each test runs on each build (§7). |
+| `env` | map of string → string | no | `{}` | Extra environment variables for the target program. The same values are used for all four builds. |
+| `regression_dir` | path | no | `tests/regression` | Directory of automatically generated regression tests (§10). |
+| `build` | object | yes | | How to build the target (§4.3). |
+| `limits` | object | no | see §4.3 | Time and memory limits for each run (§4.3). |
+| `valid_tests` | list of tests | yes, at least one | | Valid inputs with their expected behavior. |
+| `boundary_tests` | list of tests | no | `[]` | Valid inputs at the edges of what the program accepts. |
+| `invalid_tests` | list of tests | no | `[]` | Malformed or unacceptable inputs. The program must handle them without crashing. |
+| `security_tests` | list of tests | yes, at least one | | Inputs that trigger the vulnerability in the base version. |
+
+The meaning of each test kind, and how results are judged, is defined in §5.
+
+### 4.3 `build` and `limits`
+
+| Field | Type | Required | Default | Meaning |
+|---|---|---|---|---|
+| `build.binary_path` | path | yes | | Path of the program after building, relative to the root of the source tree. |
+| `build.release_cmd` | string | yes | | Shell command that produces the release build, run in the root of a fresh copy of the source tree. |
+| `build.sanitized_cmd` | string | yes | | Shell command that produces a build with AddressSanitizer and UndefinedBehaviorSanitizer. The tool verifies afterwards that both sanitizers are really present in the binary (§6). |
+| `build.clean_cmd` | string | no | none | Run before building. Normally unnecessary, because each build starts from a fresh copy. |
+| `limits.timeout_seconds` | number > 0 | no | `3.0` | Wall-clock limit for one run. |
+| `limits.memory_limit_mb` | integer > 0 | no | `256` | Memory limit for one run. How it is enforced for each profile is defined in §7. |
+
+The build commands should call the **target's own build script** (for example
+`make release`), not repeat compiler flags in the config. The release flags
+then come from the source tree being built, so if a patch changes the build
+script and weakens a protection, the hardening check (§11) can detect it, as
+§3.4 of the spec requires.
+
+### 4.4 Test fields
+
+Every entry in `valid_tests`, `boundary_tests`, `invalid_tests` and
+`security_tests` has the same fields:
+
+| Field | Type | Required | Default | Meaning |
+|---|---|---|---|---|
+| `name` | string | yes | | Unique across all test lists, including generated regression tests. Letters, digits, `_` and `-` only, because it is used in output paths. |
+| `description` | string | no | none | What the test checks, and where its expected behavior comes from. |
+| `input_file` | path | no | none | File whose bytes are the test input. |
+| `input_data` | string | no | none | Inline test input, encoded as UTF-8. Only for short text inputs; binary inputs must use `input_file`. |
+| `args` | list of strings | no | `[]` | Extra command-line arguments. May contain the placeholder (§5). |
+| `expected_exit_code` | integer | no | not checked | Exit code the program must return. |
+| `expected_output` | string | no | not checked | Expected standard output, compared according to `output_match`. |
+| `output_match` | `contains` \| `exact` \| `regex` | no | `contains` | How `expected_output` is compared with the real output (§5). |
+
+A test has at most one of `input_file` and `input_data`.
+
+### 4.5 Validation
+
+The config is validated at the start of every run and by `--check-config`.
+Validation is strict: any problem stops the run with exit code `30` before
+anything is built. All problems found are reported together, not only the
+first one.
+
+The following are errors:
+
+- A key that is not defined in this section, at any level. This catches typos
+  such as `expected_exitcode`, which would otherwise be silently ignored.
+- The removed keys `patch_dir` and `diff_file`. The error message tells the
+  user to use `--patch` instead.
+- A missing required field, or a value of the wrong type or out of range.
+- Two tests with the same `name`, or a name with characters other than
+  letters, digits, `_` and `-`.
+- A referenced file (`input_file`, `base_dir`) that does not exist.
+- A test that has both `input_file` and `input_data`.
+- With `input_method: file`, a test with neither `input_file` nor
+  `input_data`.
+- An `expected_output` with `output_match: regex` that is not a valid regular
+  expression.
+- No `valid_tests` or no `security_tests`. Without them, the tool cannot detect
+  functional regressions or reproduce the base vulnerability.
+
+A config with no `invalid_tests` is accepted, but produces a warning, because
+§3.2 of the spec requires the team to design invalid inputs.
+
+### 4.6 Example
+
+The config of the `token_parser` target in this format, shortened: some of
+the current file's tests and its `clean_cmd` are left out to keep the example
+readable. What is new compared with the current file is `invalid_tests` and
+the exact match on `valid_set`.
+
+```yaml
+name: "token_parser"
+input_method: "file"
+
+build:
+  binary_path: "token_parser"
+  release_cmd: "make release"
+  sanitized_cmd: "make sanitized"
+
+limits:
+  timeout_seconds: 2.0
+  memory_limit_mb: 128
+
+valid_tests:
+  - name: "valid_ping"
+    input_file: "tests/valid/valid_1_ping.txt"
+    expected_exit_code: 0
+    expected_output: "PONG"
+  - name: "valid_set"
+    input_file: "tests/valid/valid_3_set.txt"
+    expected_exit_code: 0
+    expected_output: |
+      OK: name=alice (value length: 5)
+      OK: role=engineer (value length: 8)
+    output_match: exact
+
+boundary_tests:
+  - name: "boundary_max_safe"
+    input_file: "tests/boundary/boundary_max_safe.txt"
+    expected_exit_code: 0
+
+invalid_tests:
+  - name: "invalid_unknown_cmd"
+    input_file: "tests/invalid/unknown_cmd.txt"
+    expected_exit_code: 1
+  - name: "invalid_set_no_equals"
+    input_file: "tests/invalid/set_no_equals.txt"
+    expected_exit_code: 1
+
+security_tests:
+  - name: "exploit_primary"
+    input_file: "tests/exploits/exploit_primary.txt"
+    description: "Stack buffer overflow via a 120-byte SET value"
+  - name: "exploit_secondary"
+    input_file: "tests/exploits/exploit_secondary.txt"
+    description: "82-byte SET value; passes the incomplete patch's 100-byte check"
+```
+
+The two files under `tests/invalid/` do not exist yet and must be added.
+
+### 4.7 Change from current code
+
+Both existing config files (`token_parser` and Erfan's `cjson`) remain valid
+without edits. The differences are in what the fields mean and how strictly
+they are checked:
+
+| Field or behavior | Current code | This spec |
+|---|---|---|
+| Validation | Values are read with defaults; unknown keys and typos are silently ignored. `pydantic` is installed but not used. | Strict validation, all errors reported, exit code `30`. |
+| `patch_dir`, `diff_file` | Accepted, but always overridden by command-line arguments. | Removed; an error if present. |
+| `base_dir` | Default `"base"`, a directory that does not exist in our targets. | Default `"."`. |
+| `file_arg_placeholder` | Parsed, never used; the input path is always appended to the command. | Applied as defined in §5. |
+| `expected_exit_code` | Default `0`, and never checked. | Default "not checked", and checked when given. |
+| `expected_output` | Substring match only. | Substring by default; `exact` and `regex` through `output_match`. |
+| `invalid_tests` | Not supported. | New. |
+| `repeats`, `env`, `regression_dir` | Not supported. | New, all optional. |
+
+The default of `expected_exit_code` changes because a correct patch often
+rejects an exploit input with a non-zero exit code. With a default of `0`,
+checking exit codes would wrongly report that as a regression.
+
+---
+
 ## Sections still to be written
 
-- 4. Target config file (`zaraban.yaml`)
 - 5. Test inputs and oracles
 - 6. Builds
 - 7. Runs and repeats
