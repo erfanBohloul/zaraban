@@ -517,10 +517,261 @@ approval, and for the defense.
 
 ---
 
+## 6. Builds
+
+### 6.1 The four builds
+
+Section 3.2 of the spec requires the release build and the instrumented build
+to be run and reported separately, and the comparison of base and patch to use
+matching builds. So every run of the tool makes exactly four builds:
+
+| Build | Version | Profile | Built with |
+|---|---|---|---|
+| `base-release` | base | release | `build.release_cmd` |
+| `base-sanitized` | base | sanitized | `build.sanitized_cmd` |
+| `patch-release` | patch | release | `build.release_cmd` |
+| `patch-sanitized` | patch | sanitized | `build.sanitized_cmd` |
+
+Base and patch are always built with the same commands and the same
+environment. The only difference between `base-release` and `patch-release`
+is the source tree, and likewise for the two sanitized builds.
+
+### 6.2 Build procedure
+
+The four builds run one after another, in the order of the table above. For
+each build:
+
+1. **Copy the source tree** (base or patch, prepared as in §3.2) into a fresh
+   directory `work/<build>/`. The `.git` directory and any `out/` directory are
+   not copied.
+2. **Run `build.clean_cmd`**, if the config has one.
+3. **Run the build command** with `sh -c`, in the root of the copy. The build
+   environment is minimal and identical for all four builds: `PATH`, `HOME`,
+   and `LANG=C`. Standard output and standard error go to `build.log`. A build
+   that takes longer than 300 seconds is stopped and counts as failed.
+4. **Check the result.** The build fails if the command exits with a non-zero
+   code, or if `build.binary_path` does not exist afterwards, or if it is not an
+   x86-64 ELF executable (§2 of the spec).
+5. **Copy the binary** to the run's output directory,
+   `builds/<build>/bin/<name>`, and compute its SHA-256 hash. All runs use
+   this copy, so the hash in the report is the hash of the binary that was
+   actually run.
+6. **Verify the profile** (§6.3).
+
+If any build fails, the tool records the failure (`BUILD_FAILED`, with the
+path of `build.log`), skips all remaining steps, writes the report, and exits
+with code `30`. Tests are never run on an incomplete set of builds.
+
+### 6.3 Profile verification
+
+A build command can silently produce the wrong kind of binary, for example
+when a patch edits the Makefile, or when the compiler adds flags by default.
+The tool therefore checks every binary after building it, by reading its
+symbol tables:
+
+| Check | Applies to | If it fails |
+|---|---|---|
+| The binary contains the AddressSanitizer runtime (`__asan_init`). | sanitized builds | Error `SANITIZER_MISSING`, exit code `30`. |
+| The binary contains UndefinedBehaviorSanitizer handlers (`__ubsan_handle_*`). | sanitized builds | Error `SANITIZER_MISSING`, exit code `30`. |
+| The binary does **not** contain the AddressSanitizer runtime. | release builds | Error `PROFILE_MIXED`, exit code `30`. The release build must show the real behavior of the program (§3.2 of the spec). |
+| The binary has debug information (a `.debug_info` section). | sanitized builds | Warning `NO_DEBUG_INFO`. Stack traces will have function names but no file and line, so links to the diff may be undetermined (§9). |
+| The binary does not call `_FORTIFY_SOURCE` checking functions (`__*_chk`). | sanitized builds | Warning `FORTIFY_IN_SANITIZED`. Fortify checks can stop the program before AddressSanitizer reports the error, so the error type would be less precise. |
+
+The last check comes from a real case: Ubuntu's GCC enables
+`_FORTIFY_SOURCE` by default, and a "sanitized" build of `token_parser` made
+with it reported a fortify abort instead of an AddressSanitizer stack buffer
+overflow. Our targets build the sanitized profile with clang, which does not do
+this.
+
+### 6.4 What is recorded
+
+For each build, the tool records the command, the environment, the working
+directory, the compiler and its version, the exit code, the duration, the
+path of `build.log`, and the binary's path, size and SHA-256 hash. The
+compiler version is taken from the output of `gcc --version` and
+`clang --version` in the build environment. The exact file format is defined
+in §12.
+
+This information is required for the reproducer bundles (§3.3 of the spec:
+"build settings" and "binary hash").
+
+### 6.5 Change from current code
+
+| Behavior | Current code | This spec |
+|---|---|---|
+| Where builds happen | Inside the target's own directory in the repository. | In fresh copies under a temporary work directory. |
+| Separation of builds | Release and sanitized builds overwrite the same binary, with `make clean` in between. The patched release binary is built, checked for hardening, then deleted before any test runs on it. | Four separate directories and four kept binaries. |
+| Build environment | The whole host environment. | A minimal, identical environment. |
+| Build log | Kept only when the build fails, inside the error message. | Always kept in `build.log`. |
+| Profile verification | None. | Sanitizers present in sanitized builds, absent in release builds. |
+| Binary hash | Only for binaries that get a reproducer bundle. | For all four builds. |
+
+---
+
+## 7. Runs and repeats
+
+### 7.1 What is run
+
+Every test runs on every build, `repeats` times (default 3). This includes all
+kinds: valid, boundary, invalid, security and regression tests. Section 3.1 of
+the spec requires every input to run on both versions with matching settings,
+and §3.2 requires the release and sanitized builds to be run separately.
+
+Runs happen one at a time, in a fixed order: tests in config order (valid,
+boundary, invalid, security, then regression), and for each test the four
+builds in the order of §6.1, and for each build repeats 1 to N. Running one at
+a time keeps timing stable, which matters for timeouts.
+
+For example, a target with 10 tests and 3 repeats needs 10 × 4 × 3 = 120
+runs. Our targets run in a few milliseconds each, so this takes seconds.
+
+### 7.2 Run environment
+
+Each run uses:
+
+- a **fresh, empty working directory**, containing only the input file when
+  `input_method` is `file` (§5.3);
+- the **command** defined in §5.3;
+- **standard input** as defined in §5.3, or an empty, closed standard input;
+- the **environment**: `PATH`, the config's `env`, and, for sanitized builds
+  only, the sanitizer options below. Nothing else from the host.
+
+Sanitizer options, identical for `base-sanitized` and `patch-sanitized`:
+
+```
+ASAN_OPTIONS=abort_on_error=1:detect_leaks=0:symbolize=1:disable_coredump=1:hard_rss_limit_mb=<limit>:max_allocation_size_mb=<limit>
+UBSAN_OPTIONS=halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1
+ASAN_SYMBOLIZER_PATH=<path of llvm-symbolizer>
+```
+
+- `abort_on_error=1` makes every sanitizer report end the program with
+  `SIGABRT`, so a reported error always terminates the run.
+- `halt_on_error=1` makes UndefinedBehaviorSanitizer stop at the first error
+  instead of printing it and continuing.
+- `detect_leaks=0`: memory leaks are not treated as crashes. A leak report
+  appears only at exit and would turn every run of a leaky program into a
+  failure, unrelated to the patch.
+- If the config's `env` sets `ASAN_OPTIONS` or `UBSAN_OPTIONS`, the tool's
+  options are appended after the config's, so the tool's values win.
+- If `llvm-symbolizer` is not found, the tool still runs, but stack traces have
+  no function names. It records the warning `NO_SYMBOLIZER`.
+
+### 7.3 Limits
+
+| Limit | How it is enforced | Outcome when hit |
+|---|---|---|
+| Wall-clock time (`timeout_seconds`) | The tool kills the program's whole process group with `SIGKILL` when the time is up. | `TIMEOUT` |
+| CPU time | `RLIMIT_CPU` set to `timeout_seconds` rounded up, plus 1 second. The kernel sends `SIGXCPU`. | `RESOURCE_LIMIT` (cpu) |
+| Memory, release builds | `RLIMIT_AS` set to `memory_limit_mb`. | `RESOURCE_LIMIT` (memory), when the program ends abnormally and its peak memory reached at least 90% of the limit |
+| Memory, sanitized builds | `RLIMIT_AS` cannot be used, because AddressSanitizer reserves terabytes of virtual address space. The tool sets `hard_rss_limit_mb` and `max_allocation_size_mb` instead. | `RESOURCE_LIMIT` (memory), when AddressSanitizer reports an exhausted RSS limit or a too-large allocation |
+| Output | Standard output and standard error are each stored up to 1 MB. The rest is read and discarded, so the program never blocks on a full pipe. | Not a failure. The run is marked truncated, with the warning `OUTPUT_TRUNCATED`. |
+| Core dumps | `RLIMIT_CORE` set to 0. | |
+
+Each program runs in its own process group (`setsid`), so child processes are
+killed with it. Peak memory use is read from the kernel's resource usage
+(`wait4`).
+
+Section 3.2 of the spec says that exceeding a time or resource limit must be
+reported separately, because not every stop is an exploitable vulnerability.
+That is why `TIMEOUT` and `RESOURCE_LIMIT` are separate outcomes and never
+count as `CRASH`.
+
+### 7.4 Analysing a run
+
+After each run, the tool decides the **outcome** from the termination status
+and standard error. The rules are applied in this order, and the first that
+matches wins:
+
+| # | Condition | Outcome | Detection |
+|---|---|---|---|
+| 1 | The tool killed the program for exceeding the wall-clock limit. | `TIMEOUT` | |
+| 2 | `SIGXCPU`, or a memory-limit condition from §7.3. | `RESOURCE_LIMIT` | |
+| 3 | Standard error contains an AddressSanitizer report (`ERROR: AddressSanitizer`). | `CRASH` | `ASAN` |
+| 4 | Standard error contains an UndefinedBehaviorSanitizer report (`runtime error:`) and the program was stopped. | `CRASH` | `UBSAN` |
+| 5 | Standard error contains `*** stack smashing detected ***`. | `CRASH` | `STACK_CANARY` |
+| 6 | Standard error contains `*** buffer overflow detected ***`. | `CRASH` | `FORTIFY` |
+| 7 | Standard error contains a glibc allocator check (`double free detected`, `free(): invalid pointer`, `malloc(): corrupted`, and similar). | `CRASH` | `ALLOCATOR_CHECK` |
+| 8 | The program was killed by `SIGSEGV`, `SIGBUS`, `SIGFPE`, `SIGILL`, `SIGABRT` or `SIGTRAP`. | `CRASH` | `SIGNAL` |
+| 9 | Anything else, with any exit code. | `NORMAL` | |
+
+A non-zero exit code alone is never a crash (§3.3 of the spec). Whether it is
+correct is decided by the oracle (§5.4).
+
+For a `CRASH`, the tool also records the **error type**:
+
+| Error type | Determined from |
+|---|---|
+| `STACK_BUFFER_OVERFLOW` | ASan `stack-buffer-overflow` or `dynamic-stack-buffer-overflow`; a stack canary abort |
+| `HEAP_BUFFER_OVERFLOW` | ASan `heap-buffer-overflow` |
+| `GLOBAL_BUFFER_OVERFLOW` | ASan `global-buffer-overflow` |
+| `BUFFER_OVERFLOW` | A fortify abort (the kind of buffer is not known) |
+| `USE_AFTER_FREE` | ASan `heap-use-after-free` |
+| `USE_AFTER_SCOPE` | ASan `stack-use-after-scope` or `stack-use-after-return` |
+| `DOUBLE_FREE` | ASan `attempting double-free`; glibc `double free detected` |
+| `INVALID_FREE` | ASan `attempting free on address which was not malloc()-ed`; glibc `free(): invalid pointer` |
+| `NULL_DEREF` | ASan `SEGV` on an address in the zero page; UBSan `null pointer` |
+| `SEGV` | ASan `SEGV` on another address; `SIGSEGV` or `SIGBUS` without a sanitizer report |
+| `STACK_EXHAUSTION` | ASan `stack-overflow` (unbounded recursion) |
+| `DIV_BY_ZERO` | UBSan `division by zero`; `SIGFPE` |
+| `INTEGER_OVERFLOW` | UBSan `signed integer overflow` |
+| `OUT_OF_BOUNDS_INDEX` | UBSan `index out of bounds` |
+| `UB_OTHER` | Any other UBSan report |
+| `HEAP_CORRUPTION` | Other glibc allocator checks |
+| `ABORT` | `SIGABRT` with none of the above |
+| `UNKNOWN` | Any other crash |
+
+The spec notes that this classification is not a root-cause analysis (§3.2).
+It records what the detection mechanism observed.
+
+For sanitizer crashes, the tool also parses the **stack trace**: one frame per
+line of the form `#N 0xADDR in function file:line:column`. All frames are
+recorded. Frames inside the sanitizer runtime or the C library (functions
+starting with `__asan_`, `__interceptor_`, `__sanitizer_`, `__ubsan_`, or
+frames located in `libasan`, `libubsan` or `libc`) are marked as runtime
+frames.
+
+The **signature** of the crash is the error type plus the names of the first
+three frames that are not runtime frames, for example
+`STACK_BUFFER_OVERFLOW @ handle_set_command < process_input < main`. If no
+frame has a function name (no symbolizer, or a release build without a stack
+trace), the crash has **no signature**. Line numbers are not part of the
+signature, because they change between base and patch. How signatures are used
+is defined in §8.
+
+### 7.5 Combining repeats
+
+For each test on each build, the repeats are combined into one **result**:
+
+- The result is **stable** when all repeats have the same outcome, the same
+  signature (for crashes), and the same oracle result. The values of the
+  result are those of the first repeat.
+- Otherwise the result is **flaky**. Every repeat is still stored, so the
+  difference can be inspected. How a flaky result is reported is defined in §8.
+
+With `repeats: 1`, flaky results cannot be detected. The tool accepts it, but
+records the warning `REPEATS_TOO_LOW`.
+
+### 7.6 Change from current code
+
+| Behavior | Current code | This spec |
+|---|---|---|
+| Which tests run on which builds | Security tests on base release, base sanitized and patch sanitized. Valid and boundary tests on base and patch sanitized only. Nothing runs on the patched release build. | Every test on all four builds. |
+| Repeats | One run per test. | `repeats` runs per test per build. |
+| Environment | The whole host environment. | Minimal and identical. |
+| Memory limit, release builds | `RLIMIT_DATA` | `RLIMIT_AS`, which also covers memory obtained with `mmap`. |
+| Memory limit, sanitized builds | `max_allocation_size_mb` only. | Also `hard_rss_limit_mb`. |
+| Output size | Unlimited, kept in memory. | 1 MB per stream. |
+| Timeouts | Counted as crashes (`is_crash` is true). | A separate outcome. |
+| `*** buffer overflow detected ***` | Reported as a stack canary. | Reported as fortify. |
+| `*** stack smashing detected ***` | Not recognized. | Reported as a stack canary. |
+| `SIGABRT` with "abort" in the output | Error type reported as stack canary corruption. | Reported as `ABORT`. |
+| glibc allocator checks | Not recognized. | Recognized. |
+| Signature | None; crashes are compared by signal and detection mechanism only. | Error type plus top three non-runtime functions. |
+
+---
+
 ## Sections still to be written
 
-- 6. Builds
-- 7. Runs and repeats
 - 8. Findings
 - 9. Linking findings to the patch
 - 10. Minimization, reproducer bundles and regression tests
