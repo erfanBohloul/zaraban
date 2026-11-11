@@ -477,7 +477,7 @@ reports when a test does not behave as expected is defined in §8.
 | `valid`, `boundary` | Must match the oracle. If it does not, the test or its oracle is wrong, and no judgement about the patch can be made from this test. | Must match the oracle. |
 | `invalid` | Must not crash. If the oracle gives an exit code or output, must match it. | Same as base. |
 | `security` | **Must crash.** This is how the tool shows the vulnerability is reproduced. | Must not crash. If the oracle gives an exit code or output (for example, "rejects the input with exit code 1"), must match it. |
-| `regression` | Must show the crash signature stored with the test (§10). | Must not show that signature, and must not crash. |
+| `regression` | Must crash with the signature stored with the test, or must not crash if the test was created from a new issue (§10.6). | Must not crash. |
 
 For `security` tests, the oracle fields describe the expected behavior of the
 patched version only. On base, the test is expected to crash, so the oracle is
@@ -890,7 +890,8 @@ signature that appears only in some repeats could be grouped wrongly.
 - A `regression` test that does not crash on base. In CI, base is often a
   commit that already contains an earlier fix, so this is expected. It is
   recorded as the warning `REGRESSION_BASE_CLEAN`. The test still runs on
-  patch, where a crash with its stored signature is an `INCOMPLETE_FIX`.
+  patch, and a crash there is handled by the normal rules of §8.2: a
+  `NEW_ISSUE` when base does not crash, which also gives exit code `10`.
 
 ### 8.7 Nothing is lost
 
@@ -950,10 +951,332 @@ scenario script checks the findings, not only the exit code.
 
 ---
 
+## 9. Linking findings to the patch
+
+### 9.1 What the spec requires
+
+Section 3.1 of the spec calls this the core of the project. The tool must show
+how each fixed, remaining or new error relates to the changes in the diff:
+
+- Valid evidence is the stack trace or execution path, matched against the
+  changed file, function and section, **together with** the comparison of the
+  two versions' runs.
+- The error is not always on a changed line. For example, a changed length
+  check in a calling function can affect an error in another function.
+- The mere closeness of a warning to a changed location is not enough. When
+  the evidence is insufficient, the link must be reported as undetermined.
+
+So the tool reports a link only when it has **location evidence** from an
+actual execution and **comparative evidence** from running both versions on
+the same input. Otherwise the link is `UNDETERMINED`.
+
+### 9.2 Reading the diff
+
+The diff (§3.3) is parsed with the `unidiff` library into files and hunks.
+For each changed file the tool knows:
+
+- on the **base side**: the line range of each hunk and the removed lines, in
+  base line numbers;
+- on the **patch side**: the line range of each hunk and the added lines, in
+  patch line numbers.
+
+A hunk's line range includes its unchanged context lines. A crash on such a
+line is still "inside the changed hunk": in the incomplete `token_parser`
+patch, the overflowing `strcpy` line is unchanged context directly below the
+inserted, insufficient check.
+
+**Changed functions** are found from the source code, not from the hunk
+headers. Hunk headers name the function only when the diff was made with
+`git diff` and only for the function that precedes the hunk, and `diff -u`
+does not name functions at all. The tool runs `universal-ctags` on the base and
+patch trees to get the start and end line of every function, and marks a
+function as changed when any changed line falls inside it. `universal-ctags`
+is added to the Docker image.
+
+**Paths** in stack traces are absolute paths inside the build copy, such as
+`/…/work/patch-sanitized/src/main.c`. The tool removes the build copy prefix
+to get `src/main.c`, which is the path used in the diff after stripping.
+
+### 9.3 Location evidence
+
+The tool checks the stack trace of the relevant crash against the diff, on
+the matching side:
+
+| Finding | Crash used | Side of the diff |
+|---|---|---|
+| `FIXED` | A crash with the signature on `base-sanitized` | base |
+| `INCOMPLETE_FIX` | A crash with the signature on `patch-sanitized` | patch |
+| `NEW_ISSUE` | A crash with the signature on `patch-sanitized` | patch |
+
+Every frame of that stack trace that is not a runtime frame (§7.4) is
+checked, not only the top one. The strongest level found in any frame is
+reported:
+
+| Level | Condition |
+|---|---|
+| `IN_CHANGED_HUNK` | The frame's file and line are inside the line range of a hunk on that side. |
+| `IN_CHANGED_FUNCTION` | The frame is inside a function that the patch changed. |
+| `CHANGED_FUNCTION_IN_STACK` | A function that the patch changed appears lower in the stack, as a caller of the crashing code. This covers the spec's example of a check in a calling function. |
+| `CHANGED_CODE_EXECUTED` | No frame matches, but the execution trace (§9.4) shows that the input ran through changed lines. |
+| `UNDETERMINED` | None of the above. |
+
+Two cases are always `UNDETERMINED`, because they are only closeness:
+
+- The crash is in a file the patch changed, but not in a changed hunk or
+  function, and no changed function is in the stack.
+- The stack trace has no file and line information and no function names.
+
+### 9.4 Execution trace
+
+For findings without a crash stack, and for crash findings where the stack
+gives no location evidence, the tool records which changed lines the input
+actually executes:
+
+- It runs the finding's test once more on the sanitized build of the relevant
+  version, under `gdb` in batch mode, with a breakpoint on every changed line
+  of that side (added lines on patch, removed lines on base).
+- It records which of those lines were reached, and in what order.
+- This uses the same input, environment and limits as the normal runs. `gdb` is
+  already in the Docker image.
+
+This trace is the "execution path" evidence of §3.1 of the spec. It is the
+only location evidence available for a `FUNCTIONAL_REGRESSION`, which has no
+crash. For example, in the regression `token_parser` patch, the trace of
+`valid_set` shows that the new key-length check was executed, and that the
+program returned through its error branch.
+
+### 9.5 Comparative evidence
+
+Comparative evidence means: the same input, run with the same settings,
+behaves differently on the two versions in the way the category claims.
+Because categories are defined by that comparison (§8), every finding already
+has it. The link records which tests provide it:
+
+| Finding | Comparative evidence |
+|---|---|
+| `FIXED` | Tests that crash with the signature on base and do not crash on patch. |
+| `INCOMPLETE_FIX` | Tests that crash with the signature on both versions, plus any tests that the patch blocks. A blocked test shows the patch acts on this error; a still-crashing test shows it does not act enough. |
+| `NEW_ISSUE` | Tests that do not crash on base and crash on patch. |
+| `FUNCTIONAL_REGRESSION` | The test matches its oracle on base and does not on patch. |
+
+### 9.6 What is recorded
+
+For every finding, the link records:
+
+- the **level** (§9.3);
+- the **side** of the diff (`base` or `patch`);
+- the matched **file**, **function**, **line** and **hunk header**, and the
+  **frame number** in the stack trace, when a frame matched;
+- the **changed lines executed**, when an execution trace was made;
+- the **tests** that provide the comparative evidence (§9.5);
+- an **explanation**: one or two sentences built only from the recorded facts,
+  for example: "Frame #1 `handle_set_command` (src/main.c:37) of the crash on
+  patch lies inside hunk `@@ -21,14 +21,19 @@`. The patch blocks
+  `exploit_primary` but `exploit_secondary` still reaches the same error."
+
+The link never changes a finding's category or the exit code. An
+`UNDETERMINED` link is reported as such; it does not turn a finding into
+`INCONCLUSIVE` (§13).
+
+### 9.7 Change from current code
+
+| Behavior | Current code | This spec |
+|---|---|---|
+| `Fixed` findings | Always labeled `DirectHunkMatch`, without looking at the diff. | Checked against the base side of the diff like any other finding. |
+| Functional regressions | Labeled `DirectHunkMatch` whenever a diff exists. | Linked only through an execution trace. |
+| No link found, but both versions crash the same way | Upgraded to `CallerCalleeMatch`. | `UNDETERMINED`; the shared crash is comparative evidence, not location evidence. |
+| Crash anywhere in a changed file | `CallerCalleeMatch`. | `UNDETERMINED`, because it is only closeness. |
+| Caller/callee check | Can never trigger (dead code). | `CHANGED_FUNCTION_IN_STACK`. |
+| Changed functions | From hunk headers only, which `diff -u` does not produce. | From the source code with `universal-ctags`. |
+| Side of the diff | Patch line numbers for every crash. | Base line numbers for base crashes, patch line numbers for patch crashes. |
+| Execution path | Not used. | `gdb` trace of changed lines. |
+
+---
+
+## 10. Minimization, reproducer bundles and regression tests
+
+### 10.1 Which findings get them
+
+Section 3.3 of the spec requires every confirmed error to be reproducible.
+
+| Finding | Reproducer bundle | Minimization | Regression test |
+|---|---|---|---|
+| `INCOMPLETE_FIX`, `NEW_ISSUE` | yes, on `patch-sanitized` | yes, if the crash has a signature | yes |
+| `FIXED` | yes, on `base-sanitized` | yes, if the crash has a signature | yes |
+| `FUNCTIONAL_REGRESSION` | no; there is no crash to reproduce | no | no |
+| `INCONCLUSIVE` | no | no | no |
+
+Each bundle starts from one **source test**: the first test of the finding, in
+config order, that crashes on the bundle's build. A finding has at most one
+bundle.
+
+### 10.2 Minimization
+
+The tool reduces the source test's input with **delta debugging** (`ddmin`),
+working on bytes:
+
+- **Binary**: the bundle's build (§10.1).
+- **A candidate input is accepted** when one run of it (same command,
+  environment and limits as in §7) ends in a `CRASH` with **the same
+  signature** as the finding: the same error type and the same top three
+  functions. A different error, a crash without signature, or a non-zero exit
+  code is not accepted (§3.3 of the spec: "a non-zero exit code is not enough
+  to preserve the same error").
+- **Result**: the smallest accepted input found. With enough budget this is
+  1-minimal: removing any single byte makes it rejected.
+- **Budget**: at most 500 candidate runs or 120 seconds. If the budget runs
+  out, the smallest input found so far is used, and the warning
+  `MINIMIZE_LIMIT` is recorded.
+- Both the original and the minimized input are saved (§10.3).
+
+If the crash has no signature, minimization is skipped, because there is
+nothing to check that the same error is preserved. The bundle then uses the
+original input only.
+
+### 10.3 Contents of a bundle
+
+Each bundle is a directory `reproducers/<finding id>/` in the run's output:
+
+| File | Content |
+|---|---|
+| `input.orig.<ext>` | The source test's input, byte for byte. |
+| `input.min.<ext>` | The minimized input. |
+| `bin/<binary>` | A copy of the binary, so that the bundle is self-contained. |
+| `metadata.json` | Everything needed to reproduce the error (below). |
+| `replays.json` | The results of the replays (§10.4). |
+| `minimize.log` | Each minimization step: candidate size and whether it was accepted. |
+| `reproduce.sh` | A script that replays the error (§10.5). |
+
+`metadata.json` contains, as §3.3 of the spec requires:
+
+- the finding id, the source test, the version (`base` or `patch`) and build;
+- the **exact version identifier**: the git commit when the version came from a
+  git revision; otherwise the commit of the repository at run time, plus a
+  SHA-256 hash of the source tree, plus the SHA-256 hash of the diff;
+- the **binary hash** (SHA-256);
+- the **build settings**: build command, build environment, compiler and
+  version;
+- the **environment variables** of the run, exactly as passed;
+- the **full run command**, the input method, and the input file name;
+- the **expected signature**, error type and detection mechanism;
+- the original and minimized sizes and the number of minimization runs.
+
+### 10.4 Replays
+
+The minimized input is replayed **three times** on the bundle's binary, with
+the bundle's environment and command:
+
+- Each replay records whether it reproduced the error (a crash with the same
+  signature), the signal or exit code, the error type, the top functions, and
+  the duration.
+- The bundle is **stable** when all three replays reproduce the error.
+- If the minimized input is not stable, the tool replays the original input
+  three times instead. If that is stable, the bundle uses the original input
+  and records that minimization produced an unstable input. If it is not
+  stable either, the finding becomes `INCONCLUSIVE` and the bundle is kept,
+  marked unstable (§3.3 of the spec: "unstable cases must be identified").
+- The input is also replayed three times on the release build of the same
+  version, and the results are recorded, so the bundle shows the error's
+  behavior in both profiles.
+
+### 10.5 `reproduce.sh`
+
+The script works from any location, using only paths relative to itself:
+
+1. Checks the SHA-256 hash of `bin/<binary>` against `metadata.json`. If it
+   differs, it stops with exit code `2`.
+2. Creates an empty temporary working directory and places the input there
+   under the same file name used during the run (§5.3).
+3. Runs the binary with exactly the recorded environment (`env -i`) and
+   command, giving the input by the recorded input method.
+4. Looks for the expected error type and function names in standard error.
+5. Prints the program's output and exits with `0` if the error was reproduced,
+   or `1` if it was not.
+
+By default it replays `input.min.<ext>`; `./reproduce.sh orig` replays the
+original input. It needs only `bash`, `sha256sum` and the sanitizer runtime
+libraries, so it runs inside the project's Docker image.
+
+### 10.6 Regression tests
+
+Section 3.3 of the spec requires the minimized input to be added
+automatically to the project's regression suite, so that later pipeline runs
+check it. The test must show the expected error on base, and check the absence
+of the same error and the expected behavior on patch.
+
+**When one is created**: for every bundle with a stable replay (§10.4).
+
+**Verification before adding**: the input is run once on `base-sanitized`.
+
+- For `FIXED` and `INCOMPLETE_FIX` findings, base must crash with the
+  finding's signature. This holds even when the input was minimized on the
+  patch binary.
+- For `NEW_ISSUE` findings, base must not crash.
+
+If the check fails, the test is not added, and the warning
+`REGRESSION_NOT_ADDED` is recorded.
+
+**Duplicates**: before adding, the tool compares the SHA-256 hash of the input
+with every input already in `regression_dir`. If the same bytes are already
+there, nothing is added, and the report marks the test as already present.
+Inputs that come from a regression test are never added again. Two different
+inputs that reach the same error are both kept, because each is a different
+way to reach it (for example, the input that bypasses an incomplete patch).
+
+**Files**: two files per test, named after the source test and the first 8
+hex digits of the input's SHA-256 hash:
+
+```
+reg-exploit_secondary-3f2a91c0.txt    the input, byte for byte, with the original extension
+reg-exploit_secondary-3f2a91c0.yaml   what the test expects
+```
+
+```yaml
+name: reg-exploit_secondary-3f2a91c0
+input_file: reg-exploit_secondary-3f2a91c0.txt
+expect_base_crash: true
+signature: "STACK_BUFFER_OVERFLOW @ handle_set_command < process_input < main"
+created_by:
+  tool_version: "0.2.0"
+  run_id: "20261111-183002-3f2a91c0"
+  finding: "F-001"
+  source_test: "exploit_secondary"
+created_on:
+  base_version: "c76e9ca"
+  base_binary_sha256: "…"
+```
+
+`created_on` records the base version on which the error was shown when the
+test was created. This is the proof required by the spec, and it stays valid
+in later CI runs where base may already contain a fix (§8.6).
+
+**Where they are written**: to `regression/` in the run's output directory,
+and also to the target's `regression_dir`, unless `--no-promote` is given.
+
+**In later runs**, every `.yaml` file in `regression_dir` is loaded as a test
+of kind `regression` (§5) and validated like the config (§4.5). It runs on all
+four builds. Its expectation is: on base, a crash with `signature` if
+`expect_base_crash` is true, or no crash if it is false; on patch, no crash.
+
+### 10.7 Change from current code
+
+| Behavior | Current code | This spec |
+|---|---|---|
+| Bundles for `Fixed` findings | None. | One per finding, on base. |
+| Minimization accepts | Any crash with the same detection mechanism (for example, any AddressSanitizer error). | Only the same signature. |
+| Replay counts as reproduced | Same signal, or same detection mechanism. | Same signature. |
+| Unstable minimized input | Reported as flaky; nothing else. | Fall back to the original input; `INCONCLUSIVE` if that is unstable too. |
+| Release behavior | Not recorded. | Three replays on release, recorded. |
+| `reproduce.sh` | Always feeds the input on standard input, even for programs that take a file; absolute binary path on the creator's machine; no hash check. | Recorded input method, relative paths, hash check, exit code says whether the error was reproduced. |
+| Environment in metadata | Default sanitizer options, not the real environment. | The exact environment of the run. |
+| Build settings in metadata | Only the build command. | Command, environment, compiler and version. |
+| Binary in bundle | Not included. | Included. |
+| Regression tests | A `.txt` input in the run's output, never verified, never run again. | Verified on base, deduplicated, stored with expectations in `regression_dir`, and run in every later run. |
+
+---
+
 ## Sections still to be written
 
-- 9. Linking findings to the patch
-- 10. Minimization, reproducer bundles and regression tests
 - 11. Binary hardening
 - 12. Outputs and their formats
 - 13. Status and exit codes
