@@ -13,16 +13,30 @@ ENV DEBIAN_FRONTEND=noninteractive \
 #   universal-ctags    function ranges for linking findings to the diff (SPEC §9.2)
 #   gdb, valgrind      manual debugging only; the tool does not depend on them
 #   checksec, file     manual cross-check of the tool's hardening and ELF checks
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential gcc g++ \
-        clang llvm lld \
-        universal-ctags \
-        gdb valgrind \
-        binutils file checksec bsdextrautils \
-        git make cmake pkg-config \
-        python3 python3-pip python3-venv python3-dev \
-        ca-certificates curl \
-    && rm -rf /var/lib/apt/lists/*
+# Network fallback: every download is tried DIRECTLY first. Only if that
+# fails and BUILD_PROXY is set (from .env, see .env.example) is it retried
+# through that proxy, for example your VPN's local HTTP proxy. The proxy is
+# used only while building; it is not kept in the image.
+ARG BUILD_PROXY=""
+
+RUN set -eu; \
+    PKGS="build-essential gcc g++ clang llvm lld universal-ctags gdb valgrind \
+          binutils file checksec bsdextrautils git make cmake pkg-config \
+          python3 python3-pip python3-venv python3-dev ca-certificates curl"; \
+    direct() { \
+        apt-get -o Acquire::http::Timeout=15 -o Acquire::Retries=1 update \
+        && apt-get -o Acquire::http::Timeout=15 install -y --no-install-recommends $PKGS; }; \
+    viaproxy() { \
+        P="-o Acquire::http::Proxy=$BUILD_PROXY -o Acquire::https::Proxy=$BUILD_PROXY"; \
+        apt-get $P update && apt-get $P install -y --no-install-recommends $PKGS; }; \
+    if ! direct; then \
+        if [ -z "$BUILD_PROXY" ]; then \
+            echo "ERROR: direct download failed and BUILD_PROXY is not set (see .env.example)" >&2; exit 1; \
+        fi; \
+        echo ">>> Direct download failed; retrying through BUILD_PROXY=$BUILD_PROXY" >&2; \
+        rm -rf /var/lib/apt/lists/*; viaproxy; \
+    fi; \
+    rm -rf /var/lib/apt/lists/*
 
 # Python dependencies come from pyproject.toml, the single source of truth.
 # Only pyproject.toml is copied, so this layer is rebuilt only when dependencies
@@ -32,12 +46,18 @@ COPY pyproject.toml /tmp/deps/pyproject.toml
 # pip and setuptools are upgraded first: Ubuntu 22.04's pip 22.0 ignores the
 # [project] table and would install a package called "UNKNOWN" with no
 # dependencies at all.
-RUN python3 -m pip install --upgrade "pip>=24" "setuptools>=68" wheel \
-    && cd /tmp/deps \
-    && mkdir zaraban && touch zaraban/__init__.py README.md \
-    && python3 -m pip install ".[dev]" \
-    && python3 -m pip uninstall -y zaraban \
-    && rm -rf /tmp/deps
+RUN set -eu; \
+    pipi() { \
+        python3 -m pip install --timeout 15 --retries 1 "$@" && return 0; \
+        [ -n "$BUILD_PROXY" ] || { echo "ERROR: pip failed and BUILD_PROXY is not set" >&2; return 1; }; \
+        echo ">>> pip failed directly; retrying through BUILD_PROXY=$BUILD_PROXY" >&2; \
+        HTTP_PROXY="$BUILD_PROXY" HTTPS_PROXY="$BUILD_PROXY" python3 -m pip install "$@"; }; \
+    pipi --upgrade "pip>=24" "setuptools>=68" wheel; \
+    cd /tmp/deps; \
+    mkdir zaraban; touch zaraban/__init__.py README.md; \
+    pipi ".[dev]"; \
+    python3 -m pip uninstall -y zaraban; \
+    rm -rf /tmp/deps
 
 # Fail the build early if a tool the pipeline relies on is missing
 RUN gcc --version >/dev/null \
