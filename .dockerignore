@@ -1,9 +1,14 @@
+# The image only needs pyproject.toml; all code is bind-mounted at run time.
+
+# Version control
 .git
 .gitignore
-__pycache__
-*.pyc
-*.pyo
-*.pyd
+
+# Python caches and environments
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
 .pytest_cache
 .venv
 venv
@@ -11,4 +16,13 @@ env
 *.egg-info
 dist
 build
+
+# Zaraban outputs and project content (not needed to build the image)
+out/
+results/
+targets/
+tests/
+docs/
+
+# OS files
 .DS_Store
