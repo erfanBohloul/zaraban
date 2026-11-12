@@ -7,7 +7,8 @@ agent) implementing the tool.
 The course specification is [`project1_spec.pdf`](project1_spec.pdf). This
 document cites it as "the spec", with section numbers such as §3.1.
 
-> **Status:** draft for team review, on branch `docs/spec`.
+> **Status:** version 1. Includes the decisions taken on every point of
+> [`SPEC_REVIEW.md`](SPEC_REVIEW.md) (see its last section).
 
 Where a section changes something that exists in the current code, it says so
 under **Change from current code**. "Current code" means the `main` branch plus
@@ -32,6 +33,7 @@ These words have one fixed meaning throughout this document.
 | **Run** | One execution of one test on one build. |
 | **Repeat** | Each test is run several times on each build (default 3) to detect unstable results. |
 | **Signature** | A short identifier of a crash: error type plus the top three functions of the stack trace, for example `STACK_BUFFER_OVERFLOW @ handle_set_command < process_input < main`. |
+| **Bug key** | Error type plus the function and file of the first non-runtime frame (the crashing location), for example `STACK_BUFFER_OVERFLOW @ handle_set_command (src/main.c)`. Two crashes with the same bug key are the same bug, even when they were reached through different callers (§8.2). |
 | **Finding** | One reportable problem, built from one or more tests. Defined in §8. |
 
 ---
@@ -201,7 +203,7 @@ python -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
 Check a config after editing it, without building anything:
 
 ```bash
-python -m zaraban.cli -c targets/target2_cjson/zaraban.yaml --check-config
+python -m zaraban.cli -c targets/cjson/zaraban.yaml --check-config
 ```
 
 ---
@@ -249,6 +251,7 @@ The meaning of each test kind, and how results are judged, is defined in §5.
 | `build.release_cmd` | string | yes | | Shell command that produces the release build, run in the root of a fresh copy of the source tree. |
 | `build.sanitized_cmd` | string | yes | | Shell command that produces a build with AddressSanitizer and UndefinedBehaviorSanitizer. The tool verifies afterwards that both sanitizers are really present in the binary (§6). |
 | `build.clean_cmd` | string | no | none | Run before building. Normally unnecessary, because each build starts from a fresh copy. |
+| `build.coverage_cmd` | string | no | none | Shell command that produces a coverage build for the execution trace (§9.4), for example `make coverage`. Without it, no execution trace is made, and links that would need one are `UNDETERMINED`. |
 | `limits.timeout_seconds` | number > 0 | no | `3.0` | Wall-clock limit for one run. |
 | `limits.memory_limit_mb` | integer > 0 | no | `256` | Memory limit for one run. How it is enforced for each profile is defined in §7. |
 
@@ -640,7 +643,8 @@ ASAN_SYMBOLIZER_PATH=<path of llvm-symbolizer>
   instead of printing it and continuing.
 - `detect_leaks=0`: memory leaks are not treated as crashes. A leak report
   appears only at exit and would turn every run of a leaky program into a
-  failure, unrelated to the patch.
+  failure, unrelated to the patch. Memory leaks are therefore out of the
+  scope of this tool; this is a deliberate choice, not a missed bug class.
 - If the config's `env` sets `ASAN_OPTIONS` or `UBSAN_OPTIONS`, the tool's
   options are appended after the config's, so the tool's values win.
 - If `llvm-symbolizer` is not found, the tool still runs, but stack traces have
@@ -774,8 +778,9 @@ behave on base and on patch. Every finding has one of the five categories of
 | `FUNCTIONAL_REGRESSION` | A behavior that is correct on base is wrong on patch, without a crash. |
 | `INCONCLUSIVE` | Something abnormal was observed, but the evidence is not enough to put it in another category. |
 
-A finding can come from **several tests**. Crashes are grouped by signature
-(§7.4), so that one error reached by several inputs is one finding. This
+A finding can come from **several tests**. Crashes are grouped by bug key
+(§1, §8.2), so that one error reached by several inputs, possibly through
+different callers, is one finding. This
 follows the spec's own description of an incomplete patch (§4): it blocks the
 original input, but the same vulnerability still occurs with a different
 input. Reporting the two inputs as one `FIXED` finding and one
@@ -796,10 +801,16 @@ type and a stack trace reliable enough to compare.
 
 1. Collect every signature that appears in a stable `CRASH` result on
    `base-sanitized` or `patch-sanitized`, from tests of any kind.
-2. For each signature S, find:
-   - **B**: the tests whose `base-sanitized` result is a crash with S;
-   - **P**: the tests whose `patch-sanitized` result is a crash with S.
-3. Create one finding for S:
+2. **Same-bug rule.** Group the signatures by their bug key (§1): the error
+   type and the function and file of the first non-runtime frame. Signatures
+   with the same bug key describe the same bug and form one group G, even if
+   the frames below the crashing one differ.
+3. For each group G, find:
+   - **B**: the tests whose `base-sanitized` result is a crash with a
+     signature in G;
+   - **P**: the tests whose `patch-sanitized` result is a crash with a
+     signature in G.
+4. Create one finding for G:
 
 | B | P | Category |
 |---|---|---|
@@ -813,14 +824,22 @@ the sanitized ones and never merged with them (§3.2 of the spec).
 
 Consequences of these rules:
 
-- **The worst case decides.** If even one test still reaches S on patch, the
-  finding is `INCOMPLETE_FIX`. The tests that are blocked on patch are listed
-  in the same finding, marked as blocked.
-- **A test can be in two findings.** If a test crashes on base with S1 and on
-  patch with a different S2, it appears in the finding for S1 (where it is no
-  longer reaching S1) and in a `NEW_ISSUE` finding for S2.
-- **Comparison is by signature, not by "both crashed".** Two crashes are the
-  same error only if their error type and top three functions are equal.
+- **The worst case decides.** If even one test still reaches the bug on
+  patch, the finding is `INCOMPLETE_FIX`. The tests that are blocked on patch
+  are listed in the same finding, marked as blocked.
+- **A different call path is still the same bug.** An incomplete patch often
+  blocks the public input in one caller, while another input reaches the same
+  crashing code through a different caller. The signatures then differ, but
+  the bug key is the same, so the result is one `INCOMPLETE_FIX`, not a
+  `FIXED` plus a `NEW_ISSUE`. When a finding contains more than one signature,
+  its notes say that the call paths differ and list the signatures.
+- **A test can be in two findings.** If a test crashes on base with bug key K1
+  and on patch with a different bug key K2, it appears in the finding for K1
+  (where it no longer reaches K1) and in a `NEW_ISSUE` finding for K2.
+- **Comparison is by bug key, not by "both crashed".** Two crashes are the
+  same error only if their error type and crashing function and file are
+  equal. Two crashes with the same signal or the same detection mechanism are
+  not enough.
 
 ### 8.3 Crashes without a signature
 
@@ -929,7 +948,7 @@ scenario script checks the findings, not only the exit code.
 | Behavior | Current code | This spec |
 |---|---|---|
 | Unit of a finding | One finding per test, for every test, including tests that behave normally on both versions (reported as `Fixed`). | One finding per crash signature, or per test for other problems. Normal tests produce no finding. |
-| Same error on base and patch | Both crashed with the same signal and detection mechanism. | Same signature: same error type and same top three functions. |
+| Same error on base and patch | Both crashed with the same signal and detection mechanism. | Same bug key: same error type and same crashing function and file (§8.2). |
 | Different error on patch | Reported as `Incomplete Fix`. | A `NEW_ISSUE` finding for the new signature. |
 | Crash on a valid input on patch | `Functional Regression` (code 20). | `NEW_ISSUE` (code 10). |
 | Release results | Not part of findings. | Reported next to the sanitized results. |
@@ -1020,12 +1039,31 @@ For findings without a crash stack, and for crash findings where the stack
 gives no location evidence, the tool records which changed lines the input
 actually executes:
 
-- It runs the finding's test once more on the sanitized build of the relevant
-  version, under `gdb` in batch mode, with a breakpoint on every changed line
-  of that side (added lines on patch, removed lines on base).
-- It records which of those lines were reached, and in what order.
-- This uses the same input, environment and limits as the normal runs. `gdb` is
-  already in the Docker image.
+- When a trace is needed, the tool makes one extra **coverage build** of the
+  relevant version with `build.coverage_cmd` (§4.3), in its own fresh copy
+  `work/<version>-coverage/`, exactly like the builds of §6.2. The target's
+  `coverage` rule compiles with clang at `-O0 -g -fprofile-instr-generate
+  -fcoverage-mapping`, so no line is optimized away.
+- It runs the finding's test once on that build, with the same input,
+  environment and limits as the normal runs, and with `LLVM_PROFILE_FILE`
+  pointing into the run directory.
+- It reads the executed lines with `llvm-profdata merge` and
+  `llvm-cov export`, and records which changed lines of that side were
+  executed (added lines on patch, removed lines on base), with their hit
+  counts.
+- Coverage builds are not among the four builds of §6.1: tests are not run on
+  them, and they do not count for `builds_ok`. If the config has no
+  `coverage_cmd`, or the coverage build or its profile fails, the tool records
+  the warning `TRACE_UNAVAILABLE` and the link falls back to the other
+  evidence, or `UNDETERMINED`.
+
+Why coverage and not `gdb` breakpoints: the sanitized build uses `-O1`, where
+changed lines can be merged or optimized out, so breakpoints silently miss.
+`gdb` also needs `ptrace` inside the container and is slow with one breakpoint
+per changed line. Source-based coverage is deterministic, gives hit counts
+directly, and `llvm-profdata` and `llvm-cov` are already in the Docker image.
+The order in which lines ran is not recorded; the hit counts and the changed
+hunks are enough to show which branch the input took.
 
 This trace is the "execution path" evidence of §3.1 of the spec. It is the
 only location evidence available for a `FUNCTIONAL_REGRESSION`, which has no
@@ -1506,6 +1544,7 @@ the exit code. Every error gives exit code `30`.
 | `MINIMIZE_LIMIT` | Minimization stopped at its budget. | §10.2 |
 | `REGRESSION_NOT_ADDED` | A minimized input failed its check on base. | §10.6 |
 | `HARDENING_DOWNGRADE` | A protection is weaker on patch. | §11.3 |
+| `TRACE_UNAVAILABLE` | No execution trace could be made (no `coverage_cmd`, or its build failed). | §9.4 |
 
 | Error | Meaning | Defined in |
 |---|---|---|
@@ -1660,6 +1699,22 @@ targets/<target>/
   tests/regression/          generated regression tests (§10.6)
 ```
 
+**Which targets.** Section 4 of the spec requires two independent C/C++
+programs, at least one of them a real project or library, not a toy. Both
+delivered targets are real open-source projects with a public CVE, and the
+Correct patch of each is the upstream fix:
+
+| Target | Upstream | Vulnerability | Base | Correct patch |
+|---|---|---|---|---|
+| `cjson` | DaveGamble/cJSON | CVE-2019-11835, heap buffer over-read in `cJSON_Minify` | `v1.7.10` | upstream commit `a43fa56` (in `v1.7.11`) |
+| `md4c` | mity/md4c | CVE-2021-30027, heap buffer over-read in `md_analyze_line` | `release-0.4.7` | upstream fix, in `release-0.4.8` |
+
+The Incomplete and Regression patches are written by the team, and the
+`ORACLE.md` of each target says how. The reproduction of each CVE is recorded
+in `docs/repro/`. `token_parser` (`targets/target1_sample`) is written by the
+team, so it is a development fixture for the tool's own tests, and is not one
+of the two delivered targets.
+
 Section 4 of the spec requires the four versions of each target to be ready in
 the repository. Each patched version is stored both as a complete tree, which
 is easy to read and build, and as a diff, which is the form used at the defense
@@ -1718,8 +1773,10 @@ pipeline result (§3.5 of the spec).
 
 The image is the isolated test environment required by §5 of the spec:
 
-- Ubuntu 22.04 on x86-64, with gcc, clang, llvm (for `llvm-symbolizer`), gdb,
-  binutils, `universal-ctags`, git and Python 3 with the tool's dependencies.
+- Ubuntu 22.04 on x86-64, with gcc, clang, llvm (for `llvm-symbolizer`,
+  `llvm-profdata` and `llvm-cov`), binutils, `universal-ctags`, git and
+  Python 3 with the tool's dependencies. `gdb` is included for manual
+  debugging only; the tool does not use it.
 - The tool runs as a non-root user.
 - `docker-compose.yml` sets resource limits on the container: memory
   (`mem_limit`), CPU (`cpus`) and number of processes (`pids_limit`), and
