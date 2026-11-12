@@ -8,7 +8,9 @@ This runs before anything is built (SPEC §2 step 2, §3.2, §3.3). It:
   ever built inside the repository (§3.3, §6.2);
 - obtains the unified diff between them:
     * a diff file is used as given, applied to the base copy with ``git apply``
-      at the first strip level ``-p0``..``-p4`` that applies cleanly (§3.2);
+      at the strip level ``-p0``..``-p4`` that applies cleanly (§3.2); if two
+      levels would patch different existing files, the run stops instead of
+      guessing;
     * two directories are compared with ``git diff --no-index`` between the
       clean trees, before any build (§3.3), and the result is written with
       the usual ``a/`` ``b/`` prefixes rooted at the tree (``a/src/main.c``),
@@ -26,15 +28,13 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from unidiff import PatchSet
 from unidiff.errors import UnidiffParseError
 
 from .models import DiffInfo, ErrorCode, VersionInfo, ZarabanError
 
-# Never copied into a work tree: the repo's git data and run outputs (§6.2).
-_IGNORE = shutil.ignore_patterns(".git", "out", "__pycache__", "*.pyc")
 _MAX_STRIP = 4
 _DIR_DIFF_STRIP = 1  # the diff of two directories is written rooted at a/ b/
 
@@ -115,29 +115,90 @@ def copy_tree(src: Path, dest: Path) -> None:
     Also used by the builder for its per-build copies (§6.2)."""
     if dest.exists():
         shutil.rmtree(dest)
-    shutil.copytree(src, dest, ignore=_IGNORE, symlinks=True)
+    shutil.copytree(src, dest, ignore=_ignore_for(Path(src)), symlinks=True)
+
+
+def _ignore_for(root: Path) -> Callable[[str, list[str]], set[str]]:
+    """What copy_tree leaves out: git data and Python caches at any depth, and
+    the run output directory ``out`` only at the root of the tree. A source
+    directory called ``out`` deeper down (``src/out/``) is part of the program."""
+    def ignore(dirpath: str, names: list[str]) -> set[str]:
+        skip = {n for n in names if n in (".git", "__pycache__") or n.endswith(".pyc")}
+        if Path(dirpath) == root and "out" in names:
+            skip.add("out")
+        return skip
+    return ignore
 
 
 def _apply_diff(diff_file: Path, base_tree: Path, patch_tree: Path) -> int:
-    """Copy the base tree and apply the diff; return the strip level used."""
+    """Copy the base tree and apply the diff; return the strip level used (§3.2).
+
+    Every level ``-p0``..``-p4`` is checked first. Each level that applies is
+    "anchored" when it changes or deletes a file that exists in the base. One
+    anchored level is used. Several anchored levels would patch different
+    files, so the diff is ambiguous and the run stops. A diff that only adds
+    files has no anchor: it uses ``-p1`` for a git-style diff (``b/...``
+    paths), otherwise the lowest level that applies.
+    """
     copy_tree(base_tree, patch_tree)
+    diff = str(diff_file.resolve())
+    touched: dict[int, list[str]] = {}  # level -> paths it would patch
+    failures: dict[int, str] = {}
     for level in range(_MAX_STRIP + 1):
-        check = subprocess.run(
-            ["git", "apply", "--check", f"-p{level}", str(diff_file.resolve())],
-            cwd=patch_tree, capture_output=True, text=True,
-        )
+        check = _git_apply(patch_tree, level, diff, "--check")
         if check.returncode == 0:
-            applied = subprocess.run(
-                ["git", "apply", f"-p{level}", str(diff_file.resolve())],
-                cwd=patch_tree, capture_output=True, text=True,
-            )
-            if applied.returncode == 0:
-                return level
-    raise ZarabanError(
-        ErrorCode.PATCH_APPLY_FAILED,
-        f"the diff does not apply to the base at any strip level -p0..-p{_MAX_STRIP}",
-        {"diff": str(diff_file)},
-    )
+            touched[level] = _numstat_paths(_git_apply(patch_tree, level, diff, "--numstat").stdout)
+        else:
+            failures[level] = check.stderr.strip()
+
+    if not touched:
+        raise ZarabanError(
+            ErrorCode.PATCH_APPLY_FAILED,
+            f"the diff does not apply to the base at any strip level -p0..-p{_MAX_STRIP}",
+            {"diff": str(diff_file),
+             "problems": [f"-p{lvl}: {_first_line(err)}" for lvl, err in failures.items()]},
+        )
+
+    level = _choose_level(touched, base_tree, diff_file)
+    applied = _git_apply(patch_tree, level, diff)
+    if applied.returncode != 0:
+        raise ZarabanError(ErrorCode.PATCH_APPLY_FAILED,
+                           f"the diff passed git apply --check at -p{level} but did not apply",
+                           {"diff": str(diff_file), "problems": [_first_line(applied.stderr)]})
+    return level
+
+
+def _choose_level(touched: dict[int, list[str]], base_tree: Path, diff_file: Path) -> int:
+    anchored = [lvl for lvl, paths in touched.items()
+                if any((base_tree / p).is_file() for p in paths)]
+    if len(anchored) == 1:
+        return anchored[0]
+    if len(anchored) > 1:
+        raise ZarabanError(
+            ErrorCode.PATCH_APPLY_FAILED,
+            "the diff applies at more than one strip level, to different files; "
+            "make its paths unambiguous (for example with git diff)",
+            {"diff": str(diff_file),
+             "problems": [f"-p{lvl} would patch: {', '.join(touched[lvl])}" for lvl in anchored]},
+        )
+    # Only new files: nothing in the base shows which level is right.
+    git_style = 0 in touched and all(p.startswith(("a/", "b/")) for p in touched[0])
+    return 1 if git_style and 1 in touched else min(touched)
+
+
+def _git_apply(tree: Path, level: int, diff: str, *flags: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", "apply", *flags, f"-p{level}", diff],
+                          cwd=tree, capture_output=True, text=True)
+
+
+def _numstat_paths(numstat: str) -> list[str]:
+    """Paths from ``git apply --numstat`` output (``added<TAB>deleted<TAB>path``)."""
+    return [line.split("\t", 2)[2] for line in numstat.splitlines() if line.count("\t") >= 2]
+
+
+def _first_line(text: str) -> str:
+    text = text.strip()
+    return text.splitlines()[0] if text else "(no message)"
 
 
 def _diff_trees(base_tree: Path, patch_tree: Path, out: Path) -> None:
@@ -155,8 +216,9 @@ def _diff_trees(base_tree: Path, patch_tree: Path, out: Path) -> None:
         cwd=base_tree.parent, capture_output=True, text=True,
     )
     # git diff --no-index exits 1 when the trees differ; >1 is a real error.
+    # Both trees were just made by the tool, so this is not a user error.
     if result.returncode > 1:
-        raise ZarabanError(ErrorCode.SOURCE_NOT_FOUND,
+        raise ZarabanError(ErrorCode.TOOL_INTERNAL,
                            "could not diff the base and patch directories",
                            {"stderr": result.stderr.strip()})
     out.write_text(_root_paths(result.stdout, base_tree.name, patch_tree.name),
