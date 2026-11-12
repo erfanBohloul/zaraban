@@ -273,3 +273,131 @@ def _crash_notes(category: Category, key: BugKey, base_tests: list[str],
 
 def _names(tests: list[str]) -> str:
     return ", ".join(tests)
+
+
+# ---------------------------------------------------------------------------
+# Crashes without a signature, and release-only crashes (§8.3)
+# ---------------------------------------------------------------------------
+
+# A stop the runner could not classify is not evidence of a security error
+# (course spec §3.5, code 40).
+_UNCLASSIFIED = (ErrorType.ABORT, ErrorType.UNKNOWN)
+
+
+def unsigned_crash_findings(results: Results, tests: Optional[list[str]] = None) -> list[Finding]:
+    """One finding per test for sanitized crashes that cannot be grouped (§8.3).
+
+    Only stable results are used; a flaky test is handled by §8.5.
+
+    | base-sanitized          | patch-sanitized                        | finding        |
+    |-------------------------|----------------------------------------|----------------|
+    | crash, no signature     | no crash                               | FIXED          |
+    | no crash                | crash, no signature, known error type  | NEW_ISSUE      |
+    | no crash                | crash, no signature, ABORT or UNKNOWN  | INCONCLUSIVE   |
+    | crash, no signature     | crash (with or without signature)      | INCONCLUSIVE   |
+    | crash with a signature  | crash, no signature                    | INCONCLUSIVE   |
+
+    The last row is not in the table of §8.3: the base crash is in a crash
+    finding of §8.2 (marked ``other_error`` on patch), but nothing would say
+    that the patch still crashes. As in the row above it, there is no way to
+    tell whether it is the same error, so it is ``INCONCLUSIVE``.
+    """
+    findings: list[Finding] = []
+    for test in (list(tests) if tests is not None else list(results)):
+        per_build = results[test]
+        b, p = per_build.get(_BS), per_build.get(_PS)
+        if b is None or p is None or b.flaky or p.flaky:
+            continue
+        b_crash, p_crash = b.outcome is Outcome.CRASH, p.outcome is Outcome.CRASH
+        b_unsigned = b_crash and bug_key(b.first.analysis) is None
+        p_unsigned = p_crash and bug_key(p.first.analysis) is None
+        if not (b_unsigned or p_unsigned):
+            continue
+
+        if b_unsigned and not p_crash:
+            findings.append(_test_finding(
+                Category.FIXED, per_build, _etype(b), OnPatch.BLOCKED,
+                f"The base crash ({describe(b)}) has no stack trace with function names; "
+                f"it no longer occurs on patch ({describe(p)})."))
+        elif b_unsigned:
+            also = " The patch crash is also in its own crash finding." \
+                if not p_unsigned else ""
+            findings.append(_test_finding(
+                Category.INCONCLUSIVE, per_build, _etype(b), None,
+                f"The base crash ({describe(b)}) has no stack trace with function names and "
+                f"patch also crashes ({describe(p)}), so it cannot be told whether it is "
+                f"the same error.{also}"))
+        elif not b_crash:
+            etype = _etype(p)
+            if etype in _UNCLASSIFIED:
+                findings.append(_test_finding(
+                    Category.INCONCLUSIVE, per_build, etype, None,
+                    f"The patch stops with {etype.value} ({describe(p)}) and no stack trace "
+                    f"with function names, and base does not crash; an unclassified stop "
+                    f"is not enough evidence of a security error."))
+            else:
+                findings.append(_test_finding(
+                    Category.NEW_ISSUE, per_build, etype, OnPatch.REACHES,
+                    f"The patch crashes with {etype.value} ({describe(p)}) and no stack "
+                    f"trace with function names; base does not crash ({describe(b)})."))
+        else:  # base crash with a signature, patch crash without one
+            findings.append(_test_finding(
+                Category.INCONCLUSIVE, per_build, _etype(p), None,
+                f"Base crashes with {b.signature}, but the patch crash ({describe(p)}) has "
+                f"no stack trace with function names, so it cannot be told whether it is "
+                f"the same error."))
+    return findings
+
+
+def release_only_findings(results: Results, tests: Optional[list[str]] = None) -> list[Finding]:
+    """``INCONCLUSIVE`` for a test whose release build crashes while the
+    sanitized build of the same version does not (§8.3).
+
+    The release build is the real program, so the crash must be reported, but
+    without a sanitizer report it cannot be classified. One finding per test,
+    naming every version where this happens. Flaky results are left to §8.5.
+    """
+    findings: list[Finding] = []
+    for test in (list(tests) if tests is not None else list(results)):
+        per_build = results[test]
+        parts: list[str] = []
+        etype: Optional[ErrorType] = None
+        for version in (Version.BASE, Version.PATCH):
+            rel = per_build.get(BuildName.of(version, Profile.RELEASE))
+            san = per_build.get(BuildName.of(version, Profile.SANITIZED))
+            if rel is None or san is None or rel.flaky or san.flaky:
+                continue
+            if rel.outcome is Outcome.CRASH and san.outcome is not Outcome.CRASH:
+                parts.append(f"on {version.value} the release build crashes ({describe(rel)}) "
+                             f"but the sanitized build does not ({describe(san)})")
+                etype = etype or _etype(rel)
+        if parts:
+            text = "; ".join(parts)
+            findings.append(_test_finding(
+                Category.INCONCLUSIVE, per_build, etype, None,
+                text[0].upper() + text[1:] + ". Without a sanitizer report the crash "
+                "cannot be classified."))
+    return findings
+
+
+def _etype(result: CombinedResult) -> ErrorType:
+    return result.first.analysis.error_type or ErrorType.UNKNOWN
+
+
+def _test_finding(category: Category, per_build: dict[BuildName, CombinedResult],
+                  error_type: Optional[ErrorType], on_patch: Optional[OnPatch],
+                  notes: str) -> Finding:
+    """A finding about one test, with no signature (§8.1: one finding per test)."""
+    ft = finding_test(per_build, on_patch)
+    per_test = [per_build]
+    return Finding(
+        id="",
+        category=category,
+        tests=[ft],
+        signature=None,
+        error_type=error_type,
+        release=profile_summary(per_test, Profile.RELEASE),
+        sanitized=profile_summary(per_test, Profile.SANITIZED),
+        evidence=[f"runs/{ft.test}/"],
+        notes=notes,
+    )
