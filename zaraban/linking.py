@@ -209,7 +209,11 @@ def comparative_tests(finding: Finding, results: Results) -> list[str]:
 def explain(finding: Finding, link: Link, crash: Optional[CombinedResult]) -> str:
     """One or two sentences built only from the recorded facts (§9.6): where
     the evidence lies in the diff, then what the comparison of the versions
-    shows."""
+    shows, or why it shows nothing.
+
+    ``link`` is the location evidence of :func:`locate` with its comparative
+    tests already set, before :func:`link_findings` applies §9.1.
+    """
     return f"{_location_sentence(finding, link, crash)} {_comparison_sentence(finding, link)}".strip()
 
 
@@ -249,6 +253,8 @@ def _comparison_sentence(finding: Finding, link: Link) -> str:
     reaches = [t for t, o in on.items() if o is OnPatch.REACHES]
     blocked = [t for t, o in on.items() if o is OnPatch.BLOCKED]
     tests = link.comparative_tests
+    if not tests and finding.category in _NEEDED:
+        return _missing_sentence(finding, link)
     if finding.category is Category.FIXED and tests:
         return f"{_and(tests)} {_verb(tests, 'crashes', 'crash')} on base and not on patch."
     if finding.category is Category.INCOMPLETE_FIX:
@@ -261,6 +267,34 @@ def _comparison_sentence(finding: Finding, link: Link) -> str:
     if finding.category is Category.FUNCTIONAL_REGRESSION and tests:
         return f"{_and(tests)} {_verb(tests, 'matches', 'match')} its oracle on base and not on patch."
     return ""
+
+
+# What the comparison must show for each category (§9.5), in words.
+_NEEDED = {
+    Category.FIXED: "crashes on base and not on patch",
+    Category.INCOMPLETE_FIX: "reaches this error on both versions or is blocked by the patch",
+    Category.NEW_ISSUE: "crashes on patch and not on base",
+    Category.FUNCTIONAL_REGRESSION: "matches its oracle on base and not on patch",
+}
+
+
+def _missing_sentence(finding: Finding, link: Link) -> str:
+    """Why no test gives comparative evidence: what each test did instead."""
+    why = []
+    for t in finding.tests:
+        if t.on_patch is OnPatch.OTHER_ERROR:
+            why.append(f"{t.test} crashes with another error on patch")
+        elif t.on_patch is None and finding.category is not Category.FUNCTIONAL_REGRESSION:
+            why.append(f"the patch result of {t.test} is flaky")
+        elif t.on_patch is OnPatch.REACHES and finding.category is Category.NEW_ISSUE:
+            why.append(f"{t.test} also crashes on base")
+        elif t.on_patch is OnPatch.REACHES and finding.category is Category.INCOMPLETE_FIX:
+            why.append(f"{t.test} crashes only on patch")
+    detail = f" ({'; '.join(why)})" if why else ""
+    text = f"no test {_NEEDED[finding.category]}{detail}"
+    if link.level is LinkLevel.UNDETERMINED:  # the first sentence already says so
+        return text[0].upper() + text[1:] + "."
+    return f"But {text}, so the link is undetermined."
 
 
 def _and(names: list[str]) -> str:
@@ -283,6 +317,12 @@ def link_findings(findings: list[Finding], results: Results, hunks: list[Hunk],
     finding's side (§9.4); a finding without an entry had no trace made.
     Changed functions are computed once per side, and only when a stack trace
     needs them.
+
+    A link needs both kinds of evidence (§9.1): when no test gives
+    comparative evidence (§9.5), the level is ``UNDETERMINED`` even if a frame
+    matched the diff. This happens, for example, when the only test of a
+    ``FIXED`` finding crashes earlier on patch with another error, which may
+    only hide the base error.
     """
     trees = {Version.BASE: base_tree, Version.PATCH: patch_tree}
     changed: dict[Version, set[tuple[str, str]]] = {}
@@ -299,5 +339,10 @@ def link_findings(findings: list[Finding], results: Results, hunks: list[Hunk],
                           (traces or {}).get(f.id))
         link.comparative_tests = comparative_tests(f, results)
         link.explanation = explain(f, link, crash)
+        # §9.1: location evidence counts only together with comparative
+        # evidence. Without it the link is UNDETERMINED; the matched frame and
+        # hunk stay recorded as facts, and the explanation says what is missing.
+        if not link.comparative_tests:
+            link.level = LinkLevel.UNDETERMINED
         f.link = link
     return findings

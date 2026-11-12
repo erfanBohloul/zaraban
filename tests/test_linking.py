@@ -415,3 +415,56 @@ def test_9_6_token_parser_incomplete_end_to_end(tmp_path):
     assert f.link.explanation.startswith(
         "Frame #1 handle_set_command (src/main.c:37) of the crash on patch lies inside hunk "
         "@@ -21,14 +21,19 @@.")
+
+
+# -- both kinds of evidence (§9.1) -------------------------------------------
+
+def test_9_1_location_without_comparative_evidence_is_undetermined(monkeypatch):
+    """On patch the test crashes earlier with another error, so nothing shows
+    that the base overflow is gone: it may only be masked. The frame lies in
+    the hunk, but without comparative evidence the link is UNDETERMINED."""
+    _fake_changed(monkeypatch, set())
+    k1 = crash("STACK_BUFFER_OVERFLOW", (("parse", "src/main.c", 25),))
+    k2 = crash("USE_AFTER_FREE", (("init", "src/other.c", 3),))
+    r = results({"exploit_x": {"base-sanitized": k1, "patch-sanitized": k2}})
+    fixed, new = link_findings(build_findings(r), r, [HUNK], "base", "patch")
+    assert fixed.category is Category.FIXED          # the link never changes it (§9.6)
+    link = fixed.link
+    assert (link.level, link.comparative_tests) == (LinkLevel.UNDETERMINED, [])
+    # the matched frame is still recorded, as a fact
+    assert (link.file, link.function, link.line, link.hunk) == (
+        "src/main.c", "parse", 25, "@@ -20,11 +20,11 @@")
+    assert link.explanation == (
+        "Frame #1 parse (src/main.c:25) of the crash on base lies inside hunk "
+        "@@ -20,11 +20,11 @@. But no test crashes on base and not on patch "
+        "(exploit_x crashes with another error on patch), so the link is undetermined.")
+    assert new.link.explanation.endswith(
+        "No test crashes on patch and not on base (exploit_x also crashes on base).")
+
+
+def test_9_1_flaky_patch_result_gives_no_comparative_evidence(monkeypatch):
+    _fake_changed(monkeypatch, set())
+    r = results({"exploit_x": {"base-sanitized": crash(stack=(("parse", "src/main.c", 25),)),
+                               "patch-sanitized": [crash(stack=(("parse", "src/main.c", 25),)),
+                                                   normal(1), normal(1)]}})
+    fixed = [f for f in link_findings(build_findings(r), r, [HUNK], "base", "patch")
+             if f.category is Category.FIXED][0]
+    assert fixed.link.level is LinkLevel.UNDETERMINED
+    assert "(the patch result of exploit_x is flaky)" in fixed.link.explanation
+
+
+def test_9_1_incomplete_fix_with_only_a_patch_only_crash(monkeypatch):
+    """B has only a test that now fails with another error; P has only a test
+    that does not crash on base: neither compares the same error on both."""
+    _fake_changed(monkeypatch, set())
+    other = crash("USE_AFTER_FREE", (("init", "src/other.c", 3),))
+    r = results({"exploit_a": {"base-sanitized": crash(stack=(("parse", "src/main.c", 25),)),
+                               "patch-sanitized": other},
+                 "exploit_b": {"patch-sanitized": crash(stack=(("parse", "src/main.c", 25),))}})
+    f = [f for f in link_findings(build_findings(r), r, [HUNK], "base", "patch")
+         if f.category is Category.INCOMPLETE_FIX][0]
+    assert f.link.level is LinkLevel.UNDETERMINED
+    assert f.link.explanation.endswith(
+        "But no test reaches this error on both versions or is blocked by the patch "
+        "(exploit_a crashes with another error on patch; exploit_b crashes only on patch), "
+        "so the link is undetermined.")
