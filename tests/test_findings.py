@@ -3,7 +3,8 @@
 from results_fakes import TOKEN_FRAMES, crash, normal, resource_limit, results, timeout
 
 from zaraban.findings import (BugKey, bug_key, build_text, crash_findings, crash_frame,
-                              describe, finding_test, functional_findings, matches_oracle,
+                              describe, finding_test, flaky_findings, functional_findings,
+                              matches_oracle, repeats_text,
                               profile_summary, release_only_findings, unsigned_crash_findings)
 from zaraban.models import (BUILD_ORDER, Analysis, BuildName, Category, ErrorType, Frame,
                             OnPatch, Outcome, Profile, TestKind)
@@ -522,3 +523,85 @@ def test_8_4_timeout_on_patch_for_security_or_regression_is_inconclusive():
 def test_8_4_flaky_results_are_left_to_8_5():
     r = results({"valid_set": {**_all(OK), "patch-release": [OK, REJECTED]}})
     assert functional_findings(r) == []
+
+
+# -- flaky results (§8.5) ----------------------------------------------------
+
+def test_8_5_flaky_test_gets_one_inconclusive_finding():
+    r = results({"exploit_primary": {"base-sanitized": crash(),
+                                      "patch-release": [normal(1), timeout(), normal(1)],
+                                      "patch-sanitized": [crash(), normal(1), normal(1)]}})
+    f = _one(flaky_findings(r))
+    assert f.category is Category.INCONCLUSIVE
+    assert f.signature is None and f.error_type is None
+    assert f.tests[0].results[PS].flaky and f.tests[0].results[PR].flaky
+    assert not f.tests[0].results[BS].flaky
+    assert f.notes.startswith("exploit_primary gives different results in repeats of the "
+                              "same run on patch-release, patch-sanitized (")
+    assert f.evidence == ["runs/exploit_primary/"]
+
+
+def test_8_5_repeats_text_groups_repeats_and_shows_what_differs():
+    r = results({"t": {"patch-sanitized": [crash(), normal(1, oracle=True), normal(1, oracle=True)]}})
+    assert repeats_text(r["t"][PS]) == (
+        f"CRASH ASAN SIGABRT, {SIG}, oracle failed in repeat 1; "
+        "NORMAL exit 1, oracle passed in repeats 2, 3")
+
+
+def test_8_5_signature_alone_can_differ():
+    other = crash(stack=(("other_fn", "src/main.c", 9),))
+    r = results({"t": {"base-sanitized": [crash(), crash(), other]}})
+    assert r["t"][BS].flaky
+    text = repeats_text(r["t"][BS])
+    assert f"{SIG}, oracle failed in repeats 1, 2" in text
+    assert "@ other_fn" in text and "in repeat 3" in text
+
+
+def test_8_5_stable_tests_have_no_flaky_finding():
+    r = results({"valid_set": {}, "exploit_primary": {"base-sanitized": crash()}})
+    assert flaky_findings(r) == []
+
+
+def test_8_5_flaky_result_is_in_no_other_finding():
+    """The flaky result is reported once, by §8.5, and never grouped (§8.2)."""
+    r = results({"exploit_primary": {"base-sanitized": [crash(), normal(1)],
+                                      "patch-sanitized": [crash(), normal(1)]}})
+    assert crash_findings(r) == []
+    assert unsigned_crash_findings(r) == []
+    assert functional_findings(r) == []
+    assert release_only_findings(r) == []
+    assert len(flaky_findings(r)) == 1
+
+
+# -- what is not a finding (§8.6) --------------------------------------------
+
+ALL_RULES = (crash_findings, unsigned_crash_findings, release_only_findings,
+             functional_findings, flaky_findings)
+
+
+def _every_finding(r):
+    return [f for rule in ALL_RULES for f in rule(r)]
+
+
+def test_8_6_test_that_behaves_as_expected_is_not_a_finding():
+    r = results({"valid_set": _all(OK), "invalid_bad": _all(normal(2, oracle=True))},
+                kinds={"invalid_bad": "invalid"})
+    assert _every_finding(r) == []
+
+
+def test_8_6_security_test_not_crashing_on_base_is_not_a_finding():
+    """Not reproduced: a status condition with code 40 (§13), not a finding."""
+    rejected = normal(1, oracle=True)
+    r = results({"exploit_primary": _all(rejected)})
+    assert _every_finding(r) == []
+
+
+def test_8_6_regression_test_clean_on_base_is_not_a_finding():
+    r = results({"reg-exploit-3f2a": {}})
+    assert _every_finding(r) == []
+
+
+def test_8_6_regression_test_clean_on_base_crashing_on_patch_is_new_issue():
+    r = results({"reg-exploit-3f2a": {"patch-sanitized": crash()}})
+    [f] = _every_finding(r)
+    assert f.category is Category.NEW_ISSUE
