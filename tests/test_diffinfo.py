@@ -1,11 +1,14 @@
 """Unit tests for zaraban/diffinfo.py (SPEC §9.2)."""
 
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
 
-from zaraban.diffinfo import load_hunks, parse_hunks
-from zaraban.models import ErrorCode, Version, ZarabanError
+from zaraban.diffinfo import (changed_functions, changed_positions, function_ranges,
+                              load_hunks, parse_hunks)
+from zaraban.models import ErrorCode, Hunk, Version, ZarabanError
 
 TARGET = Path(__file__).resolve().parent.parent / "targets" / "target1_sample"
 
@@ -152,3 +155,148 @@ def test_9_2_token_parser_incomplete_patch(tmp_path):
     assert h.contains(Version.PATCH, "src/main.c", 37)  # strcpy on patch
     assert h.contains(Version.BASE, "src/main.c", 32)  # strcpy on base
     assert 37 not in h.added_lines
+
+
+# -- changed functions (§9.2) ------------------------------------------------
+
+def _has_universal_ctags():
+    if shutil.which("ctags") is None:
+        return False
+    out = subprocess.run(["ctags", "--version"], capture_output=True, text=True).stdout
+    return "Universal Ctags" in out
+
+
+needs_ctags = pytest.mark.skipif(not _has_universal_ctags(),
+                                 reason="universal-ctags is in the Docker image only")
+
+# A check added to the caller ``handle``; the overflow itself is in ``copy``.
+CALLER_BASE = """\
+static void copy(char *d, const char *s) {
+    strcpy(d, s);
+}
+
+int handle(const char *s) {
+    char buf[8];
+    copy(buf, s);
+    return 0;
+}
+"""
+
+CALLER_PATCH = """\
+static void copy(char *d, const char *s) {
+    strcpy(d, s);
+}
+
+int handle(const char *s) {
+    char buf[8];
+    if (strlen(s) >= sizeof buf) return 1;
+    copy(buf, s);
+    return 0;
+}
+
+int extra(void) {
+    return 0;
+}
+"""
+
+
+def _trees(tmp_path, base_text, patch_text, name="src/x.c"):
+    """Base and patch trees with one file, and the git diff between them."""
+    for side, text in (("base", base_text), ("patch", patch_text)):
+        f = tmp_path / side / name
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(text, encoding="utf-8")
+    diff = subprocess.run(
+        ["git", "diff", "--no-index", "--", f"base/{name}", f"patch/{name}"],
+        cwd=tmp_path, capture_output=True, text=True).stdout
+    # git names the files a/base/src/x.c and b/patch/src/x.c: strip 2
+    return tmp_path / "base", tmp_path / "patch", parse_hunks(diff, 2)
+
+
+def test_9_2_insertion_gap_on_base_side():
+    # "@@ -3,7 +3,8 @@": patch line 7 is new, between base lines 6 and 7
+    h = Hunk("src/x.c", "@@ -3,7 +3,8 @@", 3, 9, 3, 10, removed_lines=[], added_lines=[7])
+    assert changed_positions(h, Version.BASE) == ([], [(6, 7)])
+    assert changed_positions(h, Version.PATCH) == ([7], [])
+
+
+def test_9_2_deletion_gap_on_patch_side():
+    # "@@ -20,4 +20,3 @@": base line 21 is removed, between patch lines 20 and 21
+    h = Hunk("src/x.c", "@@ -20,4 +20,3 @@", 20, 23, 20, 22, removed_lines=[21], added_lines=[])
+    assert changed_positions(h, Version.PATCH) == ([], [(20, 21)])
+    assert changed_positions(h, Version.BASE) == ([21], [])
+
+
+def test_9_2_replacement_has_lines_on_both_sides():
+    h = parse_hunks(GIT_DIFF, 1)[0]  # -11 / +11 +12
+    lines, gaps = changed_positions(h, Version.BASE)
+    assert lines == [11] and gaps == [(10, 12)]
+    lines, gaps = changed_positions(h, Version.PATCH)
+    assert lines == [11, 12] and gaps == [(10, 13)]
+
+
+def test_9_2_zero_context_insertion_sits_after_start_line():
+    # diff -U0: "@@ -6,0 +7 @@" inserts one line after base line 6
+    h = Hunk("src/x.c", "@@ -6,0 +7,1 @@", 6, 5, 7, 7, removed_lines=[], added_lines=[7])
+    assert changed_positions(h, Version.BASE) == ([], [(6, 7)])
+
+
+@needs_ctags
+def test_9_2_function_ranges_from_ctags(tmp_path):
+    base, _, _ = _trees(tmp_path, CALLER_BASE, CALLER_PATCH)
+    assert function_ranges(base, "src/x.c") == [("copy", 1, 3), ("handle", 5, 9)]
+
+
+@needs_ctags
+def test_9_2_missing_or_non_c_file_has_no_functions(tmp_path):
+    (tmp_path / "Makefile").write_text("all:\n\techo hi\n", encoding="utf-8")
+    assert function_ranges(tmp_path, "Makefile") == []
+    assert function_ranges(tmp_path, "src/gone.c") == []
+
+
+@needs_ctags
+def test_9_2_check_added_to_caller_changes_the_caller_on_both_sides(tmp_path):
+    base, patch, hunks = _trees(tmp_path, CALLER_BASE, CALLER_PATCH)
+    # Nothing was removed, but the new check sits inside handle() on base too.
+    assert changed_functions(base, hunks, Version.BASE) == {("src/x.c", "handle")}
+    # copy() is not changed: being next to a change is not a change (§9.1).
+    assert changed_functions(patch, hunks, Version.PATCH) == {
+        ("src/x.c", "handle"), ("src/x.c", "extra")}
+
+
+@needs_ctags
+def test_9_2_new_function_after_the_last_one_does_not_change_it(tmp_path):
+    base_text = "int a(void) {\n    return 0;\n}\n"
+    patch_text = base_text + "\nint b(void) {\n    return 1;\n}\n"
+    base, patch, hunks = _trees(tmp_path, base_text, patch_text)
+    assert changed_functions(base, hunks, Version.BASE) == set()
+    assert changed_functions(patch, hunks, Version.PATCH) == {("src/x.c", "b")}
+
+
+@needs_ctags
+def test_9_2_removed_line_changes_the_function_on_base(tmp_path):
+    base_text = "int a(void) {\n    int unused;\n    return 0;\n}\n"
+    patch_text = "int a(void) {\n    return 0;\n}\n"
+    base, patch, hunks = _trees(tmp_path, base_text, patch_text)
+    assert changed_functions(base, hunks, Version.BASE) == {("src/x.c", "a")}
+    assert changed_functions(patch, hunks, Version.PATCH) == {("src/x.c", "a")}
+
+
+@needs_ctags
+def test_9_2_token_parser_incomplete_patch_changes_handle_set_command(tmp_path):
+    for side, src in (("base", TARGET / "src" / "main.c"),
+                      ("patch", TARGET / "versions" / "patch_incomplete" / "src" / "main.c")):
+        (tmp_path / side / "src").mkdir(parents=True)
+        shutil.copyfile(src, tmp_path / side / "src" / "main.c")
+    hunks = load_hunks(TARGET / "patches" / "incomplete.patch", 4)
+    want = {("src/main.c", "handle_set_command")}
+    assert changed_functions(tmp_path / "base", hunks, Version.BASE) == want
+    assert changed_functions(tmp_path / "patch", hunks, Version.PATCH) == want
+
+
+def test_9_2_missing_ctags_is_a_tool_error(tmp_path, monkeypatch):
+    (tmp_path / "x.c").write_text("int a(void) { return 0; }\n", encoding="utf-8")
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    with pytest.raises(ZarabanError) as e:
+        function_ranges(tmp_path, "x.c")
+    assert e.value.code is ErrorCode.TOOL_INTERNAL
