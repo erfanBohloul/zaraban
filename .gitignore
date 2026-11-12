@@ -226,3 +226,5 @@ __marimo__/
 report.json
 token_parser
 *.o
+
+tmp/

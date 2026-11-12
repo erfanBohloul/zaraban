@@ -291,7 +291,7 @@ linked GitHub issue or from a test added in the fix commit.
 **Sample steps for cJSON (inside the container):**
 
 ```bash
-git clone https://github.com/DaveGamble/cJSON.git /tmp/cjson && cd /tmp/cjson
+git clone https://github.com/DaveGamble/cJSON.git ./tmp/cjson && cd ./tmp/cjson
 git checkout v1.7.10                      # last version before the fix
 git log --oneline v1.7.10..v1.7.11        # find the fix commit for CVE-2019-11835
 
