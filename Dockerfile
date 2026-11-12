@@ -45,7 +45,9 @@ RUN set -eu; \
 COPY pyproject.toml /tmp/deps/pyproject.toml
 # pip and setuptools are upgraded first: Ubuntu 22.04's pip 22.0 ignores the
 # [project] table and would install a package called "UNKNOWN" with no
-# dependencies at all.
+# dependencies at all. pyproject.toml reads the version from
+# zaraban.__version__, so the stub package defines one (any value: it is
+# uninstalled again at the end of this step).
 RUN set -eu; \
     pipi() { \
         python3 -m pip install --timeout 15 --retries 1 "$@" && return 0; \
@@ -54,7 +56,8 @@ RUN set -eu; \
         HTTP_PROXY="$BUILD_PROXY" HTTPS_PROXY="$BUILD_PROXY" python3 -m pip install "$@"; }; \
     pipi --upgrade "pip>=24" "setuptools>=68" wheel; \
     cd /tmp/deps; \
-    mkdir zaraban; touch zaraban/__init__.py README.md; \
+    mkdir zaraban; touch README.md; \
+    echo '__version__ = "0.0.0"' > zaraban/__init__.py; \
     pipi ".[dev]"; \
     python3 -m pip uninstall -y zaraban; \
     rm -rf /tmp/deps
