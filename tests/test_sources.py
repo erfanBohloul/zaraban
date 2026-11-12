@@ -1,6 +1,7 @@
 """Unit tests for zaraban/sources.py (SPEC §3.2, §3.3)."""
 
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -51,9 +52,12 @@ def test_3_3_directory_form_produces_diff(tmp_path):
     assert s.patch.form == "directory"
     assert s.patch.strip_level is None
     # The derived diff mentions the one changed file and has at least one hunk.
-    assert s.diff.hunks >= 1
-    assert any("main.c" in f for f in s.diff.files)
-    assert s.diff_path.read_text(encoding="utf-8").strip() != ""
+    assert s.diff.hunks == 1
+    # Paths are relative to the tree, not to the work directory (§9.2).
+    assert s.diff.files == ["src/main.c"]
+    text = s.diff_path.read_text(encoding="utf-8")
+    assert "--- a/src/main.c\n+++ b/src/main.c\n" in text
+    assert str(s.base_tree) not in text
 
 
 def test_3_3_clean_tree_excludes_git_and_out(tmp_path):
@@ -102,6 +106,37 @@ def test_3_2_non_applying_diff_raises_patch_apply_failed(tmp_path):
     with pytest.raises(ZarabanError) as e:
         prepare(base, bad, tmp_path / "work")
     assert e.value.code is ErrorCode.PATCH_APPLY_FAILED
+
+
+def test_3_2_diff_file_with_timestamps_lists_stripped_paths(tmp_path):
+    """The delivered token_parser patches are `diff -u` output: a tab plus a
+    timestamp after each file name, and different old and new paths
+    (``targets/target1_sample/src/main.c`` and
+    ``targets/target1_sample/versions/patch_correct/src/main.c``). git apply
+    takes the new path, which becomes ``src/main.c`` only at -p4."""
+    target = Path(__file__).resolve().parent.parent / "targets" / "target1_sample"
+    s = prepare(target, target / "patches" / "correct.patch", tmp_path / "work")
+    assert s.patch.strip_level == 4
+    assert "CORRECT PATCH" in (s.patch_tree / "src" / "main.c").read_text()
+    assert s.diff.files == ["src/main.c"]
+    assert s.diff.hunks == 1
+
+
+def test_12_4_deleted_file_listed_by_old_path(tmp_path):
+    base = make_base(tmp_path)
+    patch = make_patch_dir(tmp_path)
+    (patch / "README").unlink()
+    s = prepare(base, patch, tmp_path / "work")
+    assert sorted(s.diff.files) == ["README", "src/main.c"]
+
+
+def test_3_3_hunk_content_that_looks_like_a_path_is_untouched(tmp_path):
+    base = make_base(tmp_path)
+    patch = make_patch_dir(tmp_path)
+    (patch / "src" / "main.c").write_text(
+        "int main(void) {\n    return 1;\n}\n/* a/base/x b/patch/y */\n", encoding="utf-8")
+    s = prepare(base, patch, tmp_path / "work")
+    assert "+/* a/base/x b/patch/y */" in s.diff_path.read_text(encoding="utf-8")
 
 
 # -- error handling (§3.2) ---------------------------------------------------

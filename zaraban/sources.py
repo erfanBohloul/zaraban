@@ -10,7 +10,9 @@ This runs before anything is built (SPEC §2 step 2, §3.2, §3.3). It:
     * a diff file is used as given, applied to the base copy with ``git apply``
       at the first strip level ``-p0``..``-p4`` that applies cleanly (§3.2);
     * two directories are compared with ``git diff --no-index`` between the
-      clean trees, before any build (§3.3).
+      clean trees, before any build (§3.3), and the result is written with
+      the usual ``a/`` ``b/`` prefixes rooted at the tree (``a/src/main.c``),
+      so it reads like any ``-p1`` diff.
 
 It records the version and diff metadata the report needs (§12.4). It does not
 build or run anything, and it does not parse the diff into hunks; that is
@@ -26,11 +28,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from .models import DiffInfo, ErrorCode, Version, VersionInfo, ZarabanError
+from unidiff import PatchSet
+from unidiff.errors import UnidiffParseError
 
-# Never copied into a build tree: the repo's git data and run outputs (§6.2).
+from .models import DiffInfo, ErrorCode, VersionInfo, ZarabanError
+
+# Never copied into a work tree: the repo's git data and run outputs (§6.2).
 _IGNORE = shutil.ignore_patterns(".git", "out", "__pycache__", "*.pyc")
 _MAX_STRIP = 4
+_DIR_DIFF_STRIP = 1  # the diff of two directories is written rooted at a/ b/
 
 
 @dataclass
@@ -69,7 +75,7 @@ def prepare(
     base_tree = work / "base"
     patch_tree = work / "patch"
     diff_path = work / "patch.diff"
-    _copy_tree(base_dir, base_tree)
+    copy_tree(base_dir, base_tree)
 
     if patch_path.is_file():
         form = "diff"
@@ -78,8 +84,8 @@ def prepare(
         patch_commit = None
     elif patch_path.is_dir():
         form = "directory"
-        strip = None
-        _copy_tree(patch_path, patch_tree)
+        strip = None  # recorded only for the diff form (§12.4)
+        copy_tree(patch_path, patch_tree)
         _diff_trees(base_tree, patch_tree, diff_path)
         patch_commit = _git_commit(patch_path)
     else:
@@ -95,7 +101,7 @@ def prepare(
         form=form, ref=str(patch_arg), git_commit=patch_commit,
         tree_sha256=_tree_sha256(patch_tree), strip_level=strip,
     )
-    diff_info = _diff_info(diff_path)
+    diff_info = _diff_info(diff_path, strip if strip is not None else _DIR_DIFF_STRIP)
     return Sources(base_tree, patch_tree, diff_path, base_info, patch_info, diff_info)
 
 
@@ -104,7 +110,9 @@ def prepare(
 # ---------------------------------------------------------------------------
 
 
-def _copy_tree(src: Path, dest: Path) -> None:
+def copy_tree(src: Path, dest: Path) -> None:
+    """Replace ``dest`` with a clean copy of ``src`` (no git data or run outputs).
+    Also used by the builder for its per-build copies (§6.2)."""
     if dest.exists():
         shutil.rmtree(dest)
     shutil.copytree(src, dest, ignore=_IGNORE, symlinks=True)
@@ -112,7 +120,7 @@ def _copy_tree(src: Path, dest: Path) -> None:
 
 def _apply_diff(diff_file: Path, base_tree: Path, patch_tree: Path) -> int:
     """Copy the base tree and apply the diff; return the strip level used."""
-    _copy_tree(base_tree, patch_tree)
+    copy_tree(base_tree, patch_tree)
     for level in range(_MAX_STRIP + 1):
         check = subprocess.run(
             ["git", "apply", "--check", f"-p{level}", str(diff_file.resolve())],
@@ -134,17 +142,45 @@ def _apply_diff(diff_file: Path, base_tree: Path, patch_tree: Path) -> int:
 
 def _diff_trees(base_tree: Path, patch_tree: Path, out: Path) -> None:
     """Write the unified diff between two trees. Build outputs are not present,
-    because the diff is taken from the clean copies before any build (§3.3)."""
+    because the diff is taken from the clean copies before any build (§3.3).
+
+    Both trees live in the same work directory. git is run there with the two
+    tree names, so its paths are ``a/base/src/main.c`` and
+    ``b/patch/src/main.c``; :func:`_root_paths` turns them into
+    ``a/src/main.c`` and ``b/src/main.c``.
+    """
     result = subprocess.run(
-        ["git", "diff", "--no-index", "--", str(base_tree), str(patch_tree)],
-        capture_output=True, text=True,
+        ["git", "diff", "--no-index", "--no-renames", "--",
+         base_tree.name, patch_tree.name],
+        cwd=base_tree.parent, capture_output=True, text=True,
     )
     # git diff --no-index exits 1 when the trees differ; >1 is a real error.
     if result.returncode > 1:
         raise ZarabanError(ErrorCode.SOURCE_NOT_FOUND,
                            "could not diff the base and patch directories",
                            {"stderr": result.stderr.strip()})
-    out.write_text(result.stdout, encoding="utf-8")
+    out.write_text(_root_paths(result.stdout, base_tree.name, patch_tree.name),
+                   encoding="utf-8")
+
+
+def _root_paths(diff: str, base_name: str, patch_name: str) -> str:
+    """Drop the tree names from the file paths in the diff's file headers.
+
+    Only header lines (from ``diff --git`` up to the first ``@@``) are changed,
+    so hunk content that happens to contain such a path is left alone.
+    """
+    a, b = f"a/{base_name}/", f"b/{patch_name}/"
+    lines: list[str] = []
+    in_header = False
+    for line in diff.splitlines(keepends=True):
+        if line.startswith("diff --git "):
+            in_header = True
+        elif line.startswith("@@"):
+            in_header = False
+        if in_header:
+            line = line.replace(a, "a/", 1).replace(b, "b/", 1)
+        lines.append(line)
+    return "".join(lines)
 
 
 def _git_commit(path: Path) -> Optional[str]:
@@ -166,18 +202,32 @@ def _tree_sha256(tree: Path) -> str:
     return h.hexdigest()
 
 
-def _diff_info(diff_path: Path) -> DiffInfo:
-    """Light scan of the diff for the report: changed files and hunk count.
-    The real per-hunk parsing is diffinfo.py (Member C, §9.2)."""
-    text = diff_path.read_text(encoding="utf-8", errors="replace")
+def _diff_info(diff_path: Path, strip: int) -> DiffInfo:
+    """Changed files and hunk count of the diff, for the report (§12.4).
+
+    File paths are given after removing ``strip`` leading components, so they
+    match the tree (``src/main.c``), as §9.2 uses them. A deleted file is
+    listed by its old path. The per-hunk parsing used for linking is
+    diffinfo.py (Member C, §9.2).
+    """
+    raw = diff_path.read_bytes()
+    try:
+        patch_set = PatchSet(raw.decode("utf-8", errors="replace"))
+    except UnidiffParseError as exc:
+        raise ZarabanError(ErrorCode.PATCH_APPLY_FAILED,
+                           f"the diff could not be parsed: {exc}",
+                           {"diff": str(diff_path)})
     files: list[str] = []
-    hunks = 0
-    for line in text.splitlines():
-        if line.startswith("+++ "):
-            name = line[4:].strip()
-            if name != "/dev/null":
-                files.append(name[2:] if name[:2] in ("a/", "b/") else name)
-        elif line.startswith("@@ "):
-            hunks += 1
-    sha = hashlib.sha256(diff_path.read_bytes()).hexdigest()
+    for f in patch_set:
+        name = _strip_path(f.source_file if f.is_removed_file else f.target_file, strip)
+        if name not in files:
+            files.append(name)
+    hunks = sum(len(f) for f in patch_set)
+    sha = hashlib.sha256(raw).hexdigest()
     return DiffInfo(path=str(diff_path), sha256=sha, files=files, hunks=hunks)
+
+
+def _strip_path(path: str, strip: int) -> str:
+    """Remove ``strip`` leading path components, as ``git apply -p<strip>`` does."""
+    parts = path.split("/")
+    return "/".join(parts[strip:]) if len(parts) > strip else path
