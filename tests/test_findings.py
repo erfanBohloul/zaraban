@@ -167,7 +167,7 @@ def test_8_2_release_and_sanitized_summaries_are_separate():
     }
 
 
-def test_fakes_token_parser_signature():
+def test_7_4_fake_signature_is_built_like_the_runner():
     """The fake helper builds signatures the way §7.4 defines them."""
     a = _analysis(crash())
     assert a.signature == "STACK_BUFFER_OVERFLOW @ " + " < ".join(f for f, _, _ in TOKEN_FRAMES)

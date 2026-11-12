@@ -493,8 +493,8 @@ def _functional(results: Results, order: list[str]) -> Found:
     for i, test in enumerate(order):
         per_build = results[test]
         kind = next(iter(per_build.values())).kind
-        base_bad = _mismatches(per_build, _BASE_BUILDS)
-        patch_bad = _mismatches(per_build, _PATCH_BUILDS)
+        base_bad = oracle_mismatches(per_build, Version.BASE)
+        patch_bad = oracle_mismatches(per_build, Version.PATCH)
 
         if kind in _FUNCTIONAL_KINDS:
             if base_bad:
@@ -520,9 +520,16 @@ def _functional(results: Results, order: list[str]) -> Found:
     return findings
 
 
-def _mismatches(per_build: dict[BuildName, CombinedResult],
-                builds: tuple[BuildName, ...]) -> list[CombinedResult]:
-    """Stable, non-crash results of ``builds`` that do not match the oracle."""
+def oracle_mismatches(per_build: dict[BuildName, CombinedResult],
+                      version: Version) -> list[CombinedResult]:
+    """Results on the two builds of ``version`` that do not match the oracle.
+
+    Only stable results that did not crash are judged (§8.4); crashes are
+    left to §8.2/§8.3 and flaky results to §8.5. Used by the functional
+    findings and by their comparative evidence (§9.5), so both judge the
+    same builds.
+    """
+    builds = _BASE_BUILDS if version is Version.BASE else _PATCH_BUILDS
     out = []
     for b in builds:
         r = per_build.get(b)

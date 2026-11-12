@@ -268,6 +268,15 @@ def test_9_5_functional_regression_and_inconclusive():
     ]
 
 
+def test_9_5_functional_regression_ignores_crashed_builds_like_8_4():
+    """§8.4 judges only builds that did not crash; the comparative evidence
+    must use the same builds, or the finding would have no evidence."""
+    found, r = _findings({"valid_set": {**_all(OK), "base-sanitized": crash(),
+                                        "patch-release": REJECTED}})
+    regression = [f for f in found if f.category is Category.FUNCTIONAL_REGRESSION]
+    assert [comparative_tests(f, r) for f in regression] == [["valid_set"]]
+
+
 # -- explanation and link_findings (§9.6) ------------------------------------
 
 def _fake_changed(monkeypatch, changed):
