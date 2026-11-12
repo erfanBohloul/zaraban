@@ -47,8 +47,8 @@ ASan.
 
 ### Task 0.1: Approve the SPEC (all)
 
-**What to do:** read `docs/SPEC.md` and `SPEC_REVIEW.md` together. Decide on
-each review point and edit the SPEC.
+**What to do:** read `docs/SPEC.md` and agree on it as the team's contract.
+Decide any open design point and edit the SPEC.
 
 **Sample decisions to record in SPEC.md:**
 

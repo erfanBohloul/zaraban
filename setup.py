@@ -1,12 +1,6 @@
-from setuptools import setup, find_packages
+"""Shim for tools that still call setup.py. All metadata, including the
+version (read from zaraban/__init__.py), is in pyproject.toml."""
 
-setup(
-    name="zaraban",
-    version="0.1.0",
-    packages=find_packages(),
-    entry_points={
-        "console_scripts": [
-            "zaraban = zaraban.cli:main",
-        ],
-    },
-)
+from setuptools import setup
+
+setup()
