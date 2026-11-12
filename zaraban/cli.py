@@ -8,28 +8,32 @@ The option set is deliberately small: no option can switch off a required
 check, because that could produce a PASS the course spec would not accept
 (SPEC §3.1). Invalid arguments exit with code 30, not argparse's default 2
 (SPEC §3.3).
+
+The process never ends with an exit code outside 0/10/20/30/40: an error the
+tool did not expect is reported as ``TOOL_INTERNAL`` with exit 30 (SPEC §13).
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
-from typing import Callable, Optional, Sequence
+import traceback
+from typing import Callable, NoReturn, Optional, Sequence
 
-from . import models
+from . import __version__
 from .config import Target
-from .models import ExitCode, ZarabanError
+from .models import ErrorCode, ExitCode, ZarabanError
 
-VERSION = "0.2.0"
+VERSION = __version__  # single source: zaraban/__init__.py
 PROG = "zaraban"
 
 
 class _Parser(argparse.ArgumentParser):
     """ArgumentParser that exits 30 (BUILD_OR_CONFIG_ERROR) on a bad argument."""
 
-    def error(self, message: str) -> "None":  # type: ignore[override]
+    def error(self, message: str) -> NoReturn:
         self.print_usage(sys.stderr)
-        print(f"{models.ErrorCode.ARGUMENT_INVALID.value}: {message}", file=sys.stderr)
+        print(f"{ErrorCode.ARGUMENT_INVALID.value}: {message}", file=sys.stderr)
         raise SystemExit(int(ExitCode.BUILD_OR_CONFIG_ERROR))
 
 
@@ -57,7 +61,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def parse(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
-    """Parse arguments. Exits 30 on any argument error (including --version handling)."""
+    """Parse arguments. Raises ``SystemExit(30)`` on any argument error.
+
+    ``--version`` needs no other argument; every other run needs ``-c``, and
+    ``--patch`` unless ``--check-config`` is given (§3.1).
+    """
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.version:
@@ -89,8 +97,10 @@ def main(argv: Optional[Sequence[str]] = None, run: Optional[RunPipeline] = None
     try:
         target, warnings = Target.load(args.config)
     except ZarabanError as exc:
-        _report_config_error(exc)
+        _report_error(exc)
         return int(ExitCode.BUILD_OR_CONFIG_ERROR)
+    except Exception:
+        return _report_internal_error()
 
     for w in warnings:
         print(f"warning [{w.code}]: {w.message}", file=sys.stderr)
@@ -104,17 +114,39 @@ def main(argv: Optional[Sequence[str]] = None, run: Optional[RunPipeline] = None
     if run is None:
         try:
             from .pipeline import run as run  # type: ignore
-        except ImportError:
+        except ModuleNotFoundError as exc:
+            if exc.name != f"{__package__}.pipeline":
+                return _report_internal_error()  # pipeline exists but its imports fail
             print("ERROR: the validation pipeline is implemented in Phase 2; "
                   "only --check-config and --version work so far.", file=sys.stderr)
             return int(ExitCode.BUILD_OR_CONFIG_ERROR)
-    return int(run(args, target, warnings))
+        except Exception:
+            return _report_internal_error()
+
+    # The pipeline writes the report itself, also when it fails (§13). This is
+    # the last safety net, so that no error ends the process with Python's
+    # exit code 1 and a bare traceback.
+    try:
+        return int(run(args, target, warnings))
+    except ZarabanError as exc:
+        _report_error(exc)
+        return int(ExitCode.BUILD_OR_CONFIG_ERROR)
+    except Exception:
+        return _report_internal_error()
 
 
-def _report_config_error(exc: ZarabanError) -> None:
+def _report_error(exc: ZarabanError) -> None:
     print(f"{exc.code.value}: {exc.message}", file=sys.stderr)
     for problem in exc.details.get("problems", []):
         print(f"  - {problem}", file=sys.stderr)
+
+
+def _report_internal_error() -> int:
+    """Report an unexpected exception as TOOL_INTERNAL; return exit code 30."""
+    print(f"{ErrorCode.TOOL_INTERNAL.value}: unexpected error in zaraban "
+          "(this is a bug in the tool)", file=sys.stderr)
+    traceback.print_exc(file=sys.stderr)
+    return int(ExitCode.BUILD_OR_CONFIG_ERROR)
 
 
 if __name__ == "__main__":
