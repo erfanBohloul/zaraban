@@ -49,14 +49,19 @@ This document logs all key design choices, architectural decisions, and trade-of
 * **Context:**
   Section 3.5 mandates strict exit codes:
   - `0`: PASS
-  - `10`: REMAINS_VULN or NEW_ISSUE
+  - `10`: VULN_REMAINS or NEW_ISSUE
   - `20`: FUNC_REGRESSION
-  - `30`: ERROR_CONFIG_OR_BUILD
+  - `30`: BUILD_OR_CONFIG_ERROR
   - `40`: INCONCLUSIVE
 * **Decision:**
-  Implement strict priority resolution in [`zaraban/constants.py`](../zaraban/constants.py):
+  Implement strict priority resolution (SPEC §13.1):
   $$\text{Priority: } 30 > 10 > 20 > 40 > 0$$
   If both a regression and an unresolved security bug are found, priority mandates reporting code `10`.
+* **Note:** The exit-code names follow the spec's own wording, as in SPEC §13.
+  The single source is [`zaraban/models.py`](../zaraban/models.py)
+  (`ExitCode`, `ConditionName`, `EXIT_PRIORITY`). The earlier standalone
+  `zaraban/constants.py`, which used the draft names `VULN_OR_NEW_ISSUE` and
+  `ERROR_CONFIG_OR_BUILD`, has been removed so there is only one definition.
 
 ---
 
