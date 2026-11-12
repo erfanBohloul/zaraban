@@ -7,12 +7,7 @@ agent) implementing the tool.
 The course specification is [`project1_spec.pdf`](project1_spec.pdf). This
 document cites it as "the spec", with section numbers such as §3.1.
 
-> **Status:** version 1. Includes the decisions taken on every point of
-> [`SPEC_REVIEW.md`](SPEC_REVIEW.md) (see its last section).
-
-Where a section changes something that exists in the current code, it says so
-under **Change from current code**. "Current code" means the `main` branch plus
-the `feat/complete-zaraban-engine` branch, as of commit `fe43c75`.
+> **Status:** version 1.
 
 ---
 
@@ -98,18 +93,6 @@ The set of options is kept small on purpose. An option that can switch off a
 required check (for example, skipping the release builds) could produce a
 `PASS` that the spec would not accept, so no such option exists.
 
-**Change from current code:**
-
-- `--base-dir`, `--patch-dir` and `--diff` are replaced by `--base` and
-  `--patch`, which accept several forms (§3.2). The diff is no longer a
-  separate input; the tool derives it.
-- `--report` and `--artifacts` are replaced by `--out`, so that all outputs of
-  one run live in one directory.
-- `--patch` is now required. Currently, base and patch both default to the
-  config's own directory, so running the tool without arguments silently
-  compares a version with itself.
-- `--check-config`, `--no-promote` and `--keep-work` are new.
-
 ### 3.2 Forms of `--patch` and `--base`
 
 The patched version can be given in two forms. The tool decides the form from
@@ -146,11 +129,6 @@ and diff files (§14.2), and both must give the same result.
 The tool must never depend on the file name or identity of the patch. Its
 verdict comes only from building and running the code (§4 of the spec).
 
-**Change from current code:** currently the patch must be a complete directory
-that contains its own copy of the Makefile, and the diff is either a separate
-`--diff` argument or computed with `diff -u -r` over the whole directory,
-including build outputs.
-
 ### 3.3 Rules that apply to every run
 
 - **Relative paths.** Paths inside the config are relative to the directory
@@ -175,11 +153,6 @@ including build outputs.
   reproducer bundles exact.
 - **Argument errors.** Invalid command-line arguments exit with code `30`
   (`BUILD_OR_CONFIG_ERROR`), not with Python's default code `2`.
-
-**Change from current code:** currently the tool builds inside the target's own
-directory, runs `make clean` between builds (which deletes the patched release
-binary before it is ever tested), passes the whole host environment to the
-target, and exits with code `2` on argument errors.
 
 ### 3.4 Examples
 
@@ -362,27 +335,6 @@ security_tests:
 
 The two files under `tests/invalid/` do not exist yet and must be added.
 
-### 4.7 Change from current code
-
-Both existing config files (`token_parser` and Erfan's `cjson`) remain valid
-without edits. The differences are in what the fields mean and how strictly
-they are checked:
-
-| Field or behavior | Current code | This spec |
-|---|---|---|
-| Validation | Values are read with defaults; unknown keys and typos are silently ignored. `pydantic` is installed but not used. | Strict validation, all errors reported, exit code `30`. |
-| `patch_dir`, `diff_file` | Accepted, but always overridden by command-line arguments. | Removed; an error if present. |
-| `base_dir` | Default `"base"`, a directory that does not exist in our targets. | Default `"."`. |
-| `file_arg_placeholder` | Parsed, never used; the input path is always appended to the command. | Applied as defined in §5. |
-| `expected_exit_code` | Default `0`, and never checked. | Default "not checked", and checked when given. |
-| `expected_output` | Substring match only. | Substring by default; `exact` through `output_match`. |
-| `invalid_tests` | Not supported. | New. |
-| `repeats`, `env`, `regression_dir` | Not supported. | New, all optional. |
-
-The default of `expected_exit_code` changes because a correct patch often
-rejects an exploit input with a non-zero exit code. With a default of `0`,
-checking exit codes would wrongly report that as a regression.
-
 ---
 
 ## 5. Test inputs and oracles
@@ -496,18 +448,6 @@ target (`invalid_truncated` is a test still to be written):
 The tool does not read `ORACLE.md`. It exists for review, for the instructor's
 approval, and for the defense.
 
-### 5.7 Change from current code
-
-| Behavior | Current code | This spec |
-|---|---|---|
-| Input path with `input_method: file` | The absolute path of the test file inside the base directory, always added as the last argument. | A fixed `input.<ext>` in the run directory; placeholder supported. |
-| Input with `input_method: args` | Only `input_data` is passed; `input_file` is ignored. | Either is passed as one argument. |
-| Working directory | The directory of the binary, which is shared by all runs of a build. | A fresh, empty directory for every run. |
-| `expected_exit_code` | Never checked. | Checked when given. |
-| `expected_output` | Stripped of surrounding whitespace, then searched as a substring. | Compared exactly as written, as a substring or as the whole output. |
-| Oracle on security tests | Not supported. | Optional, checked on the patched version. |
-| Invalid inputs and `ORACLE.md` | Do not exist. | Required for every target. |
-
 ---
 
 ## 6. Builds
@@ -587,17 +527,6 @@ per run, in the report's environment (§12.4), from the output of
 
 This information is required for the reproducer bundles (§3.3 of the spec:
 "build settings" and "binary hash").
-
-### 6.5 Change from current code
-
-| Behavior | Current code | This spec |
-|---|---|---|
-| Where builds happen | Inside the target's own directory in the repository. | In fresh copies under a temporary work directory. |
-| Separation of builds | Release and sanitized builds overwrite the same binary, with `make clean` in between. The patched release binary is built, checked for hardening, then deleted before any test runs on it. | Four separate directories and four kept binaries. |
-| Build environment | The whole host environment. | A minimal, identical environment. |
-| Build log | Kept only when the build fails, inside the error message. | Always kept in `build.log`. |
-| Profile verification | None. | Sanitizers present in sanitized builds, absent in release builds. |
-| Binary hash | Only for binaries that get a reproducer bundle. | For all four builds. |
 
 ---
 
@@ -743,22 +672,6 @@ For each test on each build, the repeats are combined into one **result**:
 
 With `repeats: 1`, flaky results cannot be detected. The tool accepts it, but
 records the warning `REPEATS_TOO_LOW`.
-
-### 7.6 Change from current code
-
-| Behavior | Current code | This spec |
-|---|---|---|
-| Which tests run on which builds | Security tests on base release, base sanitized and patch sanitized. Valid and boundary tests on base and patch sanitized only. Nothing runs on the patched release build. | Every test on all four builds. |
-| Repeats | One run per test. | `repeats` runs per test per build. |
-| Environment | The whole host environment. | Minimal and identical. |
-| Memory limits | `RLIMIT_DATA` for release, `max_allocation_size_mb` for sanitized. | Unchanged; an AddressSanitizer allocation-limit report becomes `RESOURCE_LIMIT`. |
-| Program output | Analysed, then discarded. | Stored, up to 1 MB per stream. |
-| Timeouts | Counted as crashes (`is_crash` is true). | A separate outcome. |
-| `*** buffer overflow detected ***` | Reported as a stack canary. | Reported as fortify. |
-| `*** stack smashing detected ***` | Not recognized. | Reported as a stack canary. |
-| `SIGABRT` with "abort" in the output | Error type reported as stack canary corruption. | Reported as `ABORT`. |
-| glibc allocator checks | Not recognized. | Recognized. |
-| Signature | None; crashes are compared by signal and detection mechanism only. | Error type plus top three non-runtime functions. |
 
 ---
 
@@ -943,19 +856,6 @@ The exact JSON format is defined in §12.
 These expectations go into the target's `scenarios.yaml` (§14), so that the
 scenario script checks the findings, not only the exit code.
 
-### 8.10 Change from current code
-
-| Behavior | Current code | This spec |
-|---|---|---|
-| Unit of a finding | One finding per test, for every test, including tests that behave normally on both versions (reported as `Fixed`). | One finding per crash signature, or per test for other problems. Normal tests produce no finding. |
-| Same error on base and patch | Both crashed with the same signal and detection mechanism. | Same bug key: same error type and same crashing function and file (§8.2). |
-| Different error on patch | Reported as `Incomplete Fix`. | A `NEW_ISSUE` finding for the new signature. |
-| Crash on a valid input on patch | `Functional Regression` (code 20). | `NEW_ISSUE` (code 10). |
-| Release results | Not part of findings. | Reported next to the sanitized results. |
-| Base fails a valid test's oracle | Not detected. | `INCONCLUSIVE`. |
-| Flaky results | Not detected (one run per test). | `INCONCLUSIVE`. |
-| Completeness check | None. | Every abnormal result must be referenced. |
-
 ---
 
 ## 9. Linking findings to the patch
@@ -1103,19 +1003,6 @@ For every finding, the link records:
 The link never changes a finding's category or the exit code. An
 `UNDETERMINED` link is reported as such; it does not turn a finding into
 `INCONCLUSIVE` (§13).
-
-### 9.7 Change from current code
-
-| Behavior | Current code | This spec |
-|---|---|---|
-| `Fixed` findings | Always labeled `DirectHunkMatch`, without looking at the diff. | Checked against the base side of the diff like any other finding. |
-| Functional regressions | Labeled `DirectHunkMatch` whenever a diff exists. | Linked only through an execution trace. |
-| No link found, but both versions crash the same way | Upgraded to `CallerCalleeMatch`. | `UNDETERMINED`; the shared crash is comparative evidence, not location evidence. |
-| Crash anywhere in a changed file | `CallerCalleeMatch`. | `UNDETERMINED`, because it is only closeness. |
-| Caller/callee check | Can never trigger (dead code). | `CHANGED_FUNCTION_IN_STACK`. |
-| Changed functions | From hunk headers only, which `diff -u` does not produce. | From the source code with `universal-ctags`. |
-| Side of the diff | Patch line numbers for every crash. | Base line numbers for base crashes, patch line numbers for patch crashes. |
-| Execution path | Not used. | `gdb` trace of changed lines. |
 
 ---
 
@@ -1283,20 +1170,6 @@ of kind `regression` (§5) and validated like the config (§4.5). It runs on all
 four builds. Its expectation is: on base, a crash with `signature` if
 `expect_base_crash` is true, or no crash if it is false; on patch, no crash.
 
-### 10.7 Change from current code
-
-| Behavior | Current code | This spec |
-|---|---|---|
-| Bundles for `Fixed` findings | None. | One per finding, on base. |
-| Minimization accepts | Any crash with the same detection mechanism (for example, any AddressSanitizer error). | Only the same signature. |
-| Replay counts as reproduced | Same signal, or same detection mechanism. | Same signature. |
-| Unstable minimized input | Reported as flaky; nothing else. | Fall back to the original input; `INCONCLUSIVE` if that is unstable too. |
-| `reproduce.sh` | Always feeds the input on standard input, even for programs that take a file; absolute binary path on the creator's machine; no hash check. | Recorded input method, relative paths, hash check, exit code says whether the error was reproduced. |
-| Environment in metadata | Default sanitizer options, not the real environment. | The exact environment of the run. |
-| Build settings in metadata | Only the build command. | Command, environment and compiler versions. |
-| Binary in bundle | Not included. | Included. |
-| Regression tests | A `.txt` input in the run's output, never verified, never run again. | Verified on base, deduplicated, stored with expectations in `regression_dir`, and run in every later run. |
-
 ---
 
 ## 11. Binary hardening
@@ -1342,16 +1215,6 @@ The report always includes two notes required by §3.4 of the spec:
 
 - A PIE binary does not prove that ASLR is active at runtime.
 - Evidence of a stack canary does not mean every function is protected.
-
-### 11.4 Change from current code
-
-| Behavior | Current code | This spec |
-|---|---|---|
-| Implementation | Two separate versions: an NX-only checker using `pyelftools` on the `hardening` branch, and a hand-written ELF parser covering all four protections on the engine branch. | One checker. The hand-written parser can be kept, with the changes below. |
-| Canary | Searches the raw bytes of the file for the string `__stack_chk_fail`. | Looks the symbol up in the symbol tables. |
-| PIE | `ET_DYN` only, which is also true for shared libraries. | `ET_DYN` with `PT_INTERP`. |
-| Mach-O support | A fallback for macOS binaries. | Removed; the spec covers Linux ELF only. |
-| Downgrades | Added to the report's errors, but do not change the exit code. | Reported as warnings. |
 
 ---
 
@@ -1557,19 +1420,6 @@ the exit code. Every error gives exit code `30`.
 | `PROFILE_MIXED` | A release binary contains AddressSanitizer. | §6.3 |
 | `TOOL_INTERNAL` | A bug in the tool, including a failed completeness check. Details are in `errors.log`. | §8.7 |
 
-### 12.7 Change from current code
-
-| Output | Current code | This spec |
-|---|---|---|
-| Location | `report.json` at `--report` (default: current directory) and artifacts under `--artifacts`, shared and overwritten by every run. | One new directory per run. |
-| Summary | Printed only. | Printed and saved as `summary.txt`. |
-| Raw run output | Not saved. | Every run's standard output, standard error and record. |
-| Build records | None. | `build.json` and `build.log` per build. |
-| Report: versions, environment, settings, builds | Missing. | Present (§3.5 of the spec: "versions and run settings"). |
-| `execution_logs` | Partly filled (§7.6), keys `base_release` and so on. | Every test on every build, keys `base-release` and so on. |
-| Warnings | None. | A separate list with fixed codes. |
-| Errors | Free-text strings. | Fixed codes with details. |
-
 ---
 
 ## 13. Status and exit codes
@@ -1651,15 +1501,6 @@ What does **not** change the exit code: warnings (§12.6), and an
 If the tool itself fails, it still writes the report with everything collected
 so far, adds the error `TOOL_INTERNAL`, and exits with `30`.
 
-### 13.5 Change from current code
-
-| Behavior | Current code | This spec |
-|---|---|---|
-| Names | `VULN_OR_NEW_ISSUE`, `ERROR_CONFIG_OR_BUILD`. | `VULN_REMAINS`, `NEW_ISSUE`, `BUILD_OR_CONFIG_ERROR`. |
-| Conditions | `candidate_codes`: a list of numbers. | Conditions with name, reason, findings and tests. |
-| Required checks | None; for example, `PASS` is returned although the patched release build never ran. | `PASS` requires every check of §13.2. |
-| Verdict text | One fixed sentence per code. | The reason of this run. |
-
 ---
 
 ## 14. Repository layout and deliverables
@@ -1720,10 +1561,6 @@ the repository. Each patched version is stored both as a complete tree, which
 is easy to read and build, and as a diff, which is the form used at the defense
 and for linking findings. The two must always agree (§14.3).
 
-**Change from current code**: on `main`, the `versions/patch_*` directories
-contain only `src/`, so they cannot be given as `--patch` directories. A copy
-of the Makefile must be added to each, as the engine branch already does.
-
 ### 14.3 Scenarios
 
 `scenarios.yaml` lists the delivered scenarios of a target. The tool never
@@ -1781,10 +1618,6 @@ The image is the isolated test environment required by §5 of the spec:
 - `docker-compose.yml` sets resource limits on the container: memory
   (`mem_limit`), CPU (`cpus`) and number of processes (`pids_limit`), and
   disables networking (`network_mode: none`).
-
-**Change from current code**: the current image has no `universal-ctags`, runs
-as root, and the compose file sets no resource limits and leaves networking
-enabled.
 
 ### 14.6 Deliverables
 
