@@ -23,6 +23,7 @@ results/
 targets/
 tests/
 docs/
+tmp/
 
 # OS files
 .DS_Store
