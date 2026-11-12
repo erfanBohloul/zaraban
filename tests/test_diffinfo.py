@@ -7,8 +7,9 @@ from pathlib import Path
 import pytest
 
 from zaraban.diffinfo import (changed_functions, changed_positions, function_ranges,
-                              load_hunks, parse_hunks)
-from zaraban.models import ErrorCode, Hunk, Version, ZarabanError
+                              load_hunks, parse_hunks, sources_hunks)
+from zaraban.models import DiffInfo, ErrorCode, Hunk, Version, VersionInfo, ZarabanError
+from zaraban.sources import Sources, prepare
 
 TARGET = Path(__file__).resolve().parent.parent / "targets" / "target1_sample"
 
@@ -300,3 +301,29 @@ def test_9_2_missing_ctags_is_a_tool_error(tmp_path, monkeypatch):
     with pytest.raises(ZarabanError) as e:
         function_ranges(tmp_path, "x.c")
     assert e.value.code is ErrorCode.TOOL_INTERNAL
+
+
+# -- hunks of the prepared sources (§3.2, §9.2) ------------------------------
+
+def test_9_2_hunks_of_a_prepared_diff_file(tmp_path):
+    """sources.prepare picks -p4 for the stored token_parser patch; the hunks
+    are read at that level, so their paths match the stack traces."""
+    s = prepare(TARGET, TARGET / "patches" / "incomplete.patch", tmp_path / "work")
+    assert s.patch.strip_level == 4
+    assert [(h.file, h.header) for h in sources_hunks(s)] == [("src/main.c", "@@ -21,14 +21,19 @@")]
+
+
+def test_9_2_strip_level_zero_is_kept(tmp_path):
+    diff = tmp_path / "patch.diff"
+    diff.write_text("--- src/main.c\n+++ src/main.c\n@@ -1 +1 @@\n-a\n+b\n", encoding="utf-8")
+    info = VersionInfo(form="diff", ref="x", git_commit=None, tree_sha256=None, strip_level=0)
+    s = Sources(tmp_path, tmp_path, diff, info, info, DiffInfo(str(diff), "0", ["src/main.c"], 1))
+    assert [h.file for h in sources_hunks(s)] == ["src/main.c"]
+
+
+def test_9_2_directory_patch_diff_is_read_at_level_one(tmp_path):
+    diff = tmp_path / "patch.diff"
+    diff.write_text("--- a/src/main.c\n+++ b/src/main.c\n@@ -1 +1 @@\n-a\n+b\n", encoding="utf-8")
+    info = VersionInfo(form="directory", ref="x", git_commit=None, tree_sha256=None)
+    s = Sources(tmp_path, tmp_path, diff, info, info, DiffInfo(str(diff), "0", ["src/main.c"], 1))
+    assert [h.file for h in sources_hunks(s)] == ["src/main.c"]

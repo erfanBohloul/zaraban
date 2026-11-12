@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Optional
 
 from zaraban.diffinfo import changed_functions
-from zaraban.findings import matches_oracle, stable_key
+from zaraban.findings import oracle_mismatches, stable_key
 from zaraban.models import (
     BuildName,
     Category,
@@ -192,10 +192,8 @@ def comparative_tests(finding: Finding, results: Results) -> list[str]:
         elif finding.category is Category.NEW_ISSUE:
             ok = t.on_patch is OnPatch.REACHES and not base_crash
         elif finding.category is Category.FUNCTIONAL_REGRESSION:
-            ok = all(matches_oracle(per_build[b]) for b in
-                     (BuildName.BASE_RELEASE, BuildName.BASE_SANITIZED) if b in per_build) \
-                and any(not matches_oracle(per_build[b]) for b in
-                        (BuildName.PATCH_RELEASE, BuildName.PATCH_SANITIZED) if b in per_build)
+            ok = not oracle_mismatches(per_build, Version.BASE) \
+                and bool(oracle_mismatches(per_build, Version.PATCH))
         else:
             ok = False
         if ok:

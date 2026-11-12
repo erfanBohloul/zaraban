@@ -40,7 +40,7 @@ from unidiff import PatchSet
 from unidiff.errors import UnidiffParseError
 
 from zaraban.models import ErrorCode, Hunk, Version, ZarabanError
-from zaraban.sources import _strip_path
+from zaraban.sources import _DIR_DIFF_STRIP, Sources, _strip_path
 
 
 def parse_hunks(diff_text: str, strip: int) -> list[Hunk]:
@@ -81,6 +81,17 @@ def load_hunks(diff_path: str | Path, strip: int) -> list[Hunk]:
     """:func:`parse_hunks` of a diff file, read the same way sources.py reads it."""
     raw = Path(diff_path).read_bytes()
     return parse_hunks(raw.decode("utf-8", errors="replace"), strip)
+
+
+def sources_hunks(sources: Sources) -> list[Hunk]:
+    """The hunks of a run's diff, as prepared by sources.py (§3.2).
+
+    A diff file is read at the strip level that applied it; the diff that
+    sources.py writes for a patch directory is rooted at ``a/`` ``b/``.
+    The level is taken with ``is None``, because ``-p0`` is a valid level.
+    """
+    level = sources.patch.strip_level
+    return load_hunks(sources.diff_path, _DIR_DIFF_STRIP if level is None else level)
 
 
 # ---------------------------------------------------------------------------
