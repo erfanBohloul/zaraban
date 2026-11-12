@@ -2,12 +2,15 @@
 
 from results_fakes import TOKEN_FRAMES, crash, normal, resource_limit, results, timeout
 
-from zaraban.findings import (BugKey, bug_key, build_text, crash_findings, crash_frame,
+import pytest
+
+from zaraban.findings import (BugKey, build_findings, bug_key, build_text, crash_findings,
+                              crash_frame,
                               describe, finding_test, flaky_findings, functional_findings,
                               matches_oracle, repeats_text,
                               profile_summary, release_only_findings, unsigned_crash_findings)
-from zaraban.models import (BUILD_ORDER, Analysis, BuildName, Category, ErrorType, Frame,
-                            OnPatch, Outcome, Profile, TestKind)
+from zaraban.models import (BUILD_ORDER, Analysis, BuildName, Category, ErrorCode, ErrorType,
+                            Frame, OnPatch, Outcome, Profile, TestKind, ZarabanError)
 
 BS = BuildName.BASE_SANITIZED
 PS = BuildName.PATCH_SANITIZED
@@ -605,3 +608,107 @@ def test_8_6_regression_test_clean_on_base_crashing_on_patch_is_new_issue():
     r = results({"reg-exploit-3f2a": {"patch-sanitized": crash()}})
     [f] = _every_finding(r)
     assert f.category is Category.NEW_ISSUE
+
+
+# -- all findings of a run (§8.8, §8.9) --------------------------------------
+
+def _token_parser(patch):
+    """Fake results of token_parser (§8.9) for one patch: "correct",
+    "incomplete" or "regression". Release builds stop the exploits with the
+    stack canary; sanitized builds report the ASan overflow."""
+    canary = crash(detection="STACK_CANARY", stack=())
+    reject = normal(1)
+    exploit_on_base = {"base-release": canary, "base-sanitized": crash()}
+    blocked = {**exploit_on_base, "patch-release": reject, "patch-sanitized": reject}
+    reaches = {**exploit_on_base, "patch-release": canary, "patch-sanitized": crash()}
+    table = {
+        "valid_ping": _all(OK), "valid_echo": _all(OK), "valid_set": _all(OK),
+        "boundary_empty": _all(OK), "boundary_max_safe": _all(OK),
+        "exploit_primary": blocked,
+        "exploit_secondary": reaches if patch == "incomplete" else blocked,
+    }
+    if patch == "regression":
+        table["valid_set"] = {**_all(OK), "patch-release": REJECTED, "patch-sanitized": REJECTED}
+    return results(table, kinds={"boundary_empty": "boundary", "boundary_max_safe": "boundary"})
+
+
+def _summary(findings):
+    return [(f.id, f.category, f.signature, [(t.test, t.on_patch) for t in f.tests])
+            for f in findings]
+
+
+def test_8_9_token_parser_correct():
+    assert _summary(build_findings(_token_parser("correct"))) == [
+        ("F-001", Category.FIXED, SIG,
+         [("exploit_primary", OnPatch.BLOCKED), ("exploit_secondary", OnPatch.BLOCKED)]),
+    ]
+
+
+def test_8_9_token_parser_incomplete():
+    assert _summary(build_findings(_token_parser("incomplete"))) == [
+        ("F-001", Category.INCOMPLETE_FIX, SIG,
+         [("exploit_primary", OnPatch.BLOCKED), ("exploit_secondary", OnPatch.REACHES)]),
+    ]
+
+
+def test_8_9_token_parser_regression():
+    """The two findings of §8.9, numbered by run order (§8.8): valid_set runs
+    before the exploits, so its FUNCTIONAL_REGRESSION is seen first."""
+    assert _summary(build_findings(_token_parser("regression"))) == [
+        ("F-001", Category.FUNCTIONAL_REGRESSION, None, [("valid_set", None)]),
+        ("F-002", Category.FIXED, SIG,
+         [("exploit_primary", OnPatch.BLOCKED), ("exploit_secondary", OnPatch.BLOCKED)]),
+    ]
+
+
+def test_8_8_numbered_by_first_observation_test_then_build():
+    k1 = crash("STACK_BUFFER_OVERFLOW", (("parse", "src/p.c", 3),))
+    k2 = crash("USE_AFTER_FREE", (("cleanup", "src/p.c", 50),))
+    r = results({
+        "valid_a": {**_all(OK), "patch-release": REJECTED},           # seen at patch-release
+        "exploit_x": {"base-sanitized": k1, "patch-sanitized": k2},   # K1 at base-, K2 at patch-sanitized
+        "exploit_y": {"base-release": crash(stack=())},               # release only, base-release
+    })
+    found = build_findings(r)
+    assert [(f.id, f.category, f.error_type) for f in found] == [
+        ("F-001", Category.FUNCTIONAL_REGRESSION, None),
+        ("F-002", Category.FIXED, ErrorType.STACK_BUFFER_OVERFLOW),
+        ("F-003", Category.NEW_ISSUE, ErrorType.USE_AFTER_FREE),
+        ("F-004", Category.INCONCLUSIVE, ErrorType.STACK_BUFFER_OVERFLOW),
+    ]
+
+
+def test_8_8_explicit_run_order_decides_numbering():
+    r = results({"exploit_x": {"base-sanitized": crash()},
+                 "valid_a": {**_all(OK), "patch-release": REJECTED}})
+    assert [f.category for f in build_findings(r)] == [Category.FIXED,
+                                                       Category.FUNCTIONAL_REGRESSION]
+    assert [f.category for f in build_findings(r, ["valid_a", "exploit_x"])] == [
+        Category.FUNCTIONAL_REGRESSION, Category.FIXED]
+
+
+def test_8_8_every_rule_is_applied():
+    r = results({
+        "exploit_a": {"base-sanitized": crash()},                                  # §8.2
+        "exploit_b": {"base-sanitized": UNSIGNED_SEGV},                            # §8.3
+        "valid_c": {"patch-release": crash(detection="FORTIFY", stack=())},        # §8.3 release
+        "valid_d": {**_all(OK), "patch-sanitized": timeout()},                     # §8.4
+        "valid_e": {"patch-release": [OK, REJECTED]},                              # §8.5
+    })
+    assert [(f.id, f.test_names) for f in build_findings(r)] == [
+        ("F-001", ["exploit_a"]), ("F-002", ["exploit_b"]), ("F-003", ["valid_c"]),
+        ("F-004", ["valid_d"]), ("F-005", ["valid_e"]),
+    ]
+
+
+def test_8_8_no_abnormal_result_no_findings():
+    assert build_findings(_token_parser("correct"))[0].id == "F-001"
+    assert build_findings(results({"valid_ping": _all(OK)})) == []
+
+
+def test_8_7_run_order_must_cover_every_test():
+    r = results({"valid_a": {}, "exploit_x": {"base-sanitized": crash()}})
+    for bad in (["valid_a"], ["valid_a", "exploit_x", "ghost"], ["valid_a", "valid_a"]):
+        with pytest.raises(ZarabanError) as e:
+            build_findings(r, bad)
+        assert e.value.code is ErrorCode.TOOL_INTERNAL
