@@ -483,14 +483,18 @@ each build:
 1. **Copy the source tree** (base or patch, prepared as in §3.2) into a fresh
    directory `work/<build>/`. The `.git` directory and any `out/` directory are
    not copied.
-2. **Run `build.clean_cmd`**, if the config has one.
+2. **Run `build.clean_cmd`**, if the config has one. It is run like the build
+   command (step 3), and if it fails or times out, the build fails.
 3. **Run the build command** with `sh -c`, in the root of the copy. The build
    environment is minimal and identical for all four builds: `PATH`, `HOME`,
    and `LANG=C`. Standard output and standard error go to `build.log`. A build
-   that takes longer than 300 seconds is stopped and counts as failed.
+   that takes longer than 300 seconds is stopped and counts as failed. Each
+   command runs in its own process group, and the whole group is killed when
+   it ends or is stopped, so no `make` or compiler process outlives its build.
 4. **Check the result.** The build fails if the command exits with a non-zero
    code, or if `build.binary_path` does not exist afterwards, or if it is not an
-   x86-64 ELF executable (§2 of the spec).
+   x86-64 ELF executable (§2 of the spec). A shared library is not an
+   executable.
 5. **Copy the binary** to the run's output directory,
    `builds/<build>/bin/<name>`, and compute its SHA-256 hash. All runs use
    this copy, so the hash in the report is the hash of the binary that was
@@ -511,10 +515,10 @@ symbol tables:
 | Check | Applies to | If it fails |
 |---|---|---|
 | The binary contains the AddressSanitizer runtime (`__asan_init`). | sanitized builds | Error `SANITIZER_MISSING`, exit code `30`. |
-| The binary contains UndefinedBehaviorSanitizer handlers (`__ubsan_handle_*`). | sanitized builds | Error `SANITIZER_MISSING`, exit code `30`. |
+| The binary contains UndefinedBehaviorSanitizer handlers (`__ubsan_handle_*`), or needs `libubsan` (GCC links it even when the code emits no handler). | sanitized builds | Error `SANITIZER_MISSING`, exit code `30`. |
 | The binary does **not** contain the AddressSanitizer runtime. | release builds | Error `PROFILE_MIXED`, exit code `30`. The release build must show the real behavior of the program (§3.2 of the spec). |
-| The binary has debug information (a `.debug_info` section). | sanitized builds | Warning `NO_DEBUG_INFO`. Stack traces will have function names but no file and line, so links to the diff may be undetermined (§9). |
-| The binary does not call `_FORTIFY_SOURCE` checking functions (`__*_chk`). | sanitized builds | Warning `FORTIFY_IN_SANITIZED`. Fortify checks can stop the program before AddressSanitizer reports the error, so the error type would be less precise. |
+| The binary has debug information for the program's own code (DWARF compile units other than the sanitizer runtime's; GCC links a runtime object with debug info into every ASan binary). | sanitized builds | Warning `NO_DEBUG_INFO`. Stack traces will have function names but no file and line, so links to the diff may be undetermined (§9). |
+| The binary does not call `_FORTIFY_SOURCE` checking functions (`__*_chk`). Judged only when the sanitizer runtime is a shared library: a runtime linked into the binary (clang's default) defines and calls such functions itself, so they cannot be told apart from the program's own calls. | sanitized builds | Warning `FORTIFY_IN_SANITIZED`. Fortify checks can stop the program before AddressSanitizer reports the error, so the error type would be less precise. |
 
 The last check comes from a real case: Ubuntu's GCC enables
 `_FORTIFY_SOURCE` by default, and a "sanitized" build of `token_parser` made

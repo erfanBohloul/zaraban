@@ -134,3 +134,13 @@ def test_6_3_no_fortify_without_the_flag(tmp_path):
 def test_6_3_debug_info(tmp_path):
     assert _cc(tmp_path, "g", "-g").has_debug_info
     assert not _cc(tmp_path, "nog", "-g0").has_debug_info
+
+
+@needs_cc
+def test_6_3_sanitizer_runtime_debug_info_does_not_count(tmp_path):
+    # gcc links libasan's asan_preinit.o, which has DWARF, into every ASan
+    # binary. The program itself built with -g0 still has no debug info.
+    e = _cc(tmp_path, "san_g0", "-g0", "-O1", "-fsanitize=address,undefined")
+    assert not e.has_debug_info
+    assert _cc(tmp_path, "san_g", "-g", "-O1", "-fsanitize=address,undefined").has_debug_info
+

@@ -26,6 +26,11 @@ PF_X = 0x1  # executable segment flag
 # functions (``__interceptor___sprintf_chk``; newer LLVM also uses the others).
 _INTERCEPTOR_PREFIXES = ("__interceptor_trampoline_", "___interceptor_", "__interceptor_")
 
+# Source paths of sanitizer runtimes. gcc links libasan's preinit object, built
+# with -g, into every ASan binary, so its debug info says nothing about whether
+# the program itself was compiled with -g.
+_RUNTIME_SOURCE_MARKERS = ("libsanitizer/", "compiler-rt/", "sanitizer_common/")
+
 
 @dataclass
 class ElfView:
@@ -48,7 +53,7 @@ class ElfView:
     dt_flags_1: int = 0  # value of DT_FLAGS_1, if any
     needed: list[str] = field(default_factory=list)  # DT_NEEDED shared libraries
     symbols: set[str] = field(default_factory=set)  # .dynsym + .symtab names
-    has_debug_info: bool = False  # a .debug_info section is present
+    has_debug_info: bool = False  # the program's own code has DWARF debug info
 
     # -- derived facts used by callers -------------------------------------
 
@@ -156,7 +161,7 @@ class ElfView:
                     if sym.name:
                         symbols.add(sym.name)
 
-        has_debug_info = elf.get_section_by_name(".debug_info") is not None
+        has_debug_info = _program_has_debug_info(elf)
 
         return cls(
             path=p,
@@ -174,3 +179,19 @@ class ElfView:
             symbols=symbols,
             has_debug_info=has_debug_info,
         )
+
+
+def _program_has_debug_info(elf: ELFFile) -> bool:
+    """True when a DWARF compile unit comes from the program, not only from a
+    linked-in sanitizer runtime (see _RUNTIME_SOURCE_MARKERS)."""
+    if elf.get_section_by_name(".debug_info") is None:
+        return False
+    try:
+        for cu in elf.get_dwarf_info().iter_CUs():
+            name = cu.get_top_DIE().attributes.get("DW_AT_name")
+            path = name.value.decode("utf-8", "replace") if name else ""
+            if not any(m in path for m in _RUNTIME_SOURCE_MARKERS):
+                return True
+        return False
+    except Exception:
+        return True  # unreadable DWARF: fall back to "the section is there"
