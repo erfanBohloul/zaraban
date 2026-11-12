@@ -16,13 +16,16 @@ from zaraban.models import (
     Analysis,
     BuildName,
     BuildSummary,
+    Category,
     CombinedResult,
     ErrorType,
+    Finding,
     FindingTest,
     Frame,
     OnPatch,
     Outcome,
     Profile,
+    Results,
     Version,
 )
 
@@ -156,3 +159,117 @@ def profile_summary(per_test: list[dict[BuildName, CombinedResult]],
         if rs:
             out[version.value] = build_text(rs)
     return out
+
+
+# ---------------------------------------------------------------------------
+# Crash findings (§8.2)
+# ---------------------------------------------------------------------------
+
+_BS = BuildName.BASE_SANITIZED
+_PS = BuildName.PATCH_SANITIZED
+
+
+def stable_key(result: Optional[CombinedResult]) -> Optional[BugKey]:
+    """The bug key of a stable crash, or None.
+
+    Flaky results are never used to build crash findings, because a
+    signature that appears only in some repeats could be grouped wrongly
+    (§8.5).
+    """
+    if result is None or not result.stable_crash:
+        return None
+    return bug_key(result.first.analysis)
+
+
+def crash_findings(results: Results, tests: Optional[list[str]] = None) -> list[Finding]:
+    """One finding per bug key seen in a stable sanitized crash (§8.2).
+
+    ``tests`` is the run order of §7.1 (default: the order of ``results``).
+    Findings come out in the order their bug key is first seen in that order;
+    their ``id`` is left empty and given when all findings are known (§8.8).
+
+    For each bug key K, B is the tests whose ``base-sanitized`` result is a
+    stable crash with key K, and P the same on ``patch-sanitized``:
+    B and not P is ``FIXED``, B and P is ``INCOMPLETE_FIX``, only P is
+    ``NEW_ISSUE``. The finding lists every test of B and P with its results
+    on all four builds.
+    """
+    order = list(tests) if tests is not None else list(results)
+
+    # 1-3. Group by bug key, in first-seen order; keep each group's signatures.
+    groups: dict[BugKey, tuple[list[str], list[str], list[str]]] = {}
+    for test in order:
+        for build in (_BS, _PS):
+            r = results[test].get(build)
+            key = stable_key(r)
+            if key is None:
+                continue
+            base_tests, patch_tests, sigs = groups.setdefault(key, ([], [], []))
+            (base_tests if build is _BS else patch_tests).append(test)
+            if r.signature not in sigs:
+                sigs.append(r.signature)
+
+    # 4. One finding per group.
+    findings: list[Finding] = []
+    for key, (base_tests, patch_tests, sigs) in groups.items():
+        if base_tests and patch_tests:
+            category = Category.INCOMPLETE_FIX
+        elif base_tests:
+            category = Category.FIXED
+        else:
+            category = Category.NEW_ISSUE
+        names = [t for t in order if t in base_tests or t in patch_tests]
+        per_test = [results[t] for t in names]
+        findings.append(Finding(
+            id="",
+            category=category,
+            tests=[finding_test(results[t], _on_patch(results[t], key)) for t in names],
+            signature=sigs[0],
+            error_type=key.error_type,
+            release=profile_summary(per_test, Profile.RELEASE),
+            sanitized=profile_summary(per_test, Profile.SANITIZED),
+            evidence=[f"runs/{t}/" for t in names],
+            notes=_crash_notes(category, key, base_tests, patch_tests, sigs,
+                               [t for t in names
+                                if any(results[t][b].flaky for b in (_BS, _PS) if b in results[t])]),
+        ))
+    return findings
+
+
+def _on_patch(per_build: dict[BuildName, CombinedResult], key: BugKey) -> Optional[OnPatch]:
+    """What a test of the finding for ``key`` does on patch (§12.4).
+
+    ``reaches``: still a stable crash with this bug key. ``other_error``: a
+    crash with another key, or without one (reported elsewhere). ``blocked``:
+    no crash. None when the patch result is flaky, because then it is not
+    known (the test has its own ``INCONCLUSIVE`` finding, §8.5).
+    """
+    r = per_build.get(_PS)
+    if r is None or r.flaky:
+        return None
+    if r.outcome is not Outcome.CRASH:
+        return OnPatch.BLOCKED
+    return OnPatch.REACHES if stable_key(r) == key else OnPatch.OTHER_ERROR
+
+
+def _crash_notes(category: Category, key: BugKey, base_tests: list[str],
+                 patch_tests: list[str], sigs: list[str], flaky: list[str]) -> str:
+    """One or two plain sentences, built only from the grouping."""
+    if category is Category.FIXED:
+        text = f"{key} occurs on base with {_names(base_tests)} and on patch with none of them."
+    elif category is Category.INCOMPLETE_FIX:
+        blocked = [t for t in base_tests if t not in patch_tests]
+        text = f"{key} still occurs on patch with {_names(patch_tests)}"
+        text += f"; the patch blocks {_names(blocked)}." if blocked else "."
+    else:
+        text = f"{key} occurs on patch with {_names(patch_tests)} and on base with none of them."
+    if len(sigs) > 1:
+        text += " Call paths differ: " + " | ".join(sigs) + "."
+    if flaky:
+        text += (f" A sanitized result of {_names(flaky)} is flaky and is not counted"
+                 " here; it has its own INCONCLUSIVE finding.")
+    return text
+
+
+def _names(tests: list[str]) -> str:
+    return ", ".join(tests)
