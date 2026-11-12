@@ -52,7 +52,9 @@ class ElfView:
     dt_flags: int = 0  # value of DT_FLAGS, if any
     dt_flags_1: int = 0  # value of DT_FLAGS_1, if any
     needed: list[str] = field(default_factory=list)  # DT_NEEDED shared libraries
-    symbols: set[str] = field(default_factory=set)  # .dynsym + .symtab names
+    symbols: set[str] = field(default_factory=set)  # .dynsym + .symtab names, without @VERSION
+    dynamic_symbols: set[str] = field(default_factory=set)  # names in .dynsym only
+    imported: set[str] = field(default_factory=set)  # undefined: provided by a shared library
     has_debug_info: bool = False  # the program's own code has DWARF debug info
 
     # -- derived facts used by callers -------------------------------------
@@ -154,12 +156,22 @@ class ElfView:
                         needed.append(tag.needed)
 
         symbols: set[str] = set()
+        dynamic_symbols: set[str] = set()
+        imported: set[str] = set()
         for sec_name in (".dynsym", ".symtab"):
             sec = elf.get_section_by_name(sec_name)
-            if sec is not None:
-                for sym in sec.iter_symbols():
-                    if sym.name:
-                        symbols.add(sym.name)
+            if sec is None:
+                continue
+            for sym in sec.iter_symbols():
+                # .symtab writes imports as "name@GLIBC_2.4"; .dynsym as "name".
+                name = sym.name.split("@", 1)[0]
+                if not name:
+                    continue
+                symbols.add(name)
+                if sec_name == ".dynsym":
+                    dynamic_symbols.add(name)
+                if sym["st_shndx"] == "SHN_UNDEF":
+                    imported.add(name)
 
         has_debug_info = _program_has_debug_info(elf)
 
@@ -177,6 +189,8 @@ class ElfView:
             dt_flags_1=dt_flags_1,
             needed=needed,
             symbols=symbols,
+            dynamic_symbols=dynamic_symbols,
+            imported=imported,
             has_debug_info=has_debug_info,
         )
 

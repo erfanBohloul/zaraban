@@ -1205,7 +1205,7 @@ symbol tables). Each result records the evidence it was based on.
 | NX | enabled / disabled | Enabled when a `PT_GNU_STACK` header exists and does not have the execute flag. Disabled when the flag is set, or when the header is missing (the stack is then executable by default). | Presence and flags of `PT_GNU_STACK`. |
 | PIE | enabled / disabled | Enabled when the ELF type is `ET_DYN` and the file has a `PT_INTERP` header (an executable, not a shared library). Disabled for `ET_EXEC`. | ELF type, presence of `PT_INTERP`, `DF_1_PIE` flag if present. |
 | RELRO | none / partial / full | None without a `PT_GNU_RELRO` header. Full with `PT_GNU_RELRO` and immediate binding (`DT_BIND_NOW`, or `DF_BIND_NOW` in `DT_FLAGS`, or `DF_1_NOW` in `DT_FLAGS_1`). Partial otherwise. | Presence of `PT_GNU_RELRO` and the binding tag found. |
-| Stack canary | present / absent | Present when the symbol tables reference `__stack_chk_fail`. | The symbol and the table it was found in. |
+| Stack canary | present / absent | Present when the binary imports `__stack_chk_fail` from libc (an undefined symbol), which the compiler's canary checks call. In a statically linked binary libc defines the function itself whether or not the program uses it, so it proves nothing there and the result is absent, with that stated in the evidence. | The symbol, the table it was found in, and whether it is imported or defined. |
 
 ### 11.3 Comparison and warnings
 
