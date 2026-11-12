@@ -23,7 +23,9 @@ report, and exits with code 30").
 from __future__ import annotations
 
 import hashlib
+import os
 import shutil
+import signal
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -52,7 +54,7 @@ MIN_ENV: dict[str, str] = {
     "HOME": "/tmp",
     "LANG": "C",
 }
-BUILD_TIMEOUT_S = 300  # a build longer than this is stopped and counts as failed (§6.2)
+BUILD_TIMEOUT_S = 300  # a step (clean or build) longer than this is stopped and fails (§6.2)
 
 
 @dataclass
@@ -111,23 +113,15 @@ def _build_one(
     log_rel = f"builds/{name.value}/build.log"
 
     t0 = time.monotonic()
-    exit_code: Optional[int] = None
+    exit_code: Optional[int] = None  # of the build command; None if it timed out or never ran
+    failure: Optional[str] = None
     with open(log_path, "wb") as log:
         if build.clean_cmd:
-            log.write(f"$ {build.clean_cmd}\n".encode())
-            log.flush()
-            subprocess.run(["sh", "-c", build.clean_cmd], cwd=tree, env=MIN_ENV,
-                           stdout=log, stderr=subprocess.STDOUT)
-        log.write(f"$ {cmd}\n".encode())
-        log.flush()
-        try:
-            proc = subprocess.run(["sh", "-c", cmd], cwd=tree, env=MIN_ENV,
-                                  stdout=log, stderr=subprocess.STDOUT,
-                                  timeout=BUILD_TIMEOUT_S)
-            exit_code = proc.returncode
-        except subprocess.TimeoutExpired:
-            log.write(f"\n[zaraban] build stopped after {BUILD_TIMEOUT_S}s\n".encode())
-            exit_code = None  # timed out
+            clean_code = _run_step(build.clean_cmd, tree, log)
+            if clean_code != 0:
+                failure = _step_failure("clean command", clean_code)
+        if failure is None:
+            exit_code = _run_step(cmd, tree, log)
     duration = time.monotonic() - t0
 
     def record(status: str, binary: Optional[BinaryInfo],
@@ -141,10 +135,14 @@ def _build_one(
     binary_path = tree / build.binary_path
     elf = ElfView.load(binary_path) if binary_path.exists() else None
 
-    # Build failure: non-zero or timed-out exit, missing binary, or not an
-    # x86-64 ELF executable (§6.2 step 4).
-    if exit_code != 0 or elf is None or not elf.is_x86_64_exec:
-        reason = _failure_reason(exit_code, binary_path, elf)
+    # Build failure: the clean or build command failed or timed out, the
+    # binary is missing, or it is not an x86-64 ELF executable (§6.2 step 4).
+    if failure is None and exit_code != 0:
+        failure = _step_failure("build command", exit_code)
+    elif failure is None and (elf is None or not elf.is_x86_64_exec):
+        failure = _binary_failure(binary_path, elf)
+    if failure is not None:
+        reason = failure
         rec = record("failed", None, None, None)
         models.dump_json(rec, build_dir / "build.json")
         return rec, [], Issue(ErrorCode.BUILD_FAILED.value,
@@ -203,11 +201,46 @@ def _verify_profile(name: BuildName, elf: ElfView) -> tuple[Optional[Issue], lis
     return None, warnings
 
 
-def _failure_reason(exit_code: Optional[int], binary_path: Path, elf: Optional[ElfView]) -> str:
-    if exit_code is None:
-        return f"build timed out after {BUILD_TIMEOUT_S}s"
-    if exit_code != 0:
-        return f"build command exited with code {exit_code}"
-    if not binary_path.exists():
+def _run_step(cmd: str, cwd: Path, log) -> Optional[int]:
+    """Run one shell command of a build, logging its output; return its exit
+    code, or None if it ran longer than BUILD_TIMEOUT_S.
+
+    The command runs in its own process group, and the whole group is killed
+    when the command ends or times out. Killing only ``sh`` would leave
+    ``make``, the compiler or anything a Makefile started still running.
+    """
+    log.write(f"$ {cmd}\n".encode())
+    log.flush()
+    proc = subprocess.Popen(["sh", "-c", cmd], cwd=cwd, env=MIN_ENV,
+                            stdout=log, stderr=subprocess.STDOUT,
+                            start_new_session=True)
+    try:
+        code: Optional[int] = proc.wait(timeout=BUILD_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        code = None
+    _kill_group(proc.pid)
+    if code is None:
+        proc.wait()
+        log.write(f"\n[zaraban] stopped after {BUILD_TIMEOUT_S}s\n".encode())
+        log.flush()
+    return code
+
+
+def _kill_group(pgid: int) -> None:
+    """Kill every process left in a build step's process group."""
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass  # the group is already empty
+
+
+def _step_failure(what: str, code: Optional[int]) -> str:
+    if code is None:
+        return f"{what} timed out after {BUILD_TIMEOUT_S}s"
+    return f"{what} exited with code {code}"
+
+
+def _binary_failure(binary_path: Path, elf: Optional[ElfView]) -> str:
+    if elf is None:
         return f"binary not found: {binary_path.name}"
     return f"binary is not an x86-64 ELF executable: {binary_path.name}"
