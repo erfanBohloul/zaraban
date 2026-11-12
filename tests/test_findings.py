@@ -3,7 +3,8 @@
 from results_fakes import TOKEN_FRAMES, crash, normal, resource_limit, results, timeout
 
 from zaraban.findings import (BugKey, bug_key, build_text, crash_findings, crash_frame,
-                              describe, finding_test, profile_summary)
+                              describe, finding_test, profile_summary, release_only_findings,
+                              unsigned_crash_findings)
 from zaraban.models import (BUILD_ORDER, Analysis, BuildName, Category, ErrorType, Frame,
                             OnPatch, Outcome, Profile, TestKind)
 
@@ -308,3 +309,104 @@ def test_8_5_flaky_patch_result_is_not_counted_as_blocked():
     assert f.category is Category.FIXED   # the stable evidence only (§8.2, §8.5)
     assert _on_patch(f) == {"exploit_primary": None}
     assert "exploit_primary is flaky" in f.notes
+
+
+# -- crashes without a signature (§8.3) --------------------------------------
+
+UNSIGNED_SEGV = crash("SEGV", stack=(), detection="SIGNAL", signal="SIGSEGV")
+
+
+def _one(findings):
+    [f] = findings
+    return f
+
+
+def test_8_3_unsigned_base_crash_gone_on_patch_is_fixed():
+    r = results({"exploit_primary": {"base-sanitized": UNSIGNED_SEGV,
+                                      "patch-sanitized": normal(1)}})
+    f = _one(unsigned_crash_findings(r))
+    assert f.category is Category.FIXED
+    assert f.signature is None and f.error_type is ErrorType.SEGV
+    assert _on_patch(f) == {"exploit_primary": OnPatch.BLOCKED}
+    assert f.evidence == ["runs/exploit_primary/"]
+
+
+def test_8_3_unsigned_patch_crash_with_known_type_is_new_issue():
+    r = results({"valid_echo": {"patch-sanitized": UNSIGNED_SEGV}})
+    f = _one(unsigned_crash_findings(r))
+    assert f.category is Category.NEW_ISSUE
+    assert _on_patch(f) == {"valid_echo": OnPatch.REACHES}
+
+
+def test_8_3_unsigned_patch_abort_or_unknown_is_inconclusive():
+    for etype in ("ABORT", "UNKNOWN"):
+        r = results({"valid_echo": {"patch-sanitized": crash(etype, stack=(), detection="SIGNAL")}})
+        f = _one(unsigned_crash_findings(r))
+        assert f.category is Category.INCONCLUSIVE
+        assert "unclassified stop" in f.notes
+
+
+def test_8_3_unsigned_base_crash_and_any_patch_crash_is_inconclusive():
+    for patch_run in (UNSIGNED_SEGV, crash()):
+        r = results({"exploit_primary": {"base-sanitized": UNSIGNED_SEGV,
+                                          "patch-sanitized": patch_run}})
+        f = _one(unsigned_crash_findings(r))
+        assert f.category is Category.INCONCLUSIVE
+        assert "cannot be told whether it is the same error" in f.notes
+
+
+def test_8_3_signed_base_crash_and_unsigned_patch_crash_is_inconclusive():
+    """Not in the table of §8.3: without this the §8.2 finding would say FIXED
+    while the patch still crashes."""
+    r = results({"exploit_primary": {"base-sanitized": crash(),
+                                      "patch-sanitized": UNSIGNED_SEGV}})
+    [fixed] = crash_findings(r)
+    assert _on_patch(fixed) == {"exploit_primary": OnPatch.OTHER_ERROR}
+    f = _one(unsigned_crash_findings(r))
+    assert f.category is Category.INCONCLUSIVE
+    assert f.error_type is ErrorType.SEGV
+    assert f.notes.startswith("Base crashes with " + SIG)
+
+
+def test_8_3_signed_crashes_are_left_to_8_2():
+    r = results({"exploit_primary": {"base-sanitized": crash(), "patch-sanitized": crash()},
+                 "valid_set": {}})
+    assert unsigned_crash_findings(r) == []
+
+
+def test_8_3_flaky_unsigned_crash_is_left_to_8_5():
+    r = results({"exploit_primary": {"base-sanitized": [UNSIGNED_SEGV, normal(1)]}})
+    assert unsigned_crash_findings(r) == []
+
+
+def test_8_3_release_only_crash_is_inconclusive_side_by_side():
+    r = results({"valid_set": {"patch-release": crash("BUFFER_OVERFLOW", stack=(),
+                                                     detection="FORTIFY")}})
+    f = _one(release_only_findings(r))
+    assert f.category is Category.INCONCLUSIVE
+    assert f.error_type is ErrorType.BUFFER_OVERFLOW
+    assert f.release == {"base": "NORMAL exit 0", "patch": "CRASH FORTIFY SIGABRT"}
+    assert f.sanitized == {"base": "NORMAL exit 0", "patch": "NORMAL exit 0"}
+    assert f.notes == ("On patch the release build crashes (CRASH FORTIFY SIGABRT) but the "
+                       "sanitized build does not (NORMAL exit 0). Without a sanitizer report "
+                       "the crash cannot be classified.")
+
+
+def test_8_3_release_only_on_both_versions_is_one_finding():
+    canary = crash("STACK_BUFFER_OVERFLOW", stack=(), detection="STACK_CANARY")
+    r = results({"exploit_primary": {"base-release": canary, "patch-release": canary}})
+    f = _one(release_only_findings(r))
+    assert "on base the release build crashes" in f.notes.lower()
+    assert "on patch the release build crashes" in f.notes
+
+
+def test_8_3_release_and_sanitized_both_crashing_is_not_release_only():
+    r = results({"exploit_primary": {
+        "base-release": crash(detection="STACK_CANARY", stack=()),
+        "base-sanitized": crash()}})
+    assert release_only_findings(r) == []
+
+
+def test_8_3_flaky_release_crash_is_left_to_8_5():
+    r = results({"valid_set": {"patch-release": [crash(stack=()), normal(0)]}})
+    assert release_only_findings(r) == []
