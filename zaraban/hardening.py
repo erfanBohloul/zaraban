@@ -98,11 +98,22 @@ def _relro(elf: ElfView) -> ProtectionResult:
 
 
 def _canary(elf: ElfView) -> ProtectionResult:
-    present = "__stack_chk_fail" in elf.symbols
-    return ProtectionResult(
-        present,
-        "__stack_chk_fail in symbol table" if present else "__stack_chk_fail not referenced",
-    )
+    # The compiler makes protected functions call __stack_chk_fail. In a
+    # dynamically linked binary that call is an import from libc, so an
+    # imported __stack_chk_fail shows the program's code uses canaries. In a
+    # statically linked one libc defines the function itself, whether the
+    # program uses it or not, so its presence proves nothing: reported absent.
+    name = "__stack_chk_fail"
+    table = ".dynsym" if name in elf.dynamic_symbols else ".symtab"
+    if name in elf.imported:
+        return ProtectionResult(True, f"{name} imported from libc (undefined in {table})")
+    if name in elf.symbols:
+        return ProtectionResult(
+            False,
+            f"{name} defined in {table} by statically linked libc; "
+            "this does not show that the program's code uses canaries",
+        )
+    return ProtectionResult(False, f"{name} not referenced")
 
 
 # ---------------------------------------------------------------------------

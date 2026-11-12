@@ -100,3 +100,56 @@ def test_11_1_notes_always_present(tmp_path):
     assert len(report.notes) == 2
     assert any("ASLR" in n for n in report.notes)
     assert any("canary" in n for n in report.notes)
+
+
+# -- evidence (§11.2) --------------------------------------------------------
+
+def test_11_2_evidence_says_what_was_found(tmp_path):
+    full = hardening.check(_compile(tmp_path, "full", "-O2", "-fstack-protector-strong",
+                                    "-Wl,-z,relro,-z,now", "-pie", "-fPIE"))
+    assert "PT_GNU_STACK present" in full.nx.evidence and "no PF_X" in full.nx.evidence
+    assert "e_type=ET_DYN" in full.pie.evidence and "PT_INTERP=present" in full.pie.evidence
+    assert "BIND_NOW" in full.relro.evidence
+    assert "imported" in full.canary.evidence and ".dynsym" in full.canary.evidence
+
+    weak = hardening.check(_compile(tmp_path, "weak", "-O0", "-fno-stack-protector",
+                                    "-no-pie", "-Wl,-z,execstack", "-Wl,-z,relro,-z,lazy"))
+    assert "has PF_X" in weak.nx.evidence
+    assert "lazy binding" in weak.relro.evidence
+    assert weak.canary.evidence == "__stack_chk_fail not referenced"
+
+
+def test_11_2_static_pie_is_pie(tmp_path):
+    r = hardening.check(_compile(tmp_path, "spie", "-O2", "-static-pie"))
+    assert r.pie.value is True
+    assert "PT_INTERP=absent" in r.pie.evidence and "DF_1_PIE" in r.pie.evidence
+
+
+# -- canary in static binaries (§11.2) ---------------------------------------
+
+def test_11_2_static_binary_without_canary_is_absent(tmp_path):
+    # Static libc defines __stack_chk_fail itself; that is not the program
+    # using canaries.
+    r = hardening.check(_compile(tmp_path, "static", "-O0", "-static", "-fno-stack-protector"))
+    assert r.canary.value is False
+    assert "statically linked" in r.canary.evidence
+
+
+def test_11_3_switch_to_static_linking_is_a_canary_downgrade(tmp_path):
+    # A patch that adds -static to the Makefile: canary use can no longer be
+    # shown, which is reported, not hidden.
+    base = _compile(tmp_path, "base", "-O2", "-fstack-protector-strong")
+    patch = _compile(tmp_path, "patch", "-O2", "-fstack-protector-strong", "-static")
+    report, warnings = hardening.report(base, patch)
+    assert any(w.details["protection"] == "canary" for w in warnings)
+
+
+# -- comparison (§11.3) ------------------------------------------------------
+
+def test_11_3_unchanged_protections_record_no_change(tmp_path):
+    b = _compile(tmp_path, "b", "-O2", "-fstack-protector-strong",
+                 "-Wl,-z,relro,-z,now", "-pie", "-fPIE")
+    report, warnings = hardening.report(b, b)
+    assert report.changes == [] and warnings == []
+    assert report.base == report.patch
+
