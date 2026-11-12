@@ -861,7 +861,10 @@ The exact JSON format is defined in §12.
 |---|---|---|
 | correct | F-001 `FIXED` `STACK_BUFFER_OVERFLOW @ handle_set_command < process_input < main`, tests `exploit_primary` and `exploit_secondary`, both blocked on patch. | `0` |
 | incomplete | F-001 `INCOMPLETE_FIX`, same signature: `exploit_primary` blocked on patch, `exploit_secondary` still crashing. | `10` |
-| regression | F-001 `FIXED` as for the correct patch; F-002 `FUNCTIONAL_REGRESSION` for `valid_set`, which is rejected by the new key-length check. | `20` |
+| regression | F-001 `FUNCTIONAL_REGRESSION` for `valid_set`, which is rejected by the new key-length check; F-002 `FIXED` as for the correct patch. | `20` |
+
+The numbers follow §8.8: `valid_set` runs before the exploits (§7.1), so in
+the regression scenario its finding is observed first.
 
 These expectations go into the target's `scenarios.yaml` (§14), so that the
 scenario script checks the findings, not only the exit code.
