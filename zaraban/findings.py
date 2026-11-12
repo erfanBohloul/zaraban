@@ -26,6 +26,7 @@ from zaraban.models import (
     Outcome,
     Profile,
     Results,
+    TestKind,
     Version,
 )
 
@@ -401,3 +402,90 @@ def _test_finding(category: Category, per_build: dict[BuildName, CombinedResult]
         evidence=[f"runs/{ft.test}/"],
         notes=notes,
     )
+
+
+# ---------------------------------------------------------------------------
+# Functional findings (§8.4)
+# ---------------------------------------------------------------------------
+
+_FUNCTIONAL_KINDS = (TestKind.VALID, TestKind.BOUNDARY, TestKind.INVALID)
+_BASE_BUILDS = (BuildName.BASE_RELEASE, BuildName.BASE_SANITIZED)
+_PATCH_BUILDS = (BuildName.PATCH_RELEASE, BuildName.PATCH_SANITIZED)
+
+
+def matches_oracle(result: CombinedResult) -> bool:
+    """§5.4: the run ended normally and every oracle field that is given
+    holds. A ``TIMEOUT`` or ``RESOURCE_LIMIT`` never matches (§8.4); a test
+    without oracle fields matches whenever it ends normally."""
+    return result.outcome is Outcome.NORMAL and result.oracle_passed is not False
+
+
+def functional_findings(results: Results, tests: Optional[list[str]] = None) -> list[Finding]:
+    """Findings from the oracle results of runs that did not crash (§8.4).
+
+    Crashes are always handled by §8.2 and §8.3, so a crashed build is left
+    out here: a crash on a valid input is a security finding, never a
+    functional one. Flaky results are left to §8.5.
+
+    - ``valid``, ``boundary``, ``invalid``: does not match the oracle on a
+      base build -> ``INCONCLUSIVE`` (the test or its oracle is wrong);
+      otherwise, does not match on a patch build -> ``FUNCTIONAL_REGRESSION``.
+    - ``security``, ``regression``: does not crash on a patch build but does
+      not match the oracle there, or stops with ``TIMEOUT`` or
+      ``RESOURCE_LIMIT`` -> ``INCONCLUSIVE``. Base is not judged: these
+      tests are expected to crash there (§5.5).
+    """
+    findings: list[Finding] = []
+    for test in (list(tests) if tests is not None else list(results)):
+        per_build = results[test]
+        kind = next(iter(per_build.values())).kind
+        base_bad = _mismatches(per_build, _BASE_BUILDS)
+        patch_bad = _mismatches(per_build, _PATCH_BUILDS)
+
+        if kind in _FUNCTIONAL_KINDS:
+            if base_bad:
+                findings.append(_test_finding(
+                    Category.INCONCLUSIVE, per_build, None, None,
+                    f"{test} does not match its oracle on base ({_reasons(base_bad)}), so "
+                    f"the test or its oracle is wrong and it cannot judge the patch."))
+            elif patch_bad:
+                findings.append(_test_finding(
+                    Category.FUNCTIONAL_REGRESSION, per_build, None, None,
+                    f"{test} matches its oracle on base but not on patch "
+                    f"({_reasons(patch_bad)})."))
+        elif patch_bad:  # security, regression
+            if all(r.outcome is not Outcome.NORMAL for r in patch_bad):
+                why = "stops on patch without a crash"
+                tail = "not every stop is an exploitable vulnerability."
+            else:
+                why = "does not crash on patch but does not behave as expected there"
+                tail = "the patch avoids the crash but the expected behavior is not met."
+            findings.append(_test_finding(
+                Category.INCONCLUSIVE, per_build, None, None,
+                f"{test} {why} ({_reasons(patch_bad)}); {tail}"))
+    return findings
+
+
+def _mismatches(per_build: dict[BuildName, CombinedResult],
+                builds: tuple[BuildName, ...]) -> list[CombinedResult]:
+    """Stable, non-crash results of ``builds`` that do not match the oracle."""
+    out = []
+    for b in builds:
+        r = per_build.get(b)
+        if r is None or r.flaky or r.outcome is Outcome.CRASH:
+            continue
+        if not matches_oracle(r):
+            out.append(r)
+    return out
+
+
+def _reasons(results: list[CombinedResult]) -> str:
+    """``patch-release: exit code 1, expected 0; patch-sanitized: TIMEOUT``."""
+    parts = []
+    for r in results:
+        if r.outcome is Outcome.NORMAL:
+            why = ", ".join(r.first.oracle.reasons) or "does not match its oracle"
+        else:
+            why = describe(r)
+        parts.append(f"{r.build.value}: {why}")
+    return "; ".join(parts)

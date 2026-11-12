@@ -3,8 +3,8 @@
 from results_fakes import TOKEN_FRAMES, crash, normal, resource_limit, results, timeout
 
 from zaraban.findings import (BugKey, bug_key, build_text, crash_findings, crash_frame,
-                              describe, finding_test, profile_summary, release_only_findings,
-                              unsigned_crash_findings)
+                              describe, finding_test, functional_findings, matches_oracle,
+                              profile_summary, release_only_findings, unsigned_crash_findings)
 from zaraban.models import (BUILD_ORDER, Analysis, BuildName, Category, ErrorType, Frame,
                             OnPatch, Outcome, Profile, TestKind)
 
@@ -410,3 +410,115 @@ def test_8_3_release_and_sanitized_both_crashing_is_not_release_only():
 def test_8_3_flaky_release_crash_is_left_to_8_5():
     r = results({"valid_set": {"patch-release": [crash(stack=()), normal(0)]}})
     assert release_only_findings(r) == []
+
+
+# -- functional findings (§8.4) ----------------------------------------------
+
+OK = normal(0, oracle=True)
+REJECTED = normal(1, oracle=False, reasons=["exit code 1, expected 0"])
+
+
+def _all(spec):
+    return {b.value: spec for b in BUILD_ORDER}
+
+
+def test_5_4_matches_oracle():
+    r = results({"t": {"base-release": OK, "base-sanitized": normal(1),   # no oracle
+                       "patch-release": REJECTED, "patch-sanitized": timeout()}})["t"]
+    assert matches_oracle(r[BR]) and matches_oracle(r[BS])
+    assert not matches_oracle(r[PR]) and not matches_oracle(r[PS])
+
+
+def test_8_9_regression_patch_rejects_valid_set():
+    r = results({"valid_set": {"base-release": OK, "base-sanitized": OK,
+                               "patch-release": REJECTED, "patch-sanitized": REJECTED}})
+    f = _one(functional_findings(r))
+    assert f.category is Category.FUNCTIONAL_REGRESSION
+    assert f.signature is None and f.error_type is None
+    assert f.tests[0].on_patch is None
+    assert f.notes == ("valid_set matches its oracle on base but not on patch "
+                       "(patch-release: exit code 1, expected 0; "
+                       "patch-sanitized: exit code 1, expected 0).")
+
+
+def test_8_4_one_patch_build_is_enough():
+    r = results({"valid_set": {"base-release": OK, "base-sanitized": OK,
+                               "patch-release": OK, "patch-sanitized": REJECTED}})
+    assert _one(functional_findings(r)).category is Category.FUNCTIONAL_REGRESSION
+
+
+def test_8_4_boundary_and_invalid_are_judged_like_valid():
+    r = results({"boundary_max": {**_all(OK), "patch-release": REJECTED},
+                 "invalid_bad": {**_all(OK), "patch-sanitized": REJECTED}},
+                kinds={"boundary_max": "boundary", "invalid_bad": "invalid"})
+    assert [f.category for f in functional_findings(r)] == [Category.FUNCTIONAL_REGRESSION] * 2
+
+
+def test_8_4_hang_on_patch_is_a_functional_regression_not_a_crash():
+    r = results({"valid_set": {**_all(OK), "patch-release": timeout()}})
+    f = _one(functional_findings(r))
+    assert f.category is Category.FUNCTIONAL_REGRESSION
+    assert f.tests[0].results[PR].outcome is Outcome.TIMEOUT
+    assert "patch-release: TIMEOUT" in f.notes
+
+
+def test_8_4_resource_limit_counts_as_mismatch():
+    r = results({"valid_set": {**_all(OK), "patch-sanitized": resource_limit("memory")}})
+    assert _one(functional_findings(r)).category is Category.FUNCTIONAL_REGRESSION
+
+
+def test_8_4_mismatch_on_base_is_inconclusive():
+    for patch in (OK, REJECTED):
+        r = results({"valid_set": {**_all(patch), "base-release": REJECTED}})
+        f = _one(functional_findings(r))
+        assert f.category is Category.INCONCLUSIVE
+        assert "the test or its oracle is wrong" in f.notes
+
+
+def test_8_4_matching_everywhere_is_not_a_finding():
+    r = results({"valid_set": _all(OK), "valid_echo": {}})  # valid_echo has no oracle
+    assert functional_findings(r) == []
+
+
+def test_8_4_crash_on_valid_input_is_left_to_crash_findings():
+    r = results({"valid_set": {**_all(OK), "patch-sanitized": crash()}})
+    assert functional_findings(r) == []
+    assert crash_findings(r)[0].category is Category.NEW_ISSUE
+
+
+def test_8_4_security_test_rejected_as_expected_is_not_a_finding():
+    reject = normal(1, oracle=True)
+    r = results({"exploit_primary": {"base-release": crash(stack=()), "base-sanitized": crash(),
+                                      "patch-release": reject, "patch-sanitized": reject}})
+    assert functional_findings(r) == []
+
+
+def test_8_4_security_test_no_crash_but_wrong_behavior_is_inconclusive():
+    wrong = normal(0, oracle=False, reasons=["exit code 0, expected 1"])
+    r = results({"exploit_primary": {"base-sanitized": crash(),
+                                      "patch-release": wrong, "patch-sanitized": wrong}})
+    f = _one(functional_findings(r))
+    assert f.category is Category.INCONCLUSIVE
+    assert "does not crash on patch but does not behave as expected" in f.notes
+
+
+def test_8_4_security_base_is_not_judged_by_the_oracle():
+    r = results({"exploit_primary": {"base-release": normal(0, oracle=False),
+                                      "base-sanitized": crash(),
+                                      "patch-release": normal(1, oracle=True),
+                                      "patch-sanitized": normal(1, oracle=True)}})
+    assert functional_findings(r) == []
+
+
+def test_8_4_timeout_on_patch_for_security_or_regression_is_inconclusive():
+    r = results({"exploit_primary": {"base-sanitized": crash(), "patch-sanitized": timeout()},
+                 "reg-exploit-1a2b": {"base-sanitized": crash(), "patch-release": resource_limit()}})
+    found = functional_findings(r)
+    assert [f.category for f in found] == [Category.INCONCLUSIVE] * 2
+    assert all("not every stop is an exploitable vulnerability" in f.notes for f in found)
+    assert found[1].tests[0].kind is TestKind.REGRESSION
+
+
+def test_8_4_flaky_results_are_left_to_8_5():
+    r = results({"valid_set": {**_all(OK), "patch-release": [OK, REJECTED]}})
+    assert functional_findings(r) == []
