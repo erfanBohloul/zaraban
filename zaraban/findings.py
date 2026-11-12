@@ -4,6 +4,10 @@ Input is the combined results of §7.5, one per test per build
 (``results[test][build]``, made by the runner). Output is a list of
 :class:`Finding`. This module never runs anything.
 
+:func:`build_findings` is the entry point. It applies every rule (§8.2 to
+§8.5) and numbers the findings in the order they are first observed in the
+run order (§8.8). The link to the patch is added later by linking.py (§9).
+
 Section numbers such as §8.2 refer to docs/SPEC.md.
 """
 
@@ -18,6 +22,7 @@ from zaraban.models import (
     BuildSummary,
     Category,
     CombinedResult,
+    ErrorCode,
     ErrorType,
     Finding,
     FindingTest,
@@ -29,6 +34,8 @@ from zaraban.models import (
     RunRecord,
     TestKind,
     Version,
+    ZarabanError,
+    finding_id,
 )
 
 # ---------------------------------------------------------------------------
@@ -167,6 +174,29 @@ def profile_summary(per_test: list[dict[BuildName, CombinedResult]],
 
 
 # ---------------------------------------------------------------------------
+# Run order (§7.1, §8.8)
+# ---------------------------------------------------------------------------
+
+# Where a finding is first observed: (index of the test in the run order,
+# index of the build in BUILD_ORDER). Findings are numbered in this order.
+Seen = tuple[int, int]
+Found = list[tuple[Seen, Finding]]
+
+
+def _order(results: Results, tests: Optional[list[str]]) -> list[str]:
+    """The run order of §7.1: ``tests`` if given, else the order of ``results``."""
+    return list(tests) if tests is not None else list(results)
+
+
+def _seen(i: int, build: BuildName) -> Seen:
+    return (i, BUILD_ORDER.index(build))
+
+
+def _strip(found: Found) -> list[Finding]:
+    return [f for _, f in found]
+
+
+# ---------------------------------------------------------------------------
 # Crash findings (§8.2)
 # ---------------------------------------------------------------------------
 
@@ -199,23 +229,27 @@ def crash_findings(results: Results, tests: Optional[list[str]] = None) -> list[
     ``NEW_ISSUE``. The finding lists every test of B and P with its results
     on all four builds.
     """
-    order = list(tests) if tests is not None else list(results)
+    return _strip(_crash(results, _order(results, tests)))
 
+
+def _crash(results: Results, order: list[str]) -> Found:
     # 1-3. Group by bug key, in first-seen order; keep each group's signatures.
     groups: dict[BugKey, tuple[list[str], list[str], list[str]]] = {}
-    for test in order:
+    first: dict[BugKey, Seen] = {}
+    for i, test in enumerate(order):
         for build in (_BS, _PS):
             r = results[test].get(build)
             key = stable_key(r)
             if key is None:
                 continue
+            first.setdefault(key, _seen(i, build))
             base_tests, patch_tests, sigs = groups.setdefault(key, ([], [], []))
             (base_tests if build is _BS else patch_tests).append(test)
             if r.signature not in sigs:
                 sigs.append(r.signature)
 
     # 4. One finding per group.
-    findings: list[Finding] = []
+    findings: Found = []
     for key, (base_tests, patch_tests, sigs) in groups.items():
         if base_tests and patch_tests:
             category = Category.INCOMPLETE_FIX
@@ -225,7 +259,7 @@ def crash_findings(results: Results, tests: Optional[list[str]] = None) -> list[
             category = Category.NEW_ISSUE
         names = [t for t in order if t in base_tests or t in patch_tests]
         per_test = [results[t] for t in names]
-        findings.append(Finding(
+        findings.append((first[key], Finding(
             id="",
             category=category,
             tests=[finding_test(results[t], _on_patch(results[t], key)) for t in names],
@@ -237,7 +271,7 @@ def crash_findings(results: Results, tests: Optional[list[str]] = None) -> list[
             notes=_crash_notes(category, key, base_tests, patch_tests, sigs,
                                [t for t in names
                                 if any(results[t][b].flaky for b in (_BS, _PS) if b in results[t])]),
-        ))
+        )))
     return findings
 
 
@@ -307,8 +341,12 @@ def unsigned_crash_findings(results: Results, tests: Optional[list[str]] = None)
     that the patch still crashes. As in the row above it, there is no way to
     tell whether it is the same error, so it is ``INCONCLUSIVE``.
     """
-    findings: list[Finding] = []
-    for test in (list(tests) if tests is not None else list(results)):
+    return _strip(_unsigned(results, _order(results, tests)))
+
+
+def _unsigned(results: Results, order: list[str]) -> Found:
+    findings: Found = []
+    for i, test in enumerate(order):
         per_build = results[test]
         b, p = per_build.get(_BS), per_build.get(_PS)
         if b is None or p is None or b.flaky or p.flaky:
@@ -318,39 +356,41 @@ def unsigned_crash_findings(results: Results, tests: Optional[list[str]] = None)
         p_unsigned = p_crash and bug_key(p.first.analysis) is None
         if not (b_unsigned or p_unsigned):
             continue
+        # First observed at the unsigned base crash, else at the patch crash.
+        seen = _seen(i, _BS if b_unsigned else _PS)
 
         if b_unsigned and not p_crash:
-            findings.append(_test_finding(
+            findings.append((seen, _test_finding(
                 Category.FIXED, per_build, _etype(b), OnPatch.BLOCKED,
                 f"The base crash ({describe(b)}) has no stack trace with function names; "
-                f"it no longer occurs on patch ({describe(p)})."))
+                f"it no longer occurs on patch ({describe(p)}).")))
         elif b_unsigned:
             also = " The patch crash is also in its own crash finding." \
                 if not p_unsigned else ""
-            findings.append(_test_finding(
+            findings.append((seen, _test_finding(
                 Category.INCONCLUSIVE, per_build, _etype(b), None,
                 f"The base crash ({describe(b)}) has no stack trace with function names and "
                 f"patch also crashes ({describe(p)}), so it cannot be told whether it is "
-                f"the same error.{also}"))
+                f"the same error.{also}")))
         elif not b_crash:
             etype = _etype(p)
             if etype in _UNCLASSIFIED:
-                findings.append(_test_finding(
+                findings.append((seen, _test_finding(
                     Category.INCONCLUSIVE, per_build, etype, None,
                     f"The patch stops with {etype.value} ({describe(p)}) and no stack trace "
                     f"with function names, and base does not crash; an unclassified stop "
-                    f"is not enough evidence of a security error."))
+                    f"is not enough evidence of a security error.")))
             else:
-                findings.append(_test_finding(
+                findings.append((seen, _test_finding(
                     Category.NEW_ISSUE, per_build, etype, OnPatch.REACHES,
                     f"The patch crashes with {etype.value} ({describe(p)}) and no stack "
-                    f"trace with function names; base does not crash ({describe(b)})."))
+                    f"trace with function names; base does not crash ({describe(b)}).")))
         else:  # base crash with a signature, patch crash without one
-            findings.append(_test_finding(
+            findings.append((seen, _test_finding(
                 Category.INCONCLUSIVE, per_build, _etype(p), None,
                 f"Base crashes with {b.signature}, but the patch crash ({describe(p)}) has "
                 f"no stack trace with function names, so it cannot be told whether it is "
-                f"the same error."))
+                f"the same error.")))
     return findings
 
 
@@ -362,11 +402,16 @@ def release_only_findings(results: Results, tests: Optional[list[str]] = None) -
     without a sanitizer report it cannot be classified. One finding per test,
     naming every version where this happens. Flaky results are left to §8.5.
     """
-    findings: list[Finding] = []
-    for test in (list(tests) if tests is not None else list(results)):
+    return _strip(_release_only(results, _order(results, tests)))
+
+
+def _release_only(results: Results, order: list[str]) -> Found:
+    findings: Found = []
+    for i, test in enumerate(order):
         per_build = results[test]
         parts: list[str] = []
         etype: Optional[ErrorType] = None
+        seen: Optional[Seen] = None
         for version in (Version.BASE, Version.PATCH):
             rel = per_build.get(BuildName.of(version, Profile.RELEASE))
             san = per_build.get(BuildName.of(version, Profile.SANITIZED))
@@ -376,12 +421,13 @@ def release_only_findings(results: Results, tests: Optional[list[str]] = None) -
                 parts.append(f"on {version.value} the release build crashes ({describe(rel)}) "
                              f"but the sanitized build does not ({describe(san)})")
                 etype = etype or _etype(rel)
+                seen = seen or _seen(i, rel.build)
         if parts:
             text = "; ".join(parts)
-            findings.append(_test_finding(
+            findings.append((seen, _test_finding(
                 Category.INCONCLUSIVE, per_build, etype, None,
                 text[0].upper() + text[1:] + ". Without a sanitizer report the crash "
-                "cannot be classified."))
+                "cannot be classified.")))
     return findings
 
 
@@ -439,8 +485,12 @@ def functional_findings(results: Results, tests: Optional[list[str]] = None) -> 
       ``RESOURCE_LIMIT`` -> ``INCONCLUSIVE``. Base is not judged: these
       tests are expected to crash there (§5.5).
     """
-    findings: list[Finding] = []
-    for test in (list(tests) if tests is not None else list(results)):
+    return _strip(_functional(results, _order(results, tests)))
+
+
+def _functional(results: Results, order: list[str]) -> Found:
+    findings: Found = []
+    for i, test in enumerate(order):
         per_build = results[test]
         kind = next(iter(per_build.values())).kind
         base_bad = _mismatches(per_build, _BASE_BUILDS)
@@ -448,15 +498,15 @@ def functional_findings(results: Results, tests: Optional[list[str]] = None) -> 
 
         if kind in _FUNCTIONAL_KINDS:
             if base_bad:
-                findings.append(_test_finding(
+                findings.append((_seen(i, base_bad[0].build), _test_finding(
                     Category.INCONCLUSIVE, per_build, None, None,
                     f"{test} does not match its oracle on base ({_reasons(base_bad)}), so "
-                    f"the test or its oracle is wrong and it cannot judge the patch."))
+                    f"the test or its oracle is wrong and it cannot judge the patch.")))
             elif patch_bad:
-                findings.append(_test_finding(
+                findings.append((_seen(i, patch_bad[0].build), _test_finding(
                     Category.FUNCTIONAL_REGRESSION, per_build, None, None,
                     f"{test} matches its oracle on base but not on patch "
-                    f"({_reasons(patch_bad)})."))
+                    f"({_reasons(patch_bad)}).")))
         elif patch_bad:  # security, regression
             if all(r.outcome is not Outcome.NORMAL for r in patch_bad):
                 why = "stops on patch without a crash"
@@ -464,9 +514,9 @@ def functional_findings(results: Results, tests: Optional[list[str]] = None) -> 
             else:
                 why = "does not crash on patch but does not behave as expected there"
                 tail = "the patch avoids the crash but the expected behavior is not met."
-            findings.append(_test_finding(
+            findings.append((_seen(i, patch_bad[0].build), _test_finding(
                 Category.INCONCLUSIVE, per_build, None, None,
-                f"{test} {why} ({_reasons(patch_bad)}); {tail}"))
+                f"{test} {why} ({_reasons(patch_bad)}); {tail}")))
     return findings
 
 
@@ -507,18 +557,22 @@ def flaky_findings(results: Results, tests: Optional[list[str]] = None) -> list[
     The other finding rules leave flaky results out, so this is the only
     finding that reports them.
     """
-    findings: list[Finding] = []
-    for test in (list(tests) if tests is not None else list(results)):
+    return _strip(_flaky(results, _order(results, tests)))
+
+
+def _flaky(results: Results, order: list[str]) -> Found:
+    findings: Found = []
+    for i, test in enumerate(order):
         per_build = results[test]
         flaky = [per_build[b] for b in BUILD_ORDER if b in per_build and per_build[b].flaky]
         if not flaky:
             continue
         builds = ", ".join(r.build.value for r in flaky)
         details = " | ".join(f"{r.build.value}: {repeats_text(r)}" for r in flaky)
-        findings.append(_test_finding(
+        findings.append((_seen(i, flaky[0].build), _test_finding(
             Category.INCONCLUSIVE, per_build, None, None,
             f"{test} gives different results in repeats of the same run on {builds} "
-            f"({details}), so it cannot be judged."))
+            f"({details}), so it cannot be judged.")))
     return findings
 
 
@@ -541,3 +595,34 @@ def repeats_text(result: CombinedResult) -> str:
     return "; ".join(
         f"{text} in repeat{'s' if len(ns) > 1 else ''} {', '.join(map(str, ns))}"
         for text, ns in groups.items())
+
+
+# ---------------------------------------------------------------------------
+# All findings of a run (§8.8)
+# ---------------------------------------------------------------------------
+
+# Rule order; it only decides between two findings first seen in the same run.
+_RULES = (_crash, _unsigned, _release_only, _functional, _flaky)
+
+
+def build_findings(results: Results, tests: Optional[list[str]] = None) -> list[Finding]:
+    """Every finding of a run, numbered ``F-001``, ``F-002``, ... (§8.8).
+
+    ``tests`` is the run order of §7.1: tests in config order (valid,
+    boundary, invalid, security, regression). Findings are numbered in the
+    order they are first observed in that order, test by test and, within a
+    test, build by build (§6.1). ``tests`` must name exactly the tests in
+    ``results``, so that no result is left out (§8.7).
+    """
+    order = _order(results, tests)
+    if len(order) != len(set(order)) or set(order) != set(results):
+        raise ZarabanError(ErrorCode.TOOL_INTERNAL,
+                           "the run order does not match the tests that were run",
+                           {"order": order, "results": list(results)})
+    found = [item for rule in _RULES for item in rule(results, order)]
+    found.sort(key=lambda item: item[0])  # stable: ties keep the rule order
+    findings = []
+    for n, (_, f) in enumerate(found, start=1):
+        f.id = finding_id(n)
+        findings.append(f)
+    return findings
