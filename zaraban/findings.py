@@ -26,6 +26,7 @@ from zaraban.models import (
     Outcome,
     Profile,
     Results,
+    RunRecord,
     TestKind,
     Version,
 )
@@ -108,11 +109,9 @@ def finding_test(per_build: dict[BuildName, CombinedResult],
     )
 
 
-def describe(result: CombinedResult) -> str:
-    """One result in a few words: ``CRASH ASAN SIGABRT``, ``NORMAL exit 1``,
-    ``TIMEOUT``, ``RESOURCE_LIMIT memory``. ``(flaky)`` is added when the
-    repeats differ (§7.5)."""
-    run = result.first
+def describe_run(run: RunRecord) -> str:
+    """One run in a few words: ``CRASH ASAN SIGABRT``, ``NORMAL exit 1``,
+    ``TIMEOUT``, ``RESOURCE_LIMIT memory``."""
     a = run.analysis
     words = [a.outcome.value]
     if a.outcome is Outcome.CRASH:
@@ -123,9 +122,14 @@ def describe(result: CombinedResult) -> str:
         words.append(f"exit {run.exit_code}")
     elif a.outcome is Outcome.RESOURCE_LIMIT and run.limit_hit is not None:
         words.append(run.limit_hit.value)
-    if result.flaky:
-        words.append("(flaky)")
     return " ".join(words)
+
+
+def describe(result: CombinedResult) -> str:
+    """:func:`describe_run` of the first repeat, with ``(flaky)`` added when
+    the repeats differ (§7.5)."""
+    text = describe_run(result.first)
+    return text + " (flaky)" if result.flaky else text
 
 
 # Worst first, so the summary of a finding starts with what matters most.
@@ -489,3 +493,51 @@ def _reasons(results: list[CombinedResult]) -> str:
             why = describe(r)
         parts.append(f"{r.build.value}: {why}")
     return "; ".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Flaky results (§8.5)
+# ---------------------------------------------------------------------------
+
+
+def flaky_findings(results: Results, tests: Optional[list[str]] = None) -> list[Finding]:
+    """One ``INCONCLUSIVE`` finding per test with a flaky result on any build
+    (§8.5), listing the flaky builds and how their repeats differ.
+
+    The other finding rules leave flaky results out, so this is the only
+    finding that reports them.
+    """
+    findings: list[Finding] = []
+    for test in (list(tests) if tests is not None else list(results)):
+        per_build = results[test]
+        flaky = [per_build[b] for b in BUILD_ORDER if b in per_build and per_build[b].flaky]
+        if not flaky:
+            continue
+        builds = ", ".join(r.build.value for r in flaky)
+        details = " | ".join(f"{r.build.value}: {repeats_text(r)}" for r in flaky)
+        findings.append(_test_finding(
+            Category.INCONCLUSIVE, per_build, None, None,
+            f"{test} gives different results in repeats of the same run on {builds} "
+            f"({details}), so it cannot be judged."))
+    return findings
+
+
+def repeats_text(result: CombinedResult) -> str:
+    """How the repeats of one result differ, grouped by what they did:
+    ``CRASH ASAN SIGABRT, STACK_BUFFER_OVERFLOW @ f < main in repeat 1;
+    NORMAL exit 1, oracle passed in repeats 2, 3``.
+
+    Each group shows the three values that decide stability (§7.5): the
+    outcome, the signature and the oracle result.
+    """
+    groups: dict[str, list[int]] = {}
+    for run in result.runs:
+        words = [describe_run(run)]
+        if run.analysis.signature:
+            words.append(run.analysis.signature)
+        if run.oracle.passed is not None:
+            words.append("oracle passed" if run.oracle.passed else "oracle failed")
+        groups.setdefault(", ".join(words), []).append(run.repeat)
+    return "; ".join(
+        f"{text} in repeat{'s' if len(ns) > 1 else ''} {', '.join(map(str, ns))}"
+        for text, ns in groups.items())
