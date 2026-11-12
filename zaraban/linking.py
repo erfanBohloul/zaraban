@@ -1,5 +1,8 @@
 """Linking findings to the patch (SPEC §9).
 
+:func:`link_findings` is the entry point: it sets ``finding.link`` on every
+finding that :func:`zaraban.findings.build_findings` made.
+
 A link is reported only with **location evidence** from an actual execution
 (§9.3) together with **comparative evidence** from running both versions on
 the same input (§9.5). Being close to a changed line is never enough: when the
@@ -13,9 +16,11 @@ Section numbers such as §9.3 refer to docs/SPEC.md.
 from __future__ import annotations
 
 import posixpath
+from pathlib import Path
 from typing import Optional
 
-from zaraban.findings import stable_key
+from zaraban.diffinfo import changed_functions
+from zaraban.findings import matches_oracle, stable_key
 from zaraban.models import (
     BuildName,
     Category,
@@ -26,6 +31,7 @@ from zaraban.models import (
     Link,
     LinkLevel,
     OnPatch,
+    Outcome,
     Results,
     Version,
 )
@@ -153,3 +159,147 @@ def link_crash(finding: Finding, results: Results) -> Optional[CombinedResult]:
         if r.signature == finding.signature:
             return r
     return keyed[0] if keyed else None
+
+
+# ---------------------------------------------------------------------------
+# Comparative evidence (§9.5)
+# ---------------------------------------------------------------------------
+
+
+def comparative_tests(finding: Finding, results: Results) -> list[str]:
+    """The tests that show, by running both versions on the same input, that
+    the versions differ in the way the category claims (§9.5).
+
+    - ``FIXED``: crash on base, no crash on patch (``blocked``).
+    - ``INCOMPLETE_FIX``: crash on both versions (``reaches`` and a crash on
+      base too), plus the tests the patch blocks: a blocked test shows that
+      the patch acts on this error, a still-crashing one that it does not act
+      enough.
+    - ``NEW_ISSUE``: no crash on base, crash on patch.
+    - ``FUNCTIONAL_REGRESSION``: matches its oracle on base and not on patch.
+    - ``INCONCLUSIVE``: none; the category itself says the evidence is not
+      enough.
+    """
+    out: list[str] = []
+    for t in finding.tests:
+        per_build = results[t.test]
+        base = per_build.get(BuildName.BASE_SANITIZED)
+        base_crash = base is not None and base.outcome is Outcome.CRASH
+        if finding.category is Category.FIXED:
+            ok = t.on_patch is OnPatch.BLOCKED
+        elif finding.category is Category.INCOMPLETE_FIX:
+            ok = t.on_patch is OnPatch.BLOCKED or (t.on_patch is OnPatch.REACHES and base_crash)
+        elif finding.category is Category.NEW_ISSUE:
+            ok = t.on_patch is OnPatch.REACHES and not base_crash
+        elif finding.category is Category.FUNCTIONAL_REGRESSION:
+            ok = all(matches_oracle(per_build[b]) for b in
+                     (BuildName.BASE_RELEASE, BuildName.BASE_SANITIZED) if b in per_build) \
+                and any(not matches_oracle(per_build[b]) for b in
+                        (BuildName.PATCH_RELEASE, BuildName.PATCH_SANITIZED) if b in per_build)
+        else:
+            ok = False
+        if ok:
+            out.append(t.test)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Explanation and the entry point (§9.6)
+# ---------------------------------------------------------------------------
+
+
+def explain(finding: Finding, link: Link, crash: Optional[CombinedResult]) -> str:
+    """One or two sentences built only from the recorded facts (§9.6): where
+    the evidence lies in the diff, then what the comparison of the versions
+    shows."""
+    return f"{_location_sentence(finding, link, crash)} {_comparison_sentence(finding, link)}".strip()
+
+
+def _location_sentence(finding: Finding, link: Link, crash: Optional[CombinedResult]) -> str:
+    side = link.side.value if link.side else None
+    where = f"frame #{link.frame} {link.function} ({link.file}:{link.line})"
+    if link.level is LinkLevel.IN_CHANGED_HUNK:
+        return f"{where[0].upper()}{where[1:]} of the crash on {side} lies inside hunk {link.hunk}."
+    if link.level is LinkLevel.IN_CHANGED_FUNCTION:
+        return (f"The crash on {side} happens in {where}, a function the patch changed, "
+                f"outside its hunks.")
+    if link.level is LinkLevel.CHANGED_FUNCTION_IN_STACK:
+        return f"The crash on {side} is reached through {where}, a function the patch changed."
+    test = crash.test if crash else (finding.tests[0].test if finding.tests else "the test")
+    if link.level is LinkLevel.CHANGED_CODE_EXECUTED:
+        lines = link.executed_changed_lines or []
+        what = f"changed line{'s' if len(lines) > 1 else ''} {', '.join(map(str, lines))}"
+        lead = "No frame of the crash lies in changed code, but the" if crash else "The"
+        return f"{lead} execution trace shows {test} running {what} of the {side} side."
+    # UNDETERMINED
+    if finding.category is Category.INCONCLUSIVE:
+        return "The evidence is not enough to link this finding to the diff."
+    if crash is not None and any(not f.runtime and f.function for f in crash.first.analysis.frames):
+        why = f"No frame of the crash on {side} lies in a changed hunk or function"
+    elif crash is not None:
+        why = f"The crash on {side} has no stack trace with function names"
+    else:
+        why = "There is no crash stack"
+    if link.executed_changed_lines == []:
+        return f"{why}, and the execution trace runs no changed line of the {side} side, " \
+               f"so the link is undetermined."
+    return f"{why}, and no execution trace was made, so the link is undetermined."
+
+
+def _comparison_sentence(finding: Finding, link: Link) -> str:
+    on = {t.test: t.on_patch for t in finding.tests}
+    reaches = [t for t, o in on.items() if o is OnPatch.REACHES]
+    blocked = [t for t, o in on.items() if o is OnPatch.BLOCKED]
+    tests = link.comparative_tests
+    if finding.category is Category.FIXED and tests:
+        return f"{_and(tests)} {_verb(tests, 'crashes', 'crash')} on base and not on patch."
+    if finding.category is Category.INCOMPLETE_FIX:
+        if blocked:
+            return (f"The patch blocks {_and(blocked)} but {_and(reaches)} still "
+                    f"{_verb(reaches, 'reaches', 'reach')} the same error.")
+        return f"{_and(reaches)} still {_verb(reaches, 'reaches', 'reach')} the same error on patch."
+    if finding.category is Category.NEW_ISSUE and tests:
+        return f"{_and(tests)} {_verb(tests, 'crashes', 'crash')} on patch and not on base."
+    if finding.category is Category.FUNCTIONAL_REGRESSION and tests:
+        return f"{_and(tests)} {_verb(tests, 'matches', 'match')} its oracle on base and not on patch."
+    return ""
+
+
+def _and(names: list[str]) -> str:
+    """``a``, ``a and b``, ``a, b and c``."""
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def _verb(names: list[str], one: str, many: str) -> str:
+    return one if len(names) == 1 else many
+
+
+def link_findings(findings: list[Finding], results: Results, hunks: list[Hunk],
+                  base_tree: str | Path, patch_tree: str | Path,
+                  traces: Optional[dict[str, list[int]]] = None) -> list[Finding]:
+    """Set ``finding.link`` on every finding (§9.6) and return the findings.
+
+    ``hunks`` come from :func:`zaraban.diffinfo.load_hunks`; the trees are the
+    clean base and patch source copies, for the changed functions (§9.2).
+    ``traces`` maps a finding id to the changed lines its test executed on the
+    finding's side (§9.4); a finding without an entry had no trace made.
+    Changed functions are computed once per side, and only when a stack trace
+    needs them.
+    """
+    trees = {Version.BASE: base_tree, Version.PATCH: patch_tree}
+    changed: dict[Version, set[tuple[str, str]]] = {}
+    for f in findings:
+        side = link_side(f)
+        crash = link_crash(f, results)
+        if side is None:
+            link = Link(level=LinkLevel.UNDETERMINED)
+        else:
+            frames = crash.first.analysis.frames if crash else []
+            if frames and side not in changed:
+                changed[side] = changed_functions(trees[side], hunks, side)
+            link = locate(frames, hunks, changed.get(side, set()), side,
+                          (traces or {}).get(f.id))
+        link.comparative_tests = comparative_tests(f, results)
+        link.explanation = explain(f, link, crash)
+        f.link = link
+    return findings
