@@ -33,6 +33,7 @@ from typing import Optional
 from . import models
 from .config import Target
 from .elf import ElfView
+from .sources import copy_tree
 from .models import (
     BUILD_ORDER,
     BinaryInfo,
@@ -52,7 +53,6 @@ MIN_ENV: dict[str, str] = {
     "LANG": "C",
 }
 BUILD_TIMEOUT_S = 300  # a build longer than this is stopped and counts as failed (§6.2)
-_IGNORE = shutil.ignore_patterns(".git", "out", "__pycache__", "*.pyc")
 
 
 @dataclass
@@ -103,7 +103,7 @@ def _build_one(
     cmd = build.release_cmd if name.profile is Profile.RELEASE else build.sanitized_cmd
 
     tree = work / name.value
-    _copy_tree(src_tree, tree)
+    copy_tree(src_tree, tree)
 
     build_dir = out / "builds" / name.value
     build_dir.mkdir(parents=True, exist_ok=True)
@@ -211,9 +211,3 @@ def _failure_reason(exit_code: Optional[int], binary_path: Path, elf: Optional[E
     if not binary_path.exists():
         return f"binary not found: {binary_path.name}"
     return f"binary is not an x86-64 ELF executable: {binary_path.name}"
-
-
-def _copy_tree(src: Path, dest: Path) -> None:
-    if dest.exists():
-        shutil.rmtree(dest)
-    shutil.copytree(src, dest, ignore=_IGNORE, symlinks=True)
