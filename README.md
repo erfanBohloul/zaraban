@@ -257,8 +257,8 @@ saved to `results/` with `--save`.
 - [ ] **Unseen-patch drill**: each pair writes two surprise patches for the
       other pair's target, gives only the diff, and records the tool's verdict.
       Fix anything it gets wrong.
-- [ ] Optional: the bounded variant step for security inputs (see
-      `SPEC_REVIEW.md`, risk 3).
+- [ ] Optional: the bounded variant step for security inputs (SPEC §9.4 and
+      the security-test notes in §5).
 
 **Gate:** CI is green on `main`, the drill verdicts are correct, and the README
 run guide works on a fresh clone.
