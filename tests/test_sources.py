@@ -74,7 +74,7 @@ def test_3_3_clean_tree_excludes_git_and_out(tmp_path):
 
 def test_3_2_diff_file_applies_and_reports_strip_level(tmp_path):
     base = make_base(tmp_path)
-    patch = make_patch_dir(tmp_path)
+    make_patch_dir(tmp_path)  # tmp_path/patched, the new side of the diff
     # Build a real unified diff with a/ b/ prefixes -> applies at -p1.
     diff = subprocess.run(
         ["git", "diff", "--no-index", "--",

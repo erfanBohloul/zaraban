@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import models
 from .elf import DF_1_NOW, DF_1_PIE, DF_BIND_NOW, PF_X, ElfView
 from .models import (
     HardeningChange,

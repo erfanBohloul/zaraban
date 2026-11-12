@@ -7,7 +7,6 @@ arithmetic, so the stack canary and sanitizer handlers are actually emitted.
 
 import shutil
 import subprocess
-import sys
 
 import pytest
 
