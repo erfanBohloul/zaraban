@@ -171,3 +171,110 @@ def test_12_4_version_and_diff_metadata(tmp_path):
     assert s.base.tree_sha256 != s.patch.tree_sha256
     assert len(s.diff.sha256) == 64
     assert s.diff.path == str(s.diff_path)
+
+
+# -- strip levels (§3.2) -----------------------------------------------------
+
+def write_diff(tmp_path, text, name="change.diff"):
+    p = tmp_path / name
+    p.write_text(text, encoding="utf-8")
+    return p
+
+
+def test_3_2_diff_without_prefix_applies_at_p0(tmp_path):
+    base = make_base(tmp_path)
+    diff = write_diff(tmp_path, "--- src/main.c\n+++ src/main.c\n@@ -1,3 +1,3 @@\n"
+                                " int main(void) {\n-    return 0;\n+    return 2;\n }\n")
+    s = prepare(base, diff, tmp_path / "work")
+    assert s.patch.strip_level == 0
+    assert "return 2" in (s.patch_tree / "src" / "main.c").read_text()
+
+
+def test_3_2_git_diff_that_only_adds_a_file_uses_p1(tmp_path):
+    # Nothing in the base anchors the level; -p0 and -p2 would also "apply"
+    # (creating b/src/new.c or new.c), but a git-style diff means -p1.
+    base = make_base(tmp_path)
+    diff = write_diff(tmp_path, "diff --git a/src/new.c b/src/new.c\nnew file mode 100644\n"
+                                "--- /dev/null\n+++ b/src/new.c\n@@ -0,0 +1 @@\n+int x;\n")
+    s = prepare(base, diff, tmp_path / "work")
+    assert s.patch.strip_level == 1
+    assert (s.patch_tree / "src" / "new.c").read_text() == "int x;\n"
+    assert not (s.patch_tree / "b").exists()
+    assert s.diff.files == ["src/new.c"]
+
+
+def test_3_2_ambiguous_strip_level_is_an_error(tmp_path):
+    # x/src/main.c and src/main.c have the same content, so the diff applies
+    # at -p0 (to x/src/main.c) and at -p1 (to src/main.c). Guessing could
+    # patch the wrong file, so the run must stop.
+    base = make_base(tmp_path)
+    (base / "x" / "src").mkdir(parents=True)
+    (base / "x" / "src" / "main.c").write_text((base / "src" / "main.c").read_text())
+    diff = write_diff(tmp_path, "--- x/src/main.c\n+++ x/src/main.c\n@@ -1,3 +1,3 @@\n"
+                                " int main(void) {\n-    return 0;\n+    return 2;\n }\n")
+    with pytest.raises(ZarabanError) as e:
+        prepare(base, diff, tmp_path / "work")
+    assert e.value.code is ErrorCode.PATCH_APPLY_FAILED
+    assert "more than one strip level" in e.value.message
+    assert any("-p0" in p and "x/src/main.c" in p for p in e.value.details["problems"])
+
+
+def test_3_2_apply_failure_explains_why(tmp_path):
+    base = make_base(tmp_path)
+    bad = write_diff(tmp_path, "--- a/src/main.c\n+++ b/src/main.c\n"
+                               "@@ -1,1 +1,1 @@\n-not in the file\n+x\n", "bad.diff")
+    with pytest.raises(ZarabanError) as e:
+        prepare(base, bad, tmp_path / "work")
+    problems = e.value.details["problems"]
+    assert len(problems) == 5  # one line per strip level, -p0 .. -p4
+    assert any(p.startswith("-p1:") and "patch" in p for p in problems)
+
+
+# -- clean copies (§3.3, §6.2) -----------------------------------------------
+
+def test_3_3_out_is_skipped_only_at_the_root(tmp_path):
+    base = make_base(tmp_path)
+    (base / "out").mkdir()
+    (base / "src" / "out").mkdir()
+    (base / "src" / "out" / "gen.c").write_text("int g;\n")
+    (base / "src" / "__pycache__").mkdir()
+    s = prepare(base, make_patch_dir(tmp_path), tmp_path / "work")
+    assert not (s.base_tree / "out").exists()
+    assert (s.base_tree / "src" / "out" / "gen.c").is_file()  # part of the program
+    assert not (s.base_tree / "src" / "__pycache__").exists()
+
+
+def test_3_3_symlinks_are_kept_as_links(tmp_path):
+    base = make_base(tmp_path)
+    (base / "link.c").symlink_to("src/main.c")
+    s = prepare(base, make_patch_dir(tmp_path), tmp_path / "work")
+    assert (s.base_tree / "link.c").is_symlink()
+
+
+def test_3_3_identical_trees_give_an_empty_diff(tmp_path):
+    base = make_base(tmp_path)
+    same = tmp_path / "same"
+    (same / "src").mkdir(parents=True)
+    (same / "src" / "main.c").write_text((base / "src" / "main.c").read_text())
+    (same / "README").write_text("hello\n")
+    s = prepare(base, same, tmp_path / "work")
+    assert s.diff.files == [] and s.diff.hunks == 0
+    assert s.base.tree_sha256 == s.patch.tree_sha256
+
+
+def test_3_3_prepare_twice_in_the_same_work_dir(tmp_path):
+    base = make_base(tmp_path)
+    work = tmp_path / "work"
+    patch = make_patch_dir(tmp_path)
+    prepare(base, patch, work)
+    (work / "patch" / "leftover.o").write_text("x")  # e.g. from an earlier run
+    s = prepare(base, patch, work)
+    assert not (s.patch_tree / "leftover.o").exists()
+
+
+def test_12_4_base_outside_git_has_no_commit(tmp_path):
+    plain = tmp_path / "plain"
+    (plain / "src").mkdir(parents=True)
+    (plain / "src" / "main.c").write_text("int main(void) {\n    return 0;\n}\n")
+    s = prepare(plain, make_patch_dir(tmp_path), tmp_path / "work")
+    assert s.base.git_commit is None

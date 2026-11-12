@@ -118,8 +118,14 @@ Rules for diff files:
   cleanly, the run stops with exit code `30`.
 - The path prefix depth differs between tools (for example `a/src/main.c`
   versus `targets/target1_sample/src/main.c`). The tool tries strip levels
-  `-p0` to `-p4` with `git apply --check` and uses the first that applies. The
-  chosen level is recorded in the report.
+  `-p0` to `-p4` with `git apply --check` and uses the level that changes or
+  deletes files existing in the base. If two levels would patch different
+  existing files, the diff is ambiguous and the run stops with exit code `30`
+  rather than risk patching the wrong file. A diff that only adds files uses
+  `-p1` when its paths have git's `a/` `b/` prefixes, otherwise the lowest
+  level that applies. The chosen level is recorded in the report.
+- When a diff does not apply, the error lists `git apply`'s reason for each
+  strip level.
 
 Why accept both forms: at the defense session, unseen patches are given to us
 through an agreed interface (§4 of the spec), most likely as diff files. For
