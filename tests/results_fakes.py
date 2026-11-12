@@ -56,9 +56,10 @@ def crash(error_type: str = "STACK_BUFFER_OVERFLOW", stack=TOKEN_FRAMES, *,
                 exit_code=exit_code, oracle=False)
 
 
-def normal(exit_code: int = 0, oracle: Optional[bool] = None) -> dict:
-    """A run that ended normally. ``oracle`` is True/False when checked."""
-    return dict(outcome=Outcome.NORMAL, exit_code=exit_code, oracle=oracle)
+def normal(exit_code: int = 0, oracle: Optional[bool] = None, reasons=()) -> dict:
+    """A run that ended normally. ``oracle`` is True/False when checked;
+    ``reasons`` are the oracle's mismatch reasons."""
+    return dict(outcome=Outcome.NORMAL, exit_code=exit_code, oracle=oracle, reasons=list(reasons))
 
 
 def timeout() -> dict:
@@ -84,7 +85,8 @@ def run_record(test: str, kind: TestKind, build: BuildName, spec: dict, repeat: 
         exit_code=spec.get("exit_code"), signal=spec.get("signal"),
         timed_out=spec["outcome"] is Outcome.TIMEOUT, limit_hit=spec.get("limit"),
         duration_s=0.01, stdout=stream, stderr=stream, analysis=analysis,
-        oracle=OracleResult(checked=oracle is not None, passed=oracle),
+        oracle=OracleResult(checked=oracle is not None, passed=oracle,
+                            reasons=spec.get("reasons", [])),
     )
 
 
