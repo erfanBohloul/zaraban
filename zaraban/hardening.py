@@ -15,7 +15,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from . import models
-from .elf import DF_1_NOW, DF_BIND_NOW, PF_X, ElfView
+from .elf import DF_1_NOW, DF_1_PIE, DF_BIND_NOW, PF_X, ElfView
 from .models import (
     HardeningChange,
     HardeningChangeKind,
@@ -73,12 +73,13 @@ def _nx(elf: ElfView) -> ProtectionResult:
 
 
 def _pie(elf: ElfView) -> ProtectionResult:
-    # A PIE is ET_DYN with a PT_INTERP header; a shared library is ET_DYN
-    # without one, and a non-PIE executable is ET_EXEC.
-    enabled = elf.e_type == "ET_DYN" and elf.has_interp
-    return ProtectionResult(
-        enabled, f"e_type={elf.e_type}, PT_INTERP={'present' if elf.has_interp else 'absent'}"
-    )
+    # A PIE is ET_DYN with a PT_INTERP header (or DF_1_PIE when linked
+    # statically); a shared library is ET_DYN with neither, and a non-PIE
+    # executable is ET_EXEC. The rule lives in ElfView.is_pie.
+    evidence = f"e_type={elf.e_type}, PT_INTERP={'present' if elf.has_interp else 'absent'}"
+    if elf.dt_flags_1 & DF_1_PIE:
+        evidence += ", DT_FLAGS_1 has DF_1_PIE"
+    return ProtectionResult(elf.is_pie, evidence)
 
 
 def _relro(elf: ElfView) -> ProtectionResult:
