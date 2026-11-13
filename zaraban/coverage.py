@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
-from .models import InputMethod, Issue, TestCase, WarningCode
+from .models import InputMethod, Issue, LinkLevel, TestCase, Version, WarningCode
 
 # Minimal, identical build/run environment, as in §3.3 / §6.2.
 MIN_ENV = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": "/tmp", "LANG": "C"}
@@ -134,9 +134,80 @@ def trace(
 
 
 def run_trace(target, version_tree, test, changed, work_dir, *, label="coverage") -> TraceResult:
-    """Convenience wrapper for the linker: pulls the RunSpec from the target."""
-    return trace(version_tree, target.spec.build.coverage_cmd, test, changed, work_dir,
+    """Convenience wrapper for the linker: pulls the RunSpec from the target.
+
+    A target without ``build.coverage_cmd`` gives an unavailable trace (with
+    ``TRACE_UNAVAILABLE``) before anything else is read from its config.
+    """
+    build_spec = getattr(getattr(target, "spec", None), "build", None)
+    coverage_cmd = getattr(build_spec, "coverage_cmd", None)
+    if not coverage_cmd:
+        return TraceResult(False, warning=_unavailable("the config has no coverage_cmd"))
+    return trace(version_tree, coverage_cmd, test, changed, work_dir,
                  RunSpec.from_target(target), label=label)
+
+
+# ---------------------------------------------------------------------------
+# Producing the traces for linking (§9.4)
+# ---------------------------------------------------------------------------
+
+
+def execution_traces(
+    findings,
+    tests_by_name: dict[str, TestCase],
+    changed_by_side: dict,          # {Version: {file: set[int]}}  from diffinfo.changed_lines_by_file
+    version_trees: dict,            # {Version: tree path}         sources.base_tree / .patch_tree
+    target,
+    work_dir,
+    *,
+    trace_fn: Optional[Callable] = None,
+) -> tuple[dict[str, list[int]], list[Issue]]:
+    """Make an execution trace for each finding whose stack gave no location
+    evidence (§9.4), and return the data ``linking.link_findings`` consumes.
+
+    Run this **after** a first ``link_findings`` pass: a finding needs a trace
+    exactly when its link came out ``UNDETERMINED`` but has a side — that covers
+    both a crash finding whose frames matched nothing and a
+    ``FUNCTIONAL_REGRESSION`` (which has no crash stack at all).
+
+    Returns ``(traces, warnings)``: ``traces`` maps a finding id to the changed
+    lines its test executed, to pass as ``link_findings(..., traces=traces)``
+    for a second pass. A finding whose trace could not be made is absent from
+    ``traces`` (so its link stays ``UNDETERMINED``) and adds a
+    ``TRACE_UNAVAILABLE`` warning.
+    """
+    trace_fn = trace_fn or run_trace     # looked up at call time, so tests can patch it
+    traces: dict[str, list[int]] = {}
+    warnings: list[Issue] = []
+    for finding in findings:
+        link = getattr(finding, "link", None)
+        if link is None or link.level is not LinkLevel.UNDETERMINED or link.side is None:
+            continue
+        test = _representative_test(finding, tests_by_name)
+        changed = changed_by_side.get(link.side) or {}
+        tree = version_trees.get(link.side)
+        if test is None or not changed or tree is None:
+            continue
+        # work/<version>-coverage/, as §9.4 names it
+        result = trace_fn(target, tree, test, changed, work_dir,
+                          label=f"{link.side.value}-coverage")
+        if result.available:
+            traces[finding.id] = result.executed_changed_lines
+        # one warning per distinct reason, not one per finding
+        if result.warning is not None and all(w.message != result.warning.message for w in warnings):
+            warnings.append(result.warning)
+    return traces, warnings
+
+
+def _representative_test(finding, tests_by_name: dict[str, TestCase]) -> Optional[TestCase]:
+    """The finding's test to trace: its first comparative test, else its first."""
+    link = getattr(finding, "link", None)
+    name: Optional[str] = None
+    if link is not None and getattr(link, "comparative_tests", None):
+        name = link.comparative_tests[0]
+    elif finding.tests:
+        name = finding.tests[0].test
+    return tests_by_name.get(name) if name else None
 
 
 # ---------------------------------------------------------------------------

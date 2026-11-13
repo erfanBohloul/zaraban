@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from . import analysis, diffinfo, findings, linking, models, regression, report, reproducer, runner, status
+from . import analysis, coverage, diffinfo, findings, linking, models, regression, report, reproducer, runner, status
 from .models import (
     BUILD_ORDER,
     BuildName,
@@ -70,6 +70,15 @@ def analyze_and_report(
                 )
             )
 
+    # The resolved tests by name: used by the execution trace (step 7) and the
+    # reproducers (step 8).
+    tests_by_name: dict[str, TestCase] = {}
+    if ctx.target and hasattr(ctx.target, "all_tests"):
+        try:
+            tests_by_name = {t.name: t for t in ctx.target.all_tests()}
+        except Exception:
+            tests_by_name = {}
+
     # -----------------------------------------------------------------------
     # Step 7: Findings and patch links (Member C)
     # -----------------------------------------------------------------------
@@ -108,6 +117,12 @@ def analyze_and_report(
                 for f in findings_list:
                     if f.link is None:
                         f.link = models.Link(level=models.LinkLevel.UNDETERMINED)
+            else:
+                # §9.4: a finding still UNDETERMINED after the stack check (no
+                # frame matched, or no crash at all, as for a
+                # FUNCTIONAL_REGRESSION) gets an execution trace from a
+                # coverage build, and a second linking pass uses it.
+                findings_list = _link_with_traces(ctx, findings_list, hunks, tests_by_name)
         else:
             for f in findings_list:
                 if f.link is None:
@@ -120,13 +135,6 @@ def analyze_and_report(
     regression_tests: list[RegressionTest] = []
     repro_warnings: list[Issue] = []
     regr_warnings: list[Issue] = []
-
-    tests_by_name: dict[str, TestCase] = {}
-    if ctx.target and hasattr(ctx.target, "all_tests"):
-        try:
-            tests_by_name = {t.name: t for t in ctx.target.all_tests()}
-        except Exception:
-            tests_by_name = {}
 
     versions_dict: dict[str, Any] = {}
     if ctx.sources is not None:
@@ -376,6 +384,53 @@ def analyze_and_report(
         shutil.rmtree(ctx.work_dir, ignore_errors=True)
 
     return int(status_obj.exit_code)
+
+
+def _link_with_traces(
+    ctx: RunContext,
+    findings_list: list[Finding],
+    hunks: list[diffinfo.Hunk],
+    tests_by_name: dict[str, TestCase],
+) -> list[Finding]:
+    """Second linking pass with execution traces (SPEC §9.4).
+
+    The first pass has set every ``finding.link``. A finding whose link is
+    ``UNDETERMINED`` but has a side gets one coverage-build run of its test;
+    the changed lines it executed upgrade the link to ``CHANGED_CODE_EXECUTED``.
+    A trace that cannot be made records ``TRACE_UNAVAILABLE`` and keeps the
+    first-pass link. Nothing here changes a category or the exit code (§9.6).
+    """
+    try:
+        traces, trace_warnings = coverage.execution_traces(
+            findings_list,
+            tests_by_name,
+            {
+                Version.BASE: diffinfo.changed_lines_by_file(hunks, Version.BASE),
+                Version.PATCH: diffinfo.changed_lines_by_file(hunks, Version.PATCH),
+            },
+            {Version.BASE: ctx.sources.base_tree, Version.PATCH: ctx.sources.patch_tree},
+            ctx.target,
+            ctx.work_dir,
+        )
+        ctx.warnings.extend(trace_warnings)
+        if traces:
+            findings_list = linking.link_findings(
+                findings_list,
+                ctx.results,
+                hunks,
+                ctx.sources.base_tree,
+                ctx.sources.patch_tree,
+                traces=traces,
+            )
+    except Exception as exc:
+        ctx.warnings.append(
+            Issue(
+                models.WarningCode.TRACE_UNAVAILABLE.value,
+                f"no execution trace could be made: {exc}",
+                {"error": str(exc)},
+            )
+        )
+    return findings_list
 
 
 def build_checks(

@@ -7,9 +7,11 @@ fixture lcov dump, and the orchestration with fakes.
 
 from pathlib import Path
 
+from types import SimpleNamespace
+
 from zaraban import coverage
-from zaraban.coverage import RunSpec
-from zaraban.models import InputMethod, TestKind, TestCase, WarningCode
+from zaraban.coverage import RunSpec, TraceResult
+from zaraban.models import InputMethod, Issue, LinkLevel, TestKind, TestCase, Version, WarningCode
 
 
 # -- fixtures ----------------------------------------------------------------
@@ -161,3 +163,85 @@ def test_run_for_profile_runs_the_binary_and_writes_the_profile(tmp_path):
     profraw = tmp_path / "run" / "trace.profraw"
     assert coverage.run_for_profile(prog, test, spec, profraw, tmp_path / "rundir") is True
     assert profraw.exists()
+
+
+# -- execution_traces: pick which findings to trace and collect the results --
+
+def _finding(fid, level, side, tests, comparative=None):
+    link = SimpleNamespace(level=level, side=side, comparative_tests=comparative or [])
+    return SimpleNamespace(id=fid, link=link,
+                           tests=[SimpleNamespace(test=t) for t in tests])
+
+
+def test_execution_traces_only_traces_undetermined_findings_with_a_side(tmp_path):
+    seen = []
+
+    def fake_trace(target, tree, test, changed, work_dir, *, label):
+        seen.append(label)
+        return TraceResult(True, executed_changed_lines=[24, 27],
+                           per_file={"src/main.c": [24, 27]})
+
+    findings = [
+        _finding("F-001", LinkLevel.UNDETERMINED, Version.PATCH, ["valid_set"]),        # traced
+        _finding("F-002", LinkLevel.IN_CHANGED_HUNK, Version.PATCH, ["exploit"]),       # has evidence
+        _finding("F-003", LinkLevel.UNDETERMINED, None, ["other"]),                     # no side
+    ]
+    traces, warns = coverage.execution_traces(
+        findings, {"valid_set": a_test()},
+        {Version.PATCH: {"src/main.c": {24, 25, 27}}}, {Version.PATCH: tmp_path},
+        target=None, work_dir=tmp_path, trace_fn=fake_trace)
+
+    assert traces == {"F-001": [24, 27]}
+    assert warns == []
+    assert seen == ["patch-coverage"]                # only the UNDETERMINED, with-a-side finding
+
+
+def test_execution_traces_prefers_the_comparative_test(tmp_path):
+    picked = {}
+
+    def fake_trace(target, tree, test, changed, work_dir, *, label):
+        picked["test"] = test.name
+        return TraceResult(True, executed_changed_lines=[5])
+
+    f = _finding("F-001", LinkLevel.UNDETERMINED, Version.PATCH,
+                 ["first_test"], comparative=["valid_set"])
+    coverage.execution_traces(
+        f and [f], {"valid_set": a_test(), "first_test": a_test()},
+        {Version.PATCH: {"src/main.c": {5}}}, {Version.PATCH: tmp_path},
+        None, tmp_path, trace_fn=fake_trace)
+    assert picked["test"] == "valid_set"
+
+
+def test_execution_traces_collects_unavailable_warning(tmp_path):
+    def fake_trace(target, tree, test, changed, work_dir, *, label):
+        return TraceResult(False, warning=Issue(WarningCode.TRACE_UNAVAILABLE.value, "no trace"))
+
+    findings = [_finding("F-001", LinkLevel.UNDETERMINED, Version.PATCH, ["valid_set"])]
+    traces, warns = coverage.execution_traces(
+        findings, {"valid_set": a_test()},
+        {Version.PATCH: {"a.c": {1}}}, {Version.PATCH: tmp_path},
+        None, tmp_path, trace_fn=fake_trace)
+    assert traces == {}
+    assert len(warns) == 1 and warns[0].code == WarningCode.TRACE_UNAVAILABLE.value
+
+
+def test_execution_traces_reports_one_warning_per_reason(tmp_path):
+    def fake_trace(target, tree, test, changed, work_dir, *, label):
+        return TraceResult(False, warning=Issue(WarningCode.TRACE_UNAVAILABLE.value, "same reason"))
+
+    findings = [_finding("F-001", LinkLevel.UNDETERMINED, Version.PATCH, ["valid_set"]),
+                _finding("F-002", LinkLevel.UNDETERMINED, Version.PATCH, ["valid_set"])]
+    _, warns = coverage.execution_traces(
+        findings, {"valid_set": a_test()},
+        {Version.PATCH: {"a.c": {1}}}, {Version.PATCH: tmp_path},
+        None, tmp_path, trace_fn=fake_trace)
+    assert len(warns) == 1
+
+
+def test_run_trace_target_without_coverage_cmd_is_unavailable(tmp_path):
+    # A target whose config has no build.coverage_cmd (or no build section at
+    # all, as in hand-built test targets) must not raise.
+    target = SimpleNamespace(spec=SimpleNamespace(name="t"))
+    out = coverage.run_trace(target, tmp_path, a_test(), {"src/main.c": {1}}, tmp_path)
+    assert not out.available
+    assert out.warning.code == WarningCode.TRACE_UNAVAILABLE.value

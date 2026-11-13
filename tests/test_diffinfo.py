@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from zaraban.diffinfo import (changed_functions, changed_positions, function_ranges,
-                              load_hunks, parse_hunks, sources_hunks)
+                              load_hunks, parse_hunks, sources_hunks, changed_lines_by_file)
 from zaraban.models import DiffInfo, ErrorCode, Hunk, Version, VersionInfo, ZarabanError
 from zaraban.sources import Sources, prepare
 
@@ -327,3 +327,10 @@ def test_9_2_directory_patch_diff_is_read_at_level_one(tmp_path):
     info = VersionInfo(form="directory", ref="x", git_commit=None, tree_sha256=None)
     s = Sources(tmp_path, tmp_path, diff, info, info, DiffInfo(str(diff), "0", ["src/main.c"], 1))
     assert [h.file for h in sources_hunks(s)] == ["src/main.c"]
+
+def test_changed_lines_by_file_sides():
+    h = Hunk(file="src/main.c", header="@@ -21,14 +21,19 @@",
+             base_start=21, base_end=34, patch_start=21, patch_end=39,
+             removed_lines=[30], added_lines=[24, 25, 27])
+    assert changed_lines_by_file([h], Version.PATCH) == {"src/main.c": {24, 25, 27}}
+    assert changed_lines_by_file([h], Version.BASE) == {"src/main.c": {30}}
