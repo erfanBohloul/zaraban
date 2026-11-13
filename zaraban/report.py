@@ -34,6 +34,7 @@ from .models import (
     Status,
     dump_json,
 )
+from .util import unique
 
 REPORT_FILE = "report.json"
 SUMMARY_FILE = "summary.txt"
@@ -153,7 +154,7 @@ def human_summary(report: Report, bundles: Optional[list[Bundle]] = None,
 
     if report.warnings:
         lines.append("")
-        lines.append(_label("WARNINGS") + " · ".join(_unique(w.code for w in report.warnings)))
+        lines.append(_label("WARNINGS") + " · ".join(unique(w.code for w in report.warnings)))
     if report.errors:
         if not report.warnings:
             lines.append("")
@@ -295,10 +296,3 @@ def _bundle_text(b: Bundle) -> str:
     if not b.stable:
         replay += ", UNSTABLE"
     return f"{b.path}  {sizes}, {replay}"
-
-
-def _unique(items: Any) -> list[str]:
-    seen: dict[str, None] = {}
-    for it in items:
-        seen.setdefault(it, None)
-    return list(seen)
