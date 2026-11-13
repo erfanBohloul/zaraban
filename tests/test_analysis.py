@@ -1,233 +1,170 @@
-"""Unit tests for zaraban/analysis.py (Phase 1 Member B Task B2, SPEC §7.4).
+"""Unit tests for run analysis (SPEC §7.4).
 
-Verifies every row of the outcome table and error-type table,
-stack frame parsing with runtime exclusion and section isolation,
-and crash signature generation. Compatible with pytest and unittest.
+The fixtures in tests/fixtures/stderr are real: each was produced by a small C
+program compiled like a target build and run with the tool's environment
+(tests/fixtures/stderr/generate.py). Together they cover every row of the
+outcome table and of the error-type table.
 """
 
-import unittest
+import json
 from pathlib import Path
 
-from zaraban.analysis import (
-    analyse,
-    classify_error_type,
-    extract_summary,
-    frames,
-    outcome,
-    signature,
-)
-from zaraban.models import (
-    Detection,
-    ErrorType,
-    Frame,
-    LimitKind,
-    Outcome,
-)
+import pytest
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures" / "stderr"
+from zaraban.analysis import analyse, frames, is_memory_limit, outcome
+from zaraban.models import Detection, ErrorType, LimitKind, Outcome
 
+FIXTURES = Path(__file__).parent / "fixtures" / "stderr"
+MANIFEST = json.loads((FIXTURES / "manifest.json").read_text())
+ROOT = MANIFEST["source_root"]
 
-class TestAnalysisOutcomes(unittest.TestCase):
-    """SPEC §7.4 Outcome table tests (Rules 1 to 9)."""
+D, E, O = Detection, ErrorType, Outcome
+APP = "bug < caller < main"
 
-    def test_rule_1_timeout(self):
-        kind, det = outcome("some stderr", timed_out=True)
-        self.assertEqual(kind, Outcome.TIMEOUT)
-        self.assertIsNone(det)
-
-    def test_rule_2_resource_limit_cpu(self):
-        kind, det = outcome("Process terminated", sig="SIGXCPU")
-        self.assertEqual(kind, Outcome.RESOURCE_LIMIT)
-        self.assertIsNone(det)
-
-    def test_rule_2_resource_limit_memory(self):
-        kind, det = outcome("Memory limit", limit_hit=LimitKind.MEMORY)
-        self.assertEqual(kind, Outcome.RESOURCE_LIMIT)
-        self.assertIsNone(det)
-
-    def test_rule_3_asan(self):
-        stderr = "==123==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x123"
-        kind, det = outcome(stderr)
-        self.assertEqual(kind, Outcome.CRASH)
-        self.assertEqual(det, Detection.ASAN)
-
-    def test_rule_4_ubsan(self):
-        stderr = "src/main.c:10:5: runtime error: division by zero"
-        kind, det = outcome(stderr, sig="SIGABRT")
-        self.assertEqual(kind, Outcome.CRASH)
-        self.assertEqual(det, Detection.UBSAN)
-
-    def test_rule_5_stack_canary(self):
-        stderr = "*** stack smashing detected ***: terminated"
-        kind, det = outcome(stderr)
-        self.assertEqual(kind, Outcome.CRASH)
-        self.assertEqual(det, Detection.STACK_CANARY)
-
-    def test_rule_6_fortify(self):
-        stderr = "*** buffer overflow detected ***: terminated"
-        kind, det = outcome(stderr)
-        self.assertEqual(kind, Outcome.CRASH)
-        self.assertEqual(det, Detection.FORTIFY)
-
-    def test_rule_7_allocator_double_free(self):
-        stderr = "double free or corruption (out)"
-        kind, det = outcome(stderr)
-        self.assertEqual(kind, Outcome.CRASH)
-        self.assertEqual(det, Detection.ALLOCATOR_CHECK)
-
-    def test_rule_7_allocator_invalid_pointer(self):
-        stderr = "free(): invalid pointer"
-        kind, det = outcome(stderr)
-        self.assertEqual(kind, Outcome.CRASH)
-        self.assertEqual(det, Detection.ALLOCATOR_CHECK)
-
-    def test_rule_8_signals(self):
-        for sig in ("SIGSEGV", "SIGBUS", "SIGFPE", "SIGILL", "SIGABRT", "SIGTRAP"):
-            kind, det = outcome("", sig=sig)
-            self.assertEqual(kind, Outcome.CRASH, f"Failed for {sig}")
-            self.assertEqual(det, Detection.SIGNAL, f"Failed for {sig}")
-
-    def test_rule_9_normal_nonzero_exit_not_a_crash(self):
-        kind, det = outcome("error: bad input flag\n", sig=None, timed_out=False)
-        self.assertEqual(kind, Outcome.NORMAL)
-        self.assertIsNone(det)
+# fixture: (outcome, detection, error type, signature functions or None)
+EXPECTED = {
+    "asan_stack_buffer_overflow": (O.CRASH, D.ASAN, E.STACK_BUFFER_OVERFLOW, APP),
+    "asan_heap_buffer_overflow": (O.CRASH, D.ASAN, E.HEAP_BUFFER_OVERFLOW, APP),
+    "asan_global_buffer_overflow": (O.CRASH, D.ASAN, E.GLOBAL_BUFFER_OVERFLOW, APP),
+    "asan_heap_use_after_free": (O.CRASH, D.ASAN, E.USE_AFTER_FREE, APP),
+    "asan_stack_use_after_scope": (O.CRASH, D.ASAN, E.USE_AFTER_SCOPE, APP),
+    "asan_stack_overflow": (O.CRASH, D.ASAN, E.STACK_EXHAUSTION, "recurse < recurse < recurse"),
+    "asan_double_free": (O.CRASH, D.ASAN, E.DOUBLE_FREE, APP),
+    "asan_invalid_free": (O.CRASH, D.ASAN, E.INVALID_FREE, APP),
+    "asan_null_deref": (O.CRASH, D.ASAN, E.NULL_DEREF, APP),
+    "asan_segv": (O.CRASH, D.ASAN, E.SEGV, APP),
+    "ubsan_div_zero": (O.CRASH, D.UBSAN, E.DIV_BY_ZERO, APP),
+    "ubsan_integer_overflow": (O.CRASH, D.UBSAN, E.INTEGER_OVERFLOW, APP),
+    "ubsan_index_out_of_bounds": (O.CRASH, D.UBSAN, E.OUT_OF_BOUNDS_INDEX, APP),
+    "ubsan_null_pointer": (O.CRASH, D.UBSAN, E.NULL_DEREF, APP),
+    "ubsan_shift": (O.CRASH, D.UBSAN, E.UB_OTHER, APP),
+    "canary_stack_smashing": (O.CRASH, D.STACK_CANARY, E.STACK_BUFFER_OVERFLOW, None),
+    "fortify_buffer_overflow": (O.CRASH, D.FORTIFY, E.BUFFER_OVERFLOW, None),
+    "glibc_double_free": (O.CRASH, D.ALLOCATOR_CHECK, E.DOUBLE_FREE, None),
+    "glibc_invalid_pointer": (O.CRASH, D.ALLOCATOR_CHECK, E.INVALID_FREE, None),
+    "glibc_heap_corruption": (O.CRASH, D.ALLOCATOR_CHECK, E.HEAP_CORRUPTION, None),
+    "signal_segv": (O.CRASH, D.SIGNAL, E.SEGV, None),
+    "signal_fpe": (O.CRASH, D.SIGNAL, E.DIV_BY_ZERO, None),
+    "signal_abort": (O.CRASH, D.SIGNAL, E.ABORT, None),
+    "normal_exit_3": (O.NORMAL, None, None, None),
+}
 
 
-class TestAnalysisErrorTypes(unittest.TestCase):
-    """SPEC §7.4 ErrorType table tests across all supported variants."""
-
-    def test_asan_stack_buffer_overflow(self):
-        stderr = "==1==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x123"
-        t = classify_error_type(stderr, detection=Detection.ASAN)
-        self.assertEqual(t, ErrorType.STACK_BUFFER_OVERFLOW)
-
-    def test_asan_heap_buffer_overflow(self):
-        stderr = "==1==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x123"
-        t = classify_error_type(stderr, detection=Detection.ASAN)
-        self.assertEqual(t, ErrorType.HEAP_BUFFER_OVERFLOW)
-
-    def test_asan_global_buffer_overflow(self):
-        stderr = "==1==ERROR: AddressSanitizer: global-buffer-overflow on address 0x123"
-        t = classify_error_type(stderr, detection=Detection.ASAN)
-        self.assertEqual(t, ErrorType.GLOBAL_BUFFER_OVERFLOW)
-
-    def test_asan_use_after_free(self):
-        stderr = "==1==ERROR: AddressSanitizer: heap-use-after-free on address 0x123"
-        t = classify_error_type(stderr, detection=Detection.ASAN)
-        self.assertEqual(t, ErrorType.USE_AFTER_FREE)
-
-    def test_asan_use_after_scope(self):
-        stderr = "==1==ERROR: AddressSanitizer: stack-use-after-scope on address 0x123"
-        t = classify_error_type(stderr, detection=Detection.ASAN)
-        self.assertEqual(t, ErrorType.USE_AFTER_SCOPE)
-
-    def test_asan_stack_exhaustion(self):
-        stderr = "==1==ERROR: AddressSanitizer: stack-overflow on address 0x123"
-        t = classify_error_type(stderr, detection=Detection.ASAN)
-        self.assertEqual(t, ErrorType.STACK_EXHAUSTION)
-
-    def test_asan_null_deref(self):
-        stderr = "==1==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000000\nHint: address points to the zero page."
-        t = classify_error_type(stderr, detection=Detection.ASAN)
-        self.assertEqual(t, ErrorType.NULL_DEREF)
-
-    def test_asan_segv(self):
-        stderr = "==1==ERROR: AddressSanitizer: SEGV on unknown address 0x00007f999999"
-        t = classify_error_type(stderr, detection=Detection.ASAN)
-        self.assertEqual(t, ErrorType.SEGV)
-
-    def test_ubsan_types(self):
-        self.assertEqual(classify_error_type("runtime error: division by zero", detection=Detection.UBSAN), ErrorType.DIV_BY_ZERO)
-        self.assertEqual(classify_error_type("runtime error: signed integer overflow", detection=Detection.UBSAN), ErrorType.INTEGER_OVERFLOW)
-        self.assertEqual(classify_error_type("runtime error: index 5 out of bounds", detection=Detection.UBSAN), ErrorType.OUT_OF_BOUNDS_INDEX)
-        self.assertEqual(classify_error_type("runtime error: member access within null pointer", detection=Detection.UBSAN), ErrorType.NULL_DEREF)
-        self.assertEqual(classify_error_type("runtime error: load of value 255", detection=Detection.UBSAN), ErrorType.UB_OTHER)
-
-    def test_canary_and_fortify(self):
-        self.assertEqual(classify_error_type("*** stack smashing detected ***", detection=Detection.STACK_CANARY), ErrorType.STACK_BUFFER_OVERFLOW)
-        self.assertEqual(classify_error_type("*** buffer overflow detected ***", detection=Detection.FORTIFY), ErrorType.BUFFER_OVERFLOW)
-
-    def test_allocator_types(self):
-        self.assertEqual(classify_error_type("double free or corruption", detection=Detection.ALLOCATOR_CHECK), ErrorType.DOUBLE_FREE)
-        self.assertEqual(classify_error_type("free(): invalid pointer", detection=Detection.ALLOCATOR_CHECK), ErrorType.INVALID_FREE)
-        self.assertEqual(classify_error_type("malloc(): corrupted top size", detection=Detection.ALLOCATOR_CHECK), ErrorType.HEAP_CORRUPTION)
-
-    def test_signals(self):
-        self.assertEqual(classify_error_type("", sig="SIGFPE", detection=Detection.SIGNAL), ErrorType.DIV_BY_ZERO)
-        self.assertEqual(classify_error_type("", sig="SIGABRT", detection=Detection.SIGNAL), ErrorType.ABORT)
-        self.assertEqual(classify_error_type("", sig="SIGSEGV", detection=Detection.SIGNAL), ErrorType.SEGV)
+def load(name: str):
+    meta = MANIFEST["fixtures"][name]
+    return (FIXTURES / f"{name}.stderr").read_text(errors="replace"), meta
 
 
-class TestAnalysisFramesAndSignature(unittest.TestCase):
-    """SPEC §7.4 Stack frame parsing and signature calculation."""
-
-    SAMPLE_ASAN_STDERR = """\
-==1234==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7ffd5c3e1a40 pc 0x00000049a1b2 bp 0x7ffd5c3e19f0 sp 0x7ffd5c3e11a0
-WRITE of size 121 at 0x7ffd5c3e1a40 thread T0
-    #0 0x49a1b2 in __interceptor_strcpy (/w/bin+0x49a1b2)
-    #1 0x4f8a1b in handle_set_command /w/src/main.c:37:5
-    #2 0x4f8c10 in process_input /w/src/main.c:60:9
-    #3 0x4f8e00 in main /w/src/main.c:80:5
-    #4 0x7f0123 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d90)
-    #5 0x402030 in _start (/w/bin+0x402030)
-
-Address 0x7ffd5c3e1a40 is located in stack of thread T0 at offset 96 in frame
-    #0 0x4f8a1b in handle_set_command /w/src/main.c:37
-"""
-
-    def test_frame_parsing_and_runtime_filtering(self):
-        parsed = frames(self.SAMPLE_ASAN_STDERR, source_root="/w")
-        self.assertEqual(len(parsed), 6)
-
-        # Frame 0 (__interceptor_strcpy) should be runtime
-        self.assertEqual(parsed[0].function, "__interceptor_strcpy")
-        self.assertTrue(parsed[0].runtime)
-
-        # Frame 1 (handle_set_command) should be app frame
-        self.assertEqual(parsed[1].function, "handle_set_command")
-        self.assertEqual(parsed[1].file, "src/main.c")
-        self.assertEqual(parsed[1].line, 37)
-        self.assertFalse(parsed[1].runtime)
-
-        # Frame 4 (__libc_start_main) should be runtime
-        self.assertTrue(parsed[4].runtime)
-
-    def test_signature_skips_runtime(self):
-        parsed = frames(self.SAMPLE_ASAN_STDERR, source_root="/w")
-        sig = signature(ErrorType.STACK_BUFFER_OVERFLOW, parsed)
-        expected = "STACK_BUFFER_OVERFLOW @ handle_set_command < process_input < main"
-        self.assertEqual(sig, expected)
-
-    def test_prevent_allocated_by_leaking(self):
-        """Frames after the first blank line / section header must not leak into signature."""
-        uaf_stderr = """\
-==3456==ERROR: AddressSanitizer: heap-use-after-free on address 0x603000000040 pc 0x000000412345
-READ of size 8 at 0x603000000040 thread T0
-    #0 0x412345 in cJSON_Utils_MergePatch /w/src/cJSON_Utils.c:150:18
-    #1 0x413456 in run_patch /w/src/main.c:55:10
-    #2 0x414567 in main /w/src/main.c:88:5
-
-0x603000000040 is located 0 bytes inside of 32-byte region
-freed by thread T0 here:
-    #0 0x423456 in free (/usr/lib/clang/libclang_rt.asan.so+0x423456)
-    #1 0x412100 in cJSON_Delete /w/src/cJSON.c:200:5
-"""
-        parsed = frames(uaf_stderr, source_root="/w")
-        fn_names = [f.function for f in parsed]
-        self.assertEqual(fn_names, ["cJSON_Utils_MergePatch", "run_patch", "main"])
-        self.assertNotIn("cJSON_Delete", fn_names)
-
-    def test_fixture_files(self):
-        """Verify all fixture files in tests/fixtures/stderr/ parse properly."""
-        if not FIXTURES_DIR.exists():
-            self.skipTest("Fixtures directory not found")
-
-        for fpath in FIXTURES_DIR.glob("*.txt"):
-            content = fpath.read_text(encoding="utf-8")
-            res = analyse(stderr=content, sig="SIGABRT")
-            self.assertEqual(res.outcome, Outcome.CRASH, f"Fixture {fpath.name} did not produce CRASH")
-            self.assertIsNotNone(res.error_type, f"Fixture {fpath.name} error_type is None")
+@pytest.mark.parametrize("name", sorted(EXPECTED))
+def test_7_4_real_fixture(name):
+    stderr, meta = load(name)
+    a = analyse(stderr, exit_code=meta["exit_code"], sig=meta["signal"], source_root=ROOT)
+    want_outcome, want_detection, want_type, want_funcs = EXPECTED[name]
+    assert a.outcome is want_outcome
+    assert a.detection is want_detection
+    assert a.error_type is want_type
+    assert a.signature == (f"{want_type.value} @ {want_funcs}" if want_funcs else None)
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_7_4_fixtures_cover_every_error_type_and_outcome():
+    covered = {v[2] for v in EXPECTED.values()} | {ErrorType.UNKNOWN}  # UNKNOWN: below
+    assert covered - {None} == set(ErrorType)
+    assert {v[1] for v in EXPECTED.values()} - {None} == set(Detection)
+    assert set(EXPECTED) | {"asan_allocation_too_big"} == set(MANIFEST["fixtures"])
+
+
+def test_7_4_other_signal_is_unknown():
+    a = analyse("", sig="SIGILL")
+    assert (a.outcome, a.detection, a.error_type) == (O.CRASH, D.SIGNAL, E.UNKNOWN)
+
+
+# -- the order of the rules --------------------------------------------------
+
+def test_7_4_rule_1_timeout_wins_over_everything():
+    stderr, meta = load("asan_heap_buffer_overflow")
+    assert outcome(stderr, meta["signal"], timed_out=True) == (O.TIMEOUT, None)
+
+
+def test_7_4_rule_2_resource_limits():
+    assert outcome("", "SIGXCPU") == (O.RESOURCE_LIMIT, None)
+    assert outcome("", "SIGKILL", limit_hit=LimitKind.CPU) == (O.RESOURCE_LIMIT, None)
+
+
+def test_7_4_rule_2_asan_allocation_over_the_memory_limit():
+    stderr, meta = load("asan_allocation_too_big")
+    assert is_memory_limit(stderr)
+    a = analyse(stderr, sig=meta["signal"], limit_hit=LimitKind.MEMORY)
+    assert a.outcome is O.RESOURCE_LIMIT and a.signature is None
+    for name in EXPECTED:  # no real crash looks like a memory limit
+        assert not is_memory_limit(load(name)[0]), name
+
+
+def test_7_4_rule_4_ubsan_report_without_stop_is_not_a_crash():
+    stderr, _ = load("ubsan_div_zero")
+    assert outcome(stderr, None) == (O.NORMAL, None)
+
+
+def test_7_4_rule_9_nonzero_exit_is_never_a_crash():
+    a = analyse("error: bad input\n", exit_code=3)
+    assert a.outcome is O.NORMAL and a.error_type is None and a.frames == []
+
+
+# -- stack traces and signatures ---------------------------------------------
+
+def test_7_4_frames_are_relative_to_the_source_root():
+    stderr, _ = load("asan_heap_buffer_overflow")
+    fr = frames(stderr, ROOT)
+    assert (fr[0].index, fr[0].function, fr[0].file, fr[0].line) == \
+        (0, "bug", "src/asan_heap_buffer_overflow.c", 8)
+    assert not fr[0].runtime
+
+
+def test_7_4_only_the_first_stack_is_parsed():
+    # A use-after-free report also prints where the memory was freed and
+    # allocated; those stacks must not leak into the frames.
+    stderr, _ = load("asan_heap_use_after_free")
+    assert "freed by thread" in stderr
+    fr = frames(stderr, ROOT)
+    assert [f.index for f in fr] == list(range(len(fr)))
+    assert "free" not in [f.function for f in fr]
+
+
+def test_7_4_asan_interceptors_are_runtime_frames():
+    stderr, _ = load("asan_double_free")
+    fr = frames(stderr, ROOT)
+    assert fr[0].function == "free" and fr[0].runtime
+    stderr, _ = load("asan_allocation_too_big")
+    assert frames(stderr, ROOT)[0].runtime  # __interceptor_malloc
+
+
+def test_7_4_signature_ignores_line_numbers():
+    stderr, meta = load("asan_heap_buffer_overflow")
+    moved = stderr.replace(".c:8:", ".c:99:")
+    assert analyse(stderr, sig="SIGABRT").signature == analyse(moved, sig="SIGABRT").signature
+
+
+def test_7_4_no_function_names_means_no_signature():
+    stderr = ("==1==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x602000000018\n"
+              "    #0 0x4011d6  (/w/prog+0x4011d6)\n    #1 0x401200  (/w/prog+0x401200)\n")
+    a = analyse(stderr, sig="SIGABRT")
+    assert a.error_type is E.HEAP_BUFFER_OVERFLOW and a.signature is None
+
+
+def test_7_4_summary_is_the_first_report_line():
+    stderr, meta = load("asan_heap_buffer_overflow")
+    a = analyse(stderr, sig=meta["signal"])
+    assert "ERROR: AddressSanitizer: heap-buffer-overflow" in a.summary
+    stderr, meta = load("ubsan_shift")
+    assert "runtime error: shift exponent 40" in analyse(stderr, sig=meta["signal"]).summary
+
+
+def test_7_4_c_startup_code_is_not_part_of_the_signature():
+    # A shallow stack: the frame below main is libc's _start (crt1.o), linked
+    # into the program, which must not become the third signature function.
+    stderr = ("==1==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x602000000018\n"
+              "    #0 0x4011d6 in bug /w/x.c:3:5\n"
+              "    #1 0x401200 in main /w/x.c:9:5\n"
+              "    #2 0x7f00 in __libc_start_call_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d8f)\n"
+              "    #3 0x7f01 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29e3f)\n"
+              "    #4 0x401100 in _start (/w/prog+0x401100)\n")
+    assert analyse(stderr, sig="SIGABRT").signature == "HEAP_BUFFER_OVERFLOW @ bug < main"
