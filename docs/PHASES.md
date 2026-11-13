@@ -332,7 +332,7 @@ crashes.
 |---|---|
 | Upstream repo | `https://github.com/DaveGamble/cJSON` |
 | Vulnerable version | `v1.7.10`, commit `<hash>` |
-| Fix commit | `<hash>`, "fix out-of-bounds write in cJSON_Minify" |
+| Fix commit | `<hash>`, "fix out-of-bounds read in cJSON_Minify" |
 | PoC | `poc.json`, N bytes, source: issue #NNN |
 | ASan result on base | `heap-buffer-overflow` in `cJSON_Minify` |
 | Result on fix | no crash, output `...` |
@@ -354,7 +354,7 @@ stage. Send a short proposal.
 Group <n>: Zaraban, target proposal
 
 Target 1: cJSON (DaveGamble/cJSON), real library
-  Vulnerability: CVE-2019-11835, heap out-of-bounds write in cJSON_Minify
+  Vulnerabilities: CVE-2019-11834 and CVE-2019-11835, heap out-of-bounds reads in cJSON_Minify
   Base: v1.7.10. Correct patch: upstream fix <hash> (v1.7.11).
   Incomplete patch: blocks the public PoC only; a second input still overflows.
   Regression patch: removes the overflow but wrongly rejects valid JSON
@@ -1276,6 +1276,14 @@ target1_sample/regression   exit 20 (expected 20)  findings ok   PASS
 
 **Goal:** make cJSON (A+B) and md4c (C+D) complete targets with four versions,
 tests, oracles and scenarios. The two pairs work in parallel.
+
+**Status:** cJSON is done in `targets/cjson` (Tasks 3.1 to 3.4, and its
+`scenarios.yaml`); its `ORACLE.md` describes what was built. It differs from
+the samples below in a few places: the driver is `src/main.c` (so every
+version tree is complete), the exploits are `exploit_comment`,
+`exploit_string` and `exploit_comment_bypass`, and the base has two CVEs
+(2019-11834 and 2019-11835). Saving its results (Task 3.5) waits for
+`run_matrix.py` (Task 2.5).
 
 ### Task 3.1: Target directory and Makefile
 
