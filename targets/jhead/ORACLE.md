@@ -85,7 +85,10 @@ Inputs are in `tests/<kind>/`. The exact expected output of each test is in
 `zaraban.yaml`; the match is `contains` on a stable EXIF value, never on the
 varying `File date` line.
 
-### Valid (5)
+### Valid (12)
+
+Each image is a different camera; the expected value is the Make/Model or
+DateTime the camera wrote.
 
 | Test | Expected (contains) | Source |
 |---|---|---|
@@ -94,27 +97,38 @@ varying `File date` line.
 | `valid_kodak_model` | `KODAK DX6340 ZOOM DIGITAL CAMERA` | E |
 | `valid_kodak_datetime` | `2004:01:04 18:38:15` | E |
 | `valid_pro1_datetime` | `2004:12:28 20:47:05` | E |
+| `valid_nikon_d100_model` | `NIKON D100` | E |
+| `valid_nikon_d100_datetime` | `2003:12:26 09:12:21` | E |
+| `valid_fuji_model` | `DX-10` | E |
+| `valid_sony_model` | `CYBERSHOT` | E |
+| `valid_olympus_datetime` | `1999:07:18 20:41:25` | E |
+| `valid_hp_model` | `hp PhotoSmart 620` | E |
+| `valid_canon_g2_model` | `Canon PowerShot G2` | E |
 
 The `*_datetime` tests are what the Regression version breaks (the time is
 dropped). The `*_model` tests stay stable, confirming the regression is
 limited to the DateTime handling.
 
-### Boundary (3)
+### Boundary (5)
 
 | Test | Expected | Source |
 |---|---|---|
 | `boundary_bigendian_model` | `Canon PowerShot A710 IS` | E — the other (Motorola) byte order |
 | `boundary_bigendian_datetime` | `2010:01:24 12:31:13` | E |
+| `boundary_minolta_model` | `DiMAGE E223` (file has unusual DateTime punctuation) | E |
+| `boundary_no_exif` | `987 x 518` — a JPEG with no EXIF; jhead prints its own fields, exit 0 | E, C |
 | `boundary_corrupt_exif` | exit 0, no crash (malformed EXIF subdirectory handled) | C |
 
-### Invalid (3)
+### Invalid (5)
 
 The program must reject these without crashing.
 
 | Test | Input | Expected | Source |
 |---|---|---|---|
-| `invalid_not_jpeg` | a text file | exit 1 | C |
+| `invalid_not_jpeg` | a short text file | exit 1 | C |
+| `invalid_textfile` | jhead's own non-JPEG test file | exit 1 | C |
 | `invalid_truncated` | a JPEG cut mid-stream | exit 1 | C |
+| `invalid_truncated_header` | only the first 3 bytes of a JPEG | exit 1 | C |
 | `invalid_empty` | an empty file | exit 1 | C |
 
 ### Security (2)
@@ -137,6 +151,6 @@ machine-readable form), confirmed by running it:
   test matches on both. Exit `0`.
 - **Incomplete**: `exploit_datetime` still crashes on patch with the base
   signature, so one `INCOMPLETE_FIX` finding. Exit `10`.
-- **Regression**: the four `*_datetime` tests match on base and fail on patch,
-  so four `FUNCTIONAL_REGRESSION` findings, and the exploits give `FIXED`.
-  Exit `20`.
+- **Regression**: the six `*_datetime` tests (five valid, one boundary) match
+  on base and fail on patch, so six `FUNCTIONAL_REGRESSION` findings, and the
+  exploits give `FIXED`. Exit `20`.
