@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from . import analysis, oracle
+from .config import Target
 from .models import (
     BuildName,
     CombinedResult,
@@ -85,8 +86,8 @@ class RunSettings:
     path: str = field(default_factory=lambda: os.environ.get("PATH", "/usr/bin:/bin"))
 
     @classmethod
-    def from_target(cls, target: Any) -> "RunSettings":
-        """From a :class:`zaraban.config.Target`."""
+    def from_target(cls, target: Target) -> "RunSettings":
+        """From a loaded :class:`zaraban.config.Target`."""
         spec = target.spec
         return cls(
             input_method=InputMethod(spec.input_method),
