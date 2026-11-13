@@ -36,7 +36,7 @@ from unidiff.errors import UnidiffParseError
 from .models import DiffInfo, ErrorCode, VersionInfo, ZarabanError
 
 _MAX_STRIP = 4
-_DIR_DIFF_STRIP = 1  # the diff of two directories is written rooted at a/ b/
+DIR_DIFF_STRIP = 1  # the diff of two directories is written rooted at a/ b/
 
 
 @dataclass
@@ -101,7 +101,7 @@ def prepare(
         form=form, ref=str(patch_arg), git_commit=patch_commit,
         tree_sha256=_tree_sha256(patch_tree), strip_level=strip,
     )
-    diff_info = _diff_info(diff_path, strip if strip is not None else _DIR_DIFF_STRIP)
+    diff_info = _diff_info(diff_path, strip if strip is not None else DIR_DIFF_STRIP)
     return Sources(base_tree, patch_tree, diff_path, base_info, patch_info, diff_info)
 
 
@@ -281,7 +281,7 @@ def _diff_info(diff_path: Path, strip: int) -> DiffInfo:
                            {"diff": str(diff_path)})
     files: list[str] = []
     for f in patch_set:
-        name = _strip_path(f.source_file if f.is_removed_file else f.target_file, strip)
+        name = strip_path(f.source_file if f.is_removed_file else f.target_file, strip)
         if name not in files:
             files.append(name)
     hunks = sum(len(f) for f in patch_set)
@@ -289,7 +289,7 @@ def _diff_info(diff_path: Path, strip: int) -> DiffInfo:
     return DiffInfo(path=str(diff_path), sha256=sha, files=files, hunks=hunks)
 
 
-def _strip_path(path: str, strip: int) -> str:
+def strip_path(path: str, strip: int) -> str:
     """Remove ``strip`` leading path components, as ``git apply -p<strip>`` does."""
     parts = path.split("/")
     return "/".join(parts[strip:]) if len(parts) > strip else path
