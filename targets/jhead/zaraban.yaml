@@ -1,0 +1,95 @@
+# jhead target (Matthias Wandel's jhead, public domain). CVE-class: heap
+# out-of-bounds read in ProcessExifDir (the EXIF DateTime handling).
+# jhead has its own CLI, so there is no driver. Oracle sources: ORACLE.md.
+
+name: jhead
+input_method: file
+
+build:
+  binary_path: jhead
+  release_cmd: make release
+  sanitized_cmd: make sanitized
+  clean_cmd: make clean
+  coverage_cmd: make coverage
+
+limits:
+  timeout_seconds: 2.0
+  memory_limit_mb: 256
+
+valid_tests:
+  - name: valid_s100_model
+    description: "Canon PowerShot S100: camera model from the EXIF Model tag. Source: EXIF in the image; jhead expected-txt S100."
+    args: ["{input_file}"]
+    input_file: tests/valid/canon_s100.jpg
+    expected_exit_code: 0
+    expected_output: "Canon PowerShot S100"
+  - name: valid_s100_datetime
+    description: "Canon PowerShot S100: EXIF DateTime. Source: EXIF DateTime tag in the image."
+    args: ["{input_file}"]
+    input_file: tests/valid/canon_s100.jpg
+    expected_exit_code: 0
+    expected_output: "2000:06:27 15:53:09"
+  - name: valid_kodak_model
+    description: "Kodak DX6340: camera model from the EXIF Model tag. Source: EXIF in the image."
+    args: ["{input_file}"]
+    input_file: tests/valid/kodak_dx6340.jpg
+    expected_exit_code: 0
+    expected_output: "KODAK DX6340 ZOOM DIGITAL CAMERA"
+  - name: valid_kodak_datetime
+    description: "Kodak DX6340: EXIF DateTime. Source: EXIF DateTime tag in the image."
+    args: ["{input_file}"]
+    input_file: tests/valid/kodak_dx6340.jpg
+    expected_exit_code: 0
+    expected_output: "2004:01:04 18:38:15"
+  - name: valid_pro1_datetime
+    description: "Canon PowerShot Pro1: EXIF DateTime. Source: EXIF DateTime tag in the image."
+    args: ["{input_file}"]
+    input_file: tests/valid/nikon_zoomed.jpg
+    expected_exit_code: 0
+    expected_output: "2004:12:28 20:47:05"
+
+boundary_tests:
+  - name: boundary_bigendian_model
+    description: "Big-endian (Motorola order) EXIF, Canon A710 IS: model read correctly. Source: EXIF in the image."
+    args: ["{input_file}"]
+    input_file: tests/boundary/bigendian.jpg
+    expected_exit_code: 0
+    expected_output: "Canon PowerShot A710 IS"
+  - name: boundary_bigendian_datetime
+    description: "Big-endian EXIF: DateTime read correctly. Source: EXIF DateTime tag in the image."
+    args: ["{input_file}"]
+    input_file: tests/boundary/bigendian.jpg
+    expected_exit_code: 0
+    expected_output: "2010:01:24 12:31:13"
+  - name: boundary_corrupt_exif
+    description: "A JPEG with a malformed EXIF subdirectory is handled without crashing. Source: driver/jhead contract (graceful degradation, exit 0)."
+    args: ["{input_file}"]
+    input_file: tests/boundary/corrupt_exif.jpg
+    expected_exit_code: 0
+
+invalid_tests:
+  - name: invalid_not_jpeg
+    description: "A plain text file is not a JPEG: jhead exits 1 without crashing. Source: jhead contract."
+    args: ["{input_file}"]
+    input_file: tests/invalid/not_jpeg.txt
+    expected_exit_code: 1
+  - name: invalid_truncated
+    description: "A JPEG cut mid-stream: jhead reports the error and exits 1. Source: jhead contract."
+    args: ["{input_file}"]
+    input_file: tests/invalid/truncated.jpg
+    expected_exit_code: 1
+  - name: invalid_empty
+    description: "An empty file: jhead exits 1 without crashing. Source: jhead contract."
+    args: ["{input_file}"]
+    input_file: tests/invalid/empty.jpg
+    expected_exit_code: 1
+
+security_tests:
+  - name: exploit_datetime_original
+    description: "Crafted EXIF with a DATETIME_ORIGINAL (0x9003) tag whose value is within 19 bytes of the EXIF buffer end; ProcessExifDir's fixed strncpy(...,19) reads past the buffer (heap over-read)."
+    args: ["{input_file}"]
+    input_file: tests/exploits/exploit_datetime_original.jpg
+  - name: exploit_datetime
+    description: "Same over-read reached through a plain DATETIME (0x0132) tag. Used to show an incomplete fix that only guards the ORIGINAL tag."
+    args: ["{input_file}"]
+    input_file: tests/exploits/exploit_datetime.jpg
