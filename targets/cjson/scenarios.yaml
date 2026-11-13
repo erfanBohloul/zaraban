@@ -1,0 +1,27 @@
+# The delivered scenarios of the cjson target (SPEC §14.3). The tool never
+# reads this file; scripts/run_matrix.py runs each scenario and checks the
+# exit code and the findings, in finding id order (SPEC §8.8). Why each result
+# is expected: ORACLE.md, "Expected results of the scenarios".
+
+- name: correct
+  patch: patches/correct.patch
+  version_dir: versions/patch_correct
+  expect_exit: 0
+  expect_findings:
+    - {category: FIXED, tests: [exploit_comment, exploit_string, exploit_comment_bypass]}
+
+- name: incomplete
+  patch: patches/incomplete.patch
+  version_dir: versions/patch_incomplete
+  expect_exit: 10
+  expect_findings:
+    - {category: INCOMPLETE_FIX, tests: [exploit_comment, exploit_string, exploit_comment_bypass]}
+
+- name: regression
+  patch: patches/regression.patch
+  version_dir: versions/patch_regression
+  expect_exit: 20
+  expect_findings:
+    - {category: FUNCTIONAL_REGRESSION, tests: [minify_comment_marks_in_string]}
+    - {category: FUNCTIONAL_REGRESSION, tests: [minify_glob_in_string]}
+    - {category: FIXED, tests: [exploit_comment, exploit_string, exploit_comment_bypass]}
