@@ -1,30 +1,33 @@
 """Decide the run's outcome: conditions and the final exit code (SPEC §13).
 
-This is the tool's verdict. It takes the findings (Member C, §8) and the
-required checks (gathered by the pipeline, §13.2) and produces a
-:class:`~zaraban.models.Status`: the list of :class:`Condition` reasons, the
-single :class:`ExitCode`, and a one-line human reason.
+This is the tool's verdict. It takes the findings (Member C, §8), the errors
+of the run (§12.6) and the required checks (gathered by the pipeline, §13.2)
+and produces a :class:`~zaraban.models.Status`: the list of
+:class:`Condition` reasons, the single :class:`ExitCode`, and a one-line
+reason.
 
-Two things decide the exit code:
+Conditions (§13.3):
 
-* **Findings.** Each finding category maps to a condition (§13.3). ``FIXED``
-  is the good case and raises nothing; the other categories each raise their
-  condition. ``NEW_ISSUE`` and ``INCOMPLETE_FIX`` both mean code 10, but keep
-  their own names so the report says which it was.
-* **Required checks (§13.2).** PASS is only allowed when every check passed.
-  A failed *build* check (``builds_ok`` / ``profiles_verified``) is a
-  ``BUILD_OR_CONFIG_ERROR`` (30); a failed *soundness* check (the run did not
-  complete, the base did not reproduce the vulnerability, results were flaky,
-  a reproducer did not replay, hardening was not checked) means the verdict
-  cannot be trusted, which is ``INCONCLUSIVE`` (40).
+* ``BUILD_OR_CONFIG_ERROR`` (30): there is at least one error. A failed
+  ``builds_ok``, ``profiles_verified``, ``all_runs_completed`` or
+  ``hardening_checked`` check is an error too (§13.2), so it raises this
+  condition even if the pipeline forgot to record the error.
+* ``VULN_REMAINS`` / ``NEW_ISSUE`` (10), ``FUNC_REGRESSION`` (20),
+  ``INCONCLUSIVE`` (40): one per finding category; ``FIXED`` raises nothing.
+* ``INCONCLUSIVE`` (40) also when ``base_reproduced`` failed, naming the
+  security tests that did not crash on base.
+* ``PASS`` (0): none of the above **and at least one FIXED finding**. With no
+  condition and no FIXED finding the result is ``INCONCLUSIVE``: nothing shows
+  that the original error was reproduced and then removed.
 
-When several conditions hold at once, the first code in ``EXIT_PRIORITY``
-wins (30 > 10 > 20 > 40 > 0, §13.1). This module does not build, run or write
-anything; the report writer (§12) puts the returned ``Status`` into
-``report.json``.
+When several conditions hold, the first code in ``EXIT_PRIORITY`` wins
+(30 > 10 > 20 > 40 > 0, §13.1); between ``VULN_REMAINS`` and ``NEW_ISSUE``
+the name is ``VULN_REMAINS`` (§13.4). Every condition stays in the report.
 """
 
 from __future__ import annotations
+
+from typing import Iterable, Optional
 
 from .models import (
     EXIT_PRIORITY,
@@ -32,8 +35,9 @@ from .models import (
     Checks,
     Condition,
     ConditionName,
-    ExitCode,
     Finding,
+    Issue,
+    OnPatch,
     Status,
 )
 
@@ -45,23 +49,25 @@ _CATEGORY_CONDITION: dict[Category, ConditionName] = {
     Category.INCONCLUSIVE: ConditionName.INCONCLUSIVE,
 }
 
-# Required checks, split by what their failure means (§13.2).
-#   build checks failing  -> BUILD_OR_CONFIG_ERROR (30)
-#   soundness checks failing -> INCONCLUSIVE (40): no trustworthy verdict
-_BUILD_CHECKS: tuple[tuple[str, str], ...] = (
-    ("builds_ok", "one of the four builds failed"),
-    ("profiles_verified", "a build did not match its required profile"),
-)
-_SOUNDNESS_CHECKS: tuple[tuple[str, str], ...] = (
-    ("all_runs_completed", "not every test run completed"),
-    ("base_reproduced", "the known vulnerability did not reproduce on the base version"),
-    ("results_stable", "results were flaky across repeats"),
-    ("bundles_replayed", "a reproducer bundle did not replay"),
-    ("hardening_checked", "the hardening comparison did not run"),
+# Required checks whose failure is an error, code 30 (§13.2).
+_ERROR_CHECKS: tuple[tuple[str, str], ...] = (
+    ("builds_ok", "a build failed"),
+    ("profiles_verified", "a binary failed profile verification"),
+    ("all_runs_completed", "not every test ran on every build"),
+    ("hardening_checked", "the release binaries were not inspected for hardening"),
 )
 
-# Tie-break order among conditions that share an exit code (e.g. VULN_REMAINS
-# and NEW_ISSUE are both 10): the earlier one names the status.
+# Required checks whose failure means INCONCLUSIVE, code 40 (§13.2).
+# ``results_stable`` and ``bundles_replayed`` are normally covered by the
+# INCONCLUSIVE findings of §8.5 and §10.4; they are checked here as well so a
+# failed check can never end in PASS.
+_INCONCLUSIVE_CHECKS: tuple[tuple[str, str], ...] = (
+    ("base_reproduced", "a security test did not crash on base-sanitized"),
+    ("results_stable", "a result was flaky"),
+    ("bundles_replayed", "a reproducer bundle did not replay stably"),
+)
+
+# Tie-break among conditions with the same code: VULN_REMAINS names a 10.
 _NAME_RANK: dict[ConditionName, int] = {
     ConditionName.BUILD_OR_CONFIG_ERROR: 0,
     ConditionName.VULN_REMAINS: 1,
@@ -72,22 +78,39 @@ _NAME_RANK: dict[ConditionName, int] = {
 }
 
 
-def compute_status(findings: list[Finding], checks: Checks) -> Status:
-    """Turn findings and checks into the run's :class:`Status` (§13).
+def compute_status(
+    findings: list[Finding],
+    checks: Checks,
+    errors: Optional[list[Issue]] = None,
+    base_not_reproduced: Optional[list[str]] = None,
+) -> Status:
+    """Turn findings, errors and checks into the run's :class:`Status` (§13).
 
-    The conditions are returned most-severe first, and ``exit_code`` /
-    ``exit_name`` / ``reason`` describe the deciding one.
+    ``base_not_reproduced`` names the security tests that did not crash on
+    ``base-sanitized``; it is used for the reason of the ``base_reproduced``
+    condition. The conditions are returned most-severe first.
     """
     conditions: list[Condition] = []
+    conditions.extend(_error_conditions(errors or [], checks))
     conditions.extend(_finding_conditions(findings))
-    conditions.extend(_check_conditions(checks))
+    conditions.extend(_inconclusive_check_conditions(checks, base_not_reproduced or []))
     conditions = _merge_by_name(conditions)
 
     if not conditions:
-        # No finding raised a condition and no check failed: a clean PASS. The
-        # guard is belt-and-braces; a failed check always adds a condition.
-        reason = "all required checks passed and no findings were raised"
-        conditions = [Condition(ConditionName.PASS, reason)]
+        fixed = [f.id for f in findings if f.category is Category.FIXED]
+        if fixed:
+            conditions = [Condition(
+                ConditionName.PASS,
+                f"{', '.join(fixed)}: the error is reproduced on base and not observed "
+                "on patch; all other checks passed",
+                findings=fixed,
+                tests=_unique(t for f in findings if f.id in fixed for t in f.test_names))]
+        else:
+            # Cannot happen when base_reproduced succeeded (§13.3).
+            conditions = [Condition(
+                ConditionName.INCONCLUSIVE,
+                "no FIXED finding: nothing shows the error was reproduced on base "
+                "and removed on patch")]
 
     conditions.sort(key=_priority)
     deciding = conditions[0]
@@ -96,13 +119,21 @@ def compute_status(findings: list[Finding], checks: Checks) -> Status:
         conditions=conditions,
         exit_code=deciding.code,
         exit_name=deciding.name.value,
-        reason=deciding.reason,
+        reason=_status_reason(deciding, conditions),
     )
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _error_conditions(errors: list[Issue], checks: Checks) -> list[Condition]:
+    reasons = [f"{e.code}: {e.message}" for e in errors]
+    reasons += [msg for attr, msg in _ERROR_CHECKS if not getattr(checks, attr)]
+    if not reasons:
+        return []
+    return [Condition(ConditionName.BUILD_OR_CONFIG_ERROR, "; ".join(_unique(reasons)))]
 
 
 def _finding_conditions(findings: list[Finding]) -> list[Condition]:
@@ -115,26 +146,39 @@ def _finding_conditions(findings: list[Finding]) -> list[Condition]:
 
     out: list[Condition] = []
     for name, group in grouped.items():
-        ids = [f.id for f in group]
-        tests = _unique(t for f in group for t in f.test_names)
-        out.append(Condition(name, _finding_reason(name, group), findings=ids, tests=tests))
+        tests = _unique(t for f in group for t in _causing_tests(f))
+        out.append(Condition(name, _finding_reason(name, group),
+                             findings=[f.id for f in group], tests=tests))
     return out
 
 
-def _check_conditions(checks: Checks) -> list[Condition]:
-    out: list[Condition] = []
-    build_fail = [msg for attr, msg in _BUILD_CHECKS if not getattr(checks, attr)]
-    if build_fail:
-        out.append(Condition(ConditionName.BUILD_OR_CONFIG_ERROR, "; ".join(build_fail)))
-    sound_fail = [msg for attr, msg in _SOUNDNESS_CHECKS if not getattr(checks, attr)]
-    if sound_fail:
-        out.append(Condition(ConditionName.INCONCLUSIVE, "; ".join(sound_fail)))
-    return out
+def _causing_tests(f: Finding) -> list[str]:
+    """The tests that caused the condition. For an incomplete fix these are the
+    tests that still reach the error on patch, not the ones the patch blocks."""
+    if f.category is Category.INCOMPLETE_FIX:
+        reaching = [t.test for t in f.tests if t.on_patch is OnPatch.REACHES]
+        if reaching:
+            return reaching
+    return f.test_names
+
+
+def _inconclusive_check_conditions(checks: Checks, not_reproduced: list[str]) -> list[Condition]:
+    reasons: list[str] = []
+    for attr, msg in _INCONCLUSIVE_CHECKS:
+        if getattr(checks, attr):
+            continue
+        if attr == "base_reproduced" and not_reproduced:
+            msg = f"security test(s) {', '.join(not_reproduced)} did not crash on base-sanitized"
+        reasons.append(msg)
+    if not reasons:
+        return []
+    tests = not_reproduced if not checks.base_reproduced else []
+    return [Condition(ConditionName.INCONCLUSIVE, "; ".join(reasons), tests=list(tests))]
 
 
 def _merge_by_name(conditions: list[Condition]) -> list[Condition]:
     """Fold conditions that share a name (e.g. an INCONCLUSIVE finding and a
-    failed soundness check) into one, keeping all findings, tests and reasons."""
+    failed check) into one, keeping all findings, tests and reasons."""
     merged: dict[ConditionName, Condition] = {}
     for c in conditions:
         if c.name not in merged:
@@ -149,25 +193,31 @@ def _merge_by_name(conditions: list[Condition]) -> list[Condition]:
 
 
 def _finding_reason(name: ConditionName, group: list[Finding]) -> str:
-    ids = ", ".join(f.id for f in group)
-    text = {
-        ConditionName.VULN_REMAINS:
-            "the vulnerability still occurs on the patched version",
-        ConditionName.NEW_ISSUE:
-            "the patch introduced a new crash not present on the base version",
-        ConditionName.FUNC_REGRESSION:
-            "the patch broke previously correct behavior",
-        ConditionName.INCONCLUSIVE:
-            "a finding could not be classified with confidence",
-    }[name]
-    return f"{text} ({ids})"
+    parts = []
+    for f in group:
+        tests = ", ".join(_causing_tests(f)) or "no test"
+        what = {
+            ConditionName.VULN_REMAINS: f"the error is still reached on patch by {tests}",
+            ConditionName.NEW_ISSUE: f"a security error appears on patch only, in {tests}",
+            ConditionName.FUNC_REGRESSION: f"{tests} passed on base and fail on patch",
+            ConditionName.INCONCLUSIVE: f"the result of {tests} could not be classified",
+        }[name]
+        parts.append(f"{f.id}: {what}")
+    return "; ".join(parts)
+
+
+def _status_reason(deciding: Condition, conditions: list[Condition]) -> str:
+    """``VULN_REMAINS (F-001) has the highest priority among: VULN_REMAINS.``"""
+    ids = f" ({', '.join(deciding.findings)})" if deciding.findings else ""
+    names = ", ".join(c.name.value for c in conditions)
+    return f"{deciding.name.value}{ids} has the highest priority among: {names}."
 
 
 def _priority(c: Condition) -> tuple[int, int]:
     return (EXIT_PRIORITY.index(c.code), _NAME_RANK[c.name])
 
 
-def _unique(items) -> list[str]:
+def _unique(items: Iterable[str]) -> list[str]:
     """De-duplicate while keeping first-seen order."""
     seen: dict[str, None] = {}
     for it in items:
