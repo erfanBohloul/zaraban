@@ -36,6 +36,73 @@ docker compose run --rm zaraban python scripts/run_matrix.py
 Outputs go to `out/<target>/<run id>/`: `summary.txt`, `report.json`, raw
 run logs, builds, reproducer bundles and new regression tests (SPEC §12).
 
+## How to run
+
+### Prerequisites & Docker setup
+
+Zaraban executes targets in an isolated Linux environment (Ubuntu 22.04 with GCC, Clang, ASan, and Universal Ctags):
+
+```bash
+# 1. On Linux hosts, set kernel address randomization bits for ASan (Issue #002)
+sudo sysctl vm.mmap_rnd_bits=28
+
+# 2. Build the Docker image
+docker compose build
+```
+
+### Validating a patch
+
+Run the validation engine on a target by providing its configuration file and a patch (either a unified `.patch` diff file or a patched source directory):
+
+```bash
+# Validate the correct patch (Expected: Exit 0 / PASS)
+docker compose run --rm zaraban \
+  python -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
+  --patch targets/target1_sample/patches/correct.patch
+
+# Validate an incomplete patch (Expected: Exit 10 / VULN_REMAINS)
+docker compose run --rm zaraban \
+  python -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
+  --patch targets/target1_sample/patches/incomplete.patch
+
+# Validate a behavior-breaking patch (Expected: Exit 20 / FUNC_REGRESSION)
+docker compose run --rm zaraban \
+  python -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
+  --patch targets/target1_sample/patches/regression.patch
+```
+
+### CLI options
+
+| Option | Description |
+|---|---|
+| `-c, --config FILE` | Path to the target's `zaraban.yaml` configuration file (required). |
+| `--patch PATCH` | Path to patch diff file or directory containing the patched source. |
+| `--base DIR` | Override the base source directory (default: `base_dir` from config). |
+| `--out DIR` | Directory for all outputs of this run (default: `out/`). |
+| `--no-promote` | Do not copy newly generated regression tests to the target's `regression_dir`. |
+| `--keep-work` | Keep temporary build and work trees in `<out>/work/` after execution. |
+| `--check-config` | Validate the configuration file and its tests, then exit 0 without running builds. |
+| `-v, --verbose` | Print detailed execution and diagnostic messages. |
+| `--version` | Display the Zaraban engine version. |
+
+### Inspecting outputs
+
+Every run generates the following artifacts in the output directory:
+- `report.json`: Full machine-readable report containing run metadata, target info, versions, environment info, settings, builds, hardening check, execution logs, findings with patch diff links, regression tests, and status checks.
+- `summary.txt`: Human-readable terminal summary with final verdict, deciding conditions, and findings overview.
+- `reproducers/<finding_id>/`: Standalone reproducer bundle containing minimized inputs (`input.min.*`), original input, binary, replays log, and executable `reproduce.sh`.
+- `regression/`: Newly created regression tests with input files and YAML manifests.
+
+### Running tests
+
+```bash
+# Run unit and integration test suite inside Docker
+docker compose run --rm zaraban pytest -v
+
+# Run the end-to-end test suite
+docker compose run --rm zaraban pytest -v tests/test_e2e.py
+```
+
 ## Exit codes
 
 | Code | Name | Meaning |
