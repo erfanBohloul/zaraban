@@ -1,360 +1,169 @@
-"""End-to-end tests for Zaraban (SPEC §2, §8.9, §13).
+"""End-to-end tests for Zaraban on targets/target1_sample (SPEC §2, §8.9, §12, §13).
 
-Validates the full tool behavior on targets/target1_sample (token_parser):
-- correct patch -> exit 0 / PASS
-- incomplete patch -> exit 10 / VULN_REMAINS
-- behavior-breaking (regression) patch -> exit 20 / FUNC_REGRESSION
-- bad config -> exit 30 / BUILD_OR_CONFIG_ERROR
+Each test runs the real tool through ``cli.main``: four real builds, real
+runs, real findings. Expected results on token_parser (§8.9):
 
-Asserts report.json and summary.txt are written and valid.
+- correct patch    -> exit 0  PASS            FIXED
+- incomplete patch -> exit 10 VULN_REMAINS    INCOMPLETE_FIX
+- regression patch -> exit 20 FUNC_REGRESSION FUNCTIONAL_REGRESSION, FIXED
+- bad config / patch that does not apply -> exit 30
+
+On a Linux host, ASan needs ``vm.mmap_rnd_bits=28`` (issue #002, set in CI),
+or the tests can be run with ASLR off (``setarch -R``).
 """
 
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
-from typing import Any, Optional
 
 import pytest
 
-from zaraban import cli, diffinfo, exec_stage, pipeline, runner
-from zaraban.builder import BuildSet
-from zaraban.models import (
-    BUILD_ORDER,
-    Analysis,
-    BinaryInfo,
-    BuildName,
-    BuildRecord,
-    CombinedResult,
-    Detection,
-    DiffInfo,
-    EnvironmentInfo,
-    ErrorCode,
-    ErrorType,
-    Frame,
-    HardeningReport,
-    HardeningResult,
-    InputInfo,
-    InputMethod,
-    Issue,
-    OracleResult,
-    Outcome,
-    ProtectionResult,
-    Relro,
-    RunRecord,
-    StreamInfo,
-    TestKind,
-    VersionInfo,
-)
-from zaraban.pipeline_state import RunContext
-from zaraban.reproducer import RunOutcome
-from zaraban.sources import Sources, prepare
+from zaraban import cli
 
-SIG = "STACK_BUFFER_OVERFLOW @ handle_set_command < process_input < main"
 TARGET1_DIR = Path("targets/target1_sample")
 TARGET1_CONFIG = TARGET1_DIR / "zaraban.yaml"
-PATCH_CORRECT = TARGET1_DIR / "patches/correct.patch"
-PATCH_INCOMPLETE = TARGET1_DIR / "patches/incomplete.patch"
-PATCH_REGRESSION = TARGET1_DIR / "patches/regression.patch"
+PATCHES = {name: TARGET1_DIR / f"patches/{name}.patch"
+           for name in ("correct", "incomplete", "regression")}
+RUN_ID = re.compile(r"^\d{8}-\d{6}-[0-9a-f]{8}$")
 
 REQUIRED_REPORT_KEYS = [
-    "schema_version",
-    "tool",
-    "run_id",
-    "started_at",
-    "duration_s",
-    "target",
-    "versions",
-    "environment",
-    "settings",
-    "builds",
-    "hardening",
-    "execution_logs",
-    "findings",
-    "regression_added",
-    "status",
-    "warnings",
-    "errors",
+    "schema_version", "tool", "run_id", "started_at", "duration_s", "target", "versions",
+    "environment", "settings", "builds", "hardening", "execution_logs", "findings",
+    "regression_added", "status", "warnings", "errors",
 ]
 
-
-# ---------------------------------------------------------------------------
-# Helpers for running E2E before & after Person 1 merges exec_stage
-# ---------------------------------------------------------------------------
-
-def _is_exec_stage_implemented() -> bool:
-    try:
-        from zaraban import exec_stage
-        import inspect
-        src = inspect.getsource(exec_stage.build_and_execute)
-        return "NotImplementedError" not in src
-    except Exception:
-        return False
+# §8.9: exit code, exit name, finding categories in finding id order.
+EXPECTED = {
+    "correct": (0, "PASS", ["FIXED"]),
+    "incomplete": (10, "VULN_REMAINS", ["INCOMPLETE_FIX"]),
+    "regression": (20, "FUNC_REGRESSION", ["FUNCTIONAL_REGRESSION", "FIXED"]),
+}
 
 
-def _build_fake_token_parser_exec(patch_name: str):
-    """Produces the execution stage results for token_parser (§8.9)."""
-    def _exec(ctx: RunContext) -> RunContext:
-        # Prepare sources
-        patch_path = Path(ctx.args.patch)
-        ctx.sources = prepare(
-            base_arg=ctx.target.base_dir,
-            patch_arg=patch_path,
-            work_dir=ctx.work_dir,
-        )
-
-        # Build records
-        records = {}
-        for name in BUILD_ORDER:
-            bin_rel = f"builds/{name.value}/bin/token_parser"
-            bin_path = ctx.out_dir / bin_rel
-            bin_path.parent.mkdir(parents=True, exist_ok=True)
-            bin_path.write_bytes(b"\x7fELFtoken_parser")
-            records[name] = BuildRecord(
-                build=name,
-                status="ok",
-                cmd="make",
-                env={},
-                cwd=str(ctx.work_dir),
-                exit_code=0,
-                duration_s=0.2,
-                log=f"builds/{name.value}/build.log",
-                binary=BinaryInfo(bin_rel, 16, "e" * 64),
-                sanitizers_verified=True if "sanitized" in name.value else None,
-                has_debug_info=True if "sanitized" in name.value else None,
-            )
-        ctx.build_set = BuildSet(records=records)
-
-        # Hardening
-        p = ProtectionResult(True, "verified")
-        hres = HardeningResult(nx=p, pie=p, relro=ProtectionResult(Relro.FULL, "verified"), canary=p)
-        ctx.hardening = HardeningReport(base=hres, patch=hres, changes=[], notes=["Hardening verified."])
-
-        # Environment
-        ctx.environment = EnvironmentInfo(
-            os="Linux",
-            kernel="5.15",
-            arch="x86_64",
-            docker_image="zaraban:latest",
-            python="3.12.0",
-            gcc="11.4.0",
-            clang="14.0.0",
-            llvm_symbolizer="/usr/bin/llvm-symbolizer",
-        )
-
-        # Execution matrix for token_parser (§8.9)
-        tests = ctx.target.all_tests()
-        results: dict[str, dict[BuildName, CombinedResult]] = {}
-        for tc in tests:
-            results[tc.name] = {}
-            for bname in BUILD_ORDER:
-                crashed = False
-                passed = True
-                if tc.kind is TestKind.SECURITY:
-                    if "base" in bname.value:
-                        crashed = True
-                    elif patch_name == "incomplete" and tc.name == "exploit_secondary":
-                        crashed = True
-                elif patch_name == "regression" and tc.name == "valid_set" and "patch" in bname.value:
-                    passed = False
-
-                outcome = Outcome.CRASH if crashed else Outcome.NORMAL
-                runs = []
-                for r in (1, 2, 3):
-                    analysis = Analysis(
-                        outcome=outcome,
-                        detection=Detection.ASAN if crashed else None,
-                        error_type=ErrorType.STACK_BUFFER_OVERFLOW if crashed else None,
-                        summary="stack-buffer-overflow in handle_set_command" if crashed else "normal exit",
-                        frames=[Frame(0, "handle_set_command", "src/main.c", 37, False)] if crashed else [],
-                        signature=SIG if crashed else None,
-                    )
-                    runs.append(
-                        RunRecord(
-                            test=tc.name,
-                            kind=tc.kind,
-                            build=bname,
-                            repeat=r,
-                            cmd=["token_parser", "input.txt"],
-                            env={},
-                            cwd=str(ctx.work_dir),
-                            input=InputInfo(InputMethod.FILE, "input.txt", len(tc.input_bytes or b""), "0" * 64),
-                            exit_code=None if crashed else (0 if passed else 1),
-                            signal="SIGABRT" if crashed else None,
-                            timed_out=False,
-                            limit_hit=None,
-                            duration_s=0.01,
-                            stdout=StreamInfo(f"{r}.stdout", 4, "a" * 64, False),
-                            stderr=StreamInfo(f"{r}.stderr", 100, "b" * 64, False),
-                            analysis=analysis,
-                            oracle=OracleResult(checked=True, passed=passed),
-                        )
-                    )
-                results[tc.name][bname] = CombinedResult(
-                    test=tc.name,
-                    kind=tc.kind,
-                    build=bname,
-                    runs=runs,
-                    flaky=False,
-                )
-        ctx.results = results
-
-        # Simulated run function for reproducer ddmin / replay
-        def fake_run(data: bytes) -> RunOutcome:
-            if b"SET " in data:
-                return RunOutcome(
-                    crashed=True,
-                    signature=SIG,
-                    signal="SIGABRT",
-                    error_type=ErrorType.STACK_BUFFER_OVERFLOW,
-                    detection=Detection.ASAN,
-                    top_functions=["handle_set_command", "process_input", "main"],
-                )
-            return RunOutcome(crashed=False, signature=None, exit_code=0)
-
-        setattr(ctx, "_run_fn", fake_run)
-        return ctx
-
-    return _exec
+def run_tool(tmp_path: Path, patch: Path) -> tuple[int, Path]:
+    """Run the CLI into ``tmp_path/out``; return the exit code and the run dir."""
+    out = tmp_path / "out"
+    rc = cli.main(["-c", str(TARGET1_CONFIG), "--patch", str(patch), "--out", str(out),
+                   "--no-promote"])
+    runs = list((out / "token_parser").iterdir())
+    assert len(runs) == 1, runs
+    return rc, runs[0]
 
 
-def run_e2e(argv: list[str], patch_kind: Optional[str] = None) -> int:
-    """Run E2E via CLI, falling back to simulated execution if exec_stage is a stub."""
-    if _is_exec_stage_implemented():
-        return cli.main(argv)
-
-    if patch_kind is not None:
-        fake_exec = _build_fake_token_parser_exec(patch_kind)
-
-        def custom_run(args, target, warnings):
-            return pipeline.run(args, target, warnings, build_and_execute=fake_exec)
-
-        return cli.main(argv, run=custom_run)
-
-    return cli.main(argv)
+def read_report(run_dir: Path) -> dict:
+    return json.loads((run_dir / "report.json").read_text(encoding="utf-8"))
 
 
 # ---------------------------------------------------------------------------
-# E2E Tests
+# Bad input: exit 30
 # ---------------------------------------------------------------------------
 
 def test_e2e_bad_config_missing_file(tmp_path):
-    """Exit 30 when config file does not exist."""
-    rc = run_e2e(["-c", str(tmp_path / "nonexistent.yaml"), "--patch", str(PATCH_CORRECT)])
-    assert rc == 30
+    assert cli.main(["-c", str(tmp_path / "nonexistent.yaml"),
+                     "--patch", str(PATCHES["correct"])]) == 30
 
 
 def test_e2e_bad_config_missing_patch(tmp_path):
-    """Exit 30 when --patch is missing without --check-config."""
-    rc = run_e2e(["-c", str(TARGET1_CONFIG)])
-    assert rc == 30
+    assert cli.main(["-c", str(TARGET1_CONFIG)]) == 30
 
 
 def test_e2e_bad_config_invalid_schema(tmp_path):
-    """Exit 30 when config YAML is semantically invalid."""
     bad_cfg = tmp_path / "bad.yaml"
     bad_cfg.write_text("invalid_key: true\nname: 12345\n")
-    rc = run_e2e(["-c", str(bad_cfg), "--patch", str(PATCH_CORRECT)])
+    assert cli.main(["-c", str(bad_cfg), "--patch", str(PATCHES["correct"])]) == 30
+
+
+def test_e2e_patch_that_does_not_apply_still_writes_report(tmp_path):
+    bad = tmp_path / "bad.patch"
+    bad.write_text("--- a/src/nope.c\n+++ b/src/nope.c\n@@ -1 +1 @@\n-x\n+y\n")
+    rc, run_dir = run_tool(tmp_path, bad)
     assert rc == 30
+    rep = read_report(run_dir)
+    assert [e["code"] for e in rep["errors"]] == ["PATCH_APPLY_FAILED"]
+    assert (run_dir / "summary.txt").is_file()
 
 
-def test_e2e_correct_patch_scenario(tmp_path):
-    """Correct patch -> exit 0 / PASS; report.json and summary.txt valid."""
-    out_dir = tmp_path / "out_correct"
-    argv = [
-        "-c", str(TARGET1_CONFIG),
-        "--patch", str(PATCH_CORRECT),
-        "--out", str(out_dir),
-        "--no-promote",
-    ]
-    rc = run_e2e(argv, patch_kind="correct")
-    assert rc == 0
+# ---------------------------------------------------------------------------
+# The three token_parser scenarios (§8.9)
+# ---------------------------------------------------------------------------
 
-    report_path = out_dir / "report.json"
-    summary_path = out_dir / "summary.txt"
-    assert report_path.is_file(), "report.json was not created"
-    assert summary_path.is_file(), "summary.txt was not created"
+@pytest.mark.parametrize("scenario", ["correct", "incomplete", "regression"])
+def test_e2e_scenario(tmp_path, scenario):
+    rc, run_dir = run_tool(tmp_path, PATCHES[scenario])
+    code, name, categories = EXPECTED[scenario]
+    rep = read_report(run_dir)
 
-    report = json.loads(report_path.read_text(encoding="utf-8"))
-    assert report["status"]["exit_code"] == 0
-    assert report["status"]["exit_name"] == "PASS"
+    assert rc == code, rep["status"]["reason"]
+    assert rep["status"]["exit_code"] == code
+    assert rep["status"]["exit_name"] == name
+    assert [f["category"] for f in rep["findings"]] == categories
+    assert rep["errors"] == []
 
-    checks = report["status"]["checks"]
-    assert checks["builds_ok"] is True
-    assert checks["profiles_verified"] is True
-    assert checks["all_runs_completed"] is True
-    assert checks["base_reproduced"] is True
-    assert checks["results_stable"] is True
-    assert checks["bundles_replayed"] is True
-    assert checks["hardening_checked"] is True
-
-    findings = report["findings"]
-    assert len(findings) >= 1
-    assert any(f["category"] == "FIXED" for f in findings)
+    checks = rep["status"]["checks"]
+    assert all(checks.values()), checks
 
 
-def test_e2e_incomplete_patch_scenario(tmp_path):
-    """Known-incomplete patch -> exit 10 / VULN_REMAINS; report.json valid."""
-    out_dir = tmp_path / "out_incomplete"
-    argv = [
-        "-c", str(TARGET1_CONFIG),
-        "--patch", str(PATCH_INCOMPLETE),
-        "--out", str(out_dir),
-        "--no-promote",
-    ]
-    rc = run_e2e(argv, patch_kind="incomplete")
-    assert rc == 10
+def test_e2e_run_directory_layout(tmp_path):
+    """§12.1: out/<target>/<run id>/ with inputs, builds, runs, reproducers,
+    and every path in the JSON files pointing at a real file (§12.2)."""
+    rc, run_dir = run_tool(tmp_path, PATCHES["incomplete"])
+    rep = read_report(run_dir)
 
-    report_path = out_dir / "report.json"
-    assert report_path.is_file()
+    assert RUN_ID.match(run_dir.name) and rep["run_id"] == run_dir.name
+    assert run_dir.name.endswith(rep["versions"]["diff"]["sha256"][:8])
+    assert (run_dir / "inputs/config.yaml").read_bytes() == TARGET1_CONFIG.read_bytes()
+    assert (run_dir / "inputs/patch.diff").read_bytes() == PATCHES["incomplete"].read_bytes()
+    assert rep["target"]["config"] == "inputs/config.yaml"
+    assert rep["versions"]["diff"]["path"] == "inputs/patch.diff"
+    assert not (run_dir / "work").exists()  # deleted without --keep-work
+    assert not (run_dir / "errors.log").exists()
 
-    report = json.loads(report_path.read_text(encoding="utf-8"))
-    assert report["status"]["exit_code"] == 10
-    assert report["status"]["exit_name"] == "VULN_REMAINS"
-    assert any(f["category"] == "INCOMPLETE_FIX" for f in report["findings"])
+    for build, entry in rep["builds"].items():
+        assert (run_dir / entry["details"]).is_file()
+        assert (run_dir / f"builds/{build}/build.log").is_file()
 
+    # One record, stdout and stderr per test, build and repeat, at the paths the
+    # records give (§12.3).
+    repeats = rep["settings"]["repeats"]
+    for build, tests in rep["execution_logs"].items():
+        for test, entry in tests.items():
+            runs = run_dir / entry["runs"]
+            for n in range(1, repeats + 1):
+                record = json.loads((runs / f"{n}.json").read_text())
+                assert (run_dir / record["stdout"]["path"]).is_file()
+                assert (run_dir / record["stderr"]["path"]).is_file()
+    assert not [p for p in run_dir.glob("runs/*/*/*") if p.is_dir()]  # nothing nested
 
-def test_e2e_regression_patch_scenario(tmp_path):
-    """Behavior-breaking (regression) patch -> exit 20 / FUNC_REGRESSION."""
-    out_dir = tmp_path / "out_regression"
-    argv = [
-        "-c", str(TARGET1_CONFIG),
-        "--patch", str(PATCH_REGRESSION),
-        "--out", str(out_dir),
-        "--no-promote",
-    ]
-    rc = run_e2e(argv, patch_kind="regression")
-    assert rc == 20
-
-    report_path = out_dir / "report.json"
-    assert report_path.is_file()
-
-    report = json.loads(report_path.read_text(encoding="utf-8"))
-    assert report["status"]["exit_code"] == 20
-    assert report["status"]["exit_name"] == "FUNC_REGRESSION"
-    assert any(f["category"] == "FUNCTIONAL_REGRESSION" for f in report["findings"])
+    for f in rep["findings"]:
+        for path in f["evidence"]:
+            assert (run_dir / path).exists(), path
+        if f["reproducer"]:
+            assert (run_dir / f["reproducer"] / "reproduce.sh").is_file()
 
 
 def test_e2e_report_json_schema(tmp_path):
-    """Validate all required top-level keys in report.json (SPEC §12.4)."""
-    out_dir = tmp_path / "out_schema"
-    argv = [
-        "-c", str(TARGET1_CONFIG),
-        "--patch", str(PATCH_CORRECT),
-        "--out", str(out_dir),
-        "--no-promote",
-    ]
-    rc = run_e2e(argv, patch_kind="correct")
-    assert rc == 0
+    """§12.4: all top-level keys, settings and environment."""
+    rc, run_dir = run_tool(tmp_path, PATCHES["correct"])
+    rep = read_report(run_dir)
+    assert list(rep) == REQUIRED_REPORT_KEYS
+    assert rep["schema_version"] == 1
+    assert rep["tool"]["name"] == "zaraban"
+    assert rep["target"]["name"] == "token_parser"
+    assert set(rep["settings"]) == {"repeats", "limits", "sanitizer_options"}
+    assert set(rep["execution_logs"]) == {"base-release", "base-sanitized",
+                                          "patch-release", "patch-sanitized"}
+    # Warnings are not duplicated.
+    codes = [(w["code"], w["message"]) for w in rep["warnings"]]
+    assert len(codes) == len(set(codes))
 
-    report = json.loads((out_dir / "report.json").read_text(encoding="utf-8"))
-    for key in REQUIRED_REPORT_KEYS:
-        assert key in report, f"Missing key in report.json: {key}"
 
-    assert report["schema_version"] == 1
-    assert "name" in report["tool"]
-    assert "version" in report["tool"]
-    assert "target" in report and report["target"]["name"] == "token_parser"
-    assert "builds" in report
-    assert "status" in report
-    assert "execution_logs" in report
+def test_e2e_two_runs_keep_both_reports(tmp_path):
+    out = tmp_path / "out"
+    for _ in range(2):
+        cli.main(["-c", str(TARGET1_CONFIG), "--patch", str(PATCHES["correct"]),
+                  "--out", str(out), "--no-promote"])
+    runs = sorted((out / "token_parser").iterdir())
+    assert len(runs) == 2
+    assert all((r / "report.json").is_file() for r in runs)

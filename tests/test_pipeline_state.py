@@ -1,7 +1,7 @@
 """Unit tests for the shared pipeline state (Phase 2 step 0).
 
 RunContext is a plain data container, so these build it directly — no pipeline
-or stages needed, which keeps commit 1 self-contained.
+or stages needed, which keeps these tests independent of the stages.
 """
 
 from pathlib import Path
@@ -18,7 +18,7 @@ def make(**over) -> RunContext:
         target=SimpleNamespace(name="token_parser"),
         work_dir=Path("out/work"),
         out_dir=Path("out"),
-        run_id="20261113T000000Z-abcd1234",
+        run_id="20261113-000000-abcd1234",
         started_at="2026-11-13T00:00:00Z",
     )
     base.update(over)
@@ -29,7 +29,7 @@ def make(**over) -> RunContext:
 
 def test_required_fields_are_held():
     ctx = make()
-    assert ctx.run_id == "20261113T000000Z-abcd1234"
+    assert ctx.run_id == "20261113-000000-abcd1234"
     assert ctx.started_at == "2026-11-13T00:00:00Z"
     assert ctx.work_dir == Path("out/work")
     assert ctx.out_dir == Path("out")
@@ -45,6 +45,13 @@ def test_stage_fields_default_to_none():
     assert ctx.hardening is None
     assert ctx.results is None
     assert ctx.environment is None
+    assert ctx.run_settings is None
+
+
+def test_analyze_fields_default_empty():
+    ctx = make()
+    assert ctx.tests == [] and ctx.findings == [] and ctx.bundles == []
+    assert ctx.regression_added == [] and ctx.base_not_reproduced == []
 
 
 # -- accumulators ------------------------------------------------------------
