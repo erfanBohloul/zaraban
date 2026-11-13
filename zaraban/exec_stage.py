@@ -1,7 +1,10 @@
 """Stage 1 of the pipeline: build and execute (SPEC §2 steps 3–5).
 
 Given the :class:`~zaraban.pipeline_state.RunContext` that the pipeline set
-up (sources prepared, run directory created), it runs, in order:
+up (sources prepared, run directory created), it first loads the tests: the
+config tests, then the regression tests of earlier runs (§10.6). An invalid
+regression test file stops the run with ``CONFIG_INVALID`` before anything is
+built, like an invalid config (§4.5). Then it runs, in order:
 
 1. the four isolated builds (``builder.build_all``) → ``ctx.build_set``;
    a build or profile failure **stops here** (§6.2): the build's error goes
@@ -34,6 +37,11 @@ def build_and_execute(ctx: RunContext, *, run_test: Optional[RunTestFn] = None) 
     run_test = run_test or runner.run_test
     target = ctx.target
 
+    # 0. The tests: config tests, then regression tests from earlier runs
+    #    (§7.1, Task 2.3). Loaded first, so a bad regression file is a config
+    #    error before any build (§4.5).
+    tests = target.all_tests() + regression.load_tests(target)
+
     # 1. The four builds; stop at a failure (§6.2).
     build_set = builder.build_all(ctx.sources.base_tree, ctx.sources.patch_tree, target,
                                   ctx.work_dir, ctx.out_dir)
@@ -52,9 +60,8 @@ def build_and_execute(ctx: RunContext, *, run_test: Optional[RunTestFn] = None) 
     ctx.add_warnings(h_warnings)
     ctx.checks.hardening_checked = True
 
-    # 3. Every test on every build, `repeats` times (§7.1). Regression tests
-    #    from earlier runs come last (Task 2.3).
-    ctx.tests = target.all_tests() + regression.load_tests(target)
+    # 3. Every test on every build, `repeats` times (§7.1); regression tests last.
+    ctx.tests = tests
     ctx.results = {
         t.name: {b: run_test(binary(ctx, b), t, ctx.run_settings, b, target.spec.repeats,
                              ctx.out_dir, source_root=source_root(ctx, b))
