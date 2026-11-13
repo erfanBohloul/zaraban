@@ -1,0 +1,19 @@
+=================================================================
+==46==ERROR: AddressSanitizer: attempting free on address which was not malloc()-ed: 0x7ffdbe5b09e0 in thread T0
+    #0 0x5615b9a67ea2 in free (/tmp/zaraban-fixtures/asan_invalid_free+0xa0ea2) (BuildId: 64ee6ac4af10ef06b7662ee4c04acdff5de7b182)
+    #1 0x5615b9aa2ff9 in bug /tmp/zaraban-fixtures/src/asan_invalid_free.c:8:38
+    #2 0x5615b9aa3058 in caller /tmp/zaraban-fixtures/src/asan_invalid_free.c:9:30
+    #3 0x5615b9aa3073 in main /tmp/zaraban-fixtures/src/asan_invalid_free.c:10:18
+    #4 0x7f5963324d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #5 0x7f5963324e3f in __libc_start_main csu/../csu/libc-start.c:392:3
+    #6 0x5615b99e5304 in _start (/tmp/zaraban-fixtures/asan_invalid_free+0x1e304) (BuildId: 64ee6ac4af10ef06b7662ee4c04acdff5de7b182)
+
+Address 0x7ffdbe5b09e0 is located in stack of thread T0 at offset 32 in frame
+    #0 0x5615b9aa2eaf in bug /tmp/zaraban-fixtures/src/asan_invalid_free.c:8
+
+  This frame has 1 object(s):
+    [32, 40) 'x' (line 8) <== Memory access at offset 32 is inside this variable
+HINT: this may be a false positive if your program uses some custom stack unwind mechanism, swapcontext or vfork
+      (longjmp and C++ exceptions *are* supported)
+SUMMARY: AddressSanitizer: bad-free (/tmp/zaraban-fixtures/asan_invalid_free+0xa0ea2) (BuildId: 64ee6ac4af10ef06b7662ee4c04acdff5de7b182) in free
+==46==ABORTING

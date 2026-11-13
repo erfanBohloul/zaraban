@@ -1,0 +1,9 @@
+/tmp/zaraban-fixtures/src/ubsan_shift.c:8:44: runtime error: shift exponent 40 is too large for 32-bit type 'int'
+    #0 0x55d3cef0af0e in bug /tmp/zaraban-fixtures/src/ubsan_shift.c:8:44
+    #1 0x55d3cef0af38 in caller /tmp/zaraban-fixtures/src/ubsan_shift.c:9:30
+    #2 0x55d3cef0af53 in main /tmp/zaraban-fixtures/src/ubsan_shift.c:10:18
+    #3 0x7ffa07a62d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #4 0x7ffa07a62e3f in __libc_start_main csu/../csu/libc-start.c:392:3
+    #5 0x55d3cee4d304 in _start (/tmp/zaraban-fixtures/ubsan_shift+0x1e304) (BuildId: 3356ea6336651ca3833f92b41a2dd97b2719270a)
+
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior /tmp/zaraban-fixtures/src/ubsan_shift.c:8:44 in 

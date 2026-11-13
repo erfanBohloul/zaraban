@@ -1,0 +1,11 @@
+=================================================================
+==61==ERROR: AddressSanitizer: requested allocation size 0x40000000 (0x40001000 after adjustments for alignment, red zones etc.) exceeds maximum supported size of 0x10000000 (thread T0)
+    #0 0x55893448f14e in __interceptor_malloc (/tmp/zaraban-fixtures/asan_allocation_too_big+0xa114e) (BuildId: bc32037eb9f7c4db7d2d600ccff6b8c7b0a0641d)
+    #1 0x5589344c9edf in bug /tmp/zaraban-fixtures/src/asan_allocation_too_big.c:8:37
+    #2 0x5589344c9f08 in caller /tmp/zaraban-fixtures/src/asan_allocation_too_big.c:9:30
+    #3 0x5589344c9f23 in main /tmp/zaraban-fixtures/src/asan_allocation_too_big.c:10:18
+    #4 0x7f875351ad8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+
+==61==HINT: if you don't care about these errors you may set allocator_may_return_null=1
+SUMMARY: AddressSanitizer: allocation-size-too-big (/tmp/zaraban-fixtures/asan_allocation_too_big+0xa114e) (BuildId: bc32037eb9f7c4db7d2d600ccff6b8c7b0a0641d) in __interceptor_malloc
+==61==ABORTING

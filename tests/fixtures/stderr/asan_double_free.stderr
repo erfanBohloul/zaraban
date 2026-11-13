@@ -1,0 +1,27 @@
+=================================================================
+==41==ERROR: AddressSanitizer: attempting double-free on 0x602000000010 in thread T0:
+    #0 0x555bffb86ea2 in free (/tmp/zaraban-fixtures/asan_double_free+0xa0ea2) (BuildId: 0b44bd7d628bebf1a120f2890d7bfbc138264ffe)
+    #1 0x555bffbc1ec7 in bug /tmp/zaraban-fixtures/src/asan_double_free.c:8:57
+    #2 0x555bffbc1ed8 in caller /tmp/zaraban-fixtures/src/asan_double_free.c:9:30
+    #3 0x555bffbc1ef3 in main /tmp/zaraban-fixtures/src/asan_double_free.c:10:18
+    #4 0x7f65bb4bed8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #5 0x7f65bb4bee3f in __libc_start_main csu/../csu/libc-start.c:392:3
+    #6 0x555bffb04304 in _start (/tmp/zaraban-fixtures/asan_double_free+0x1e304) (BuildId: 0b44bd7d628bebf1a120f2890d7bfbc138264ffe)
+
+0x602000000010 is located 0 bytes inside of 8-byte region [0x602000000010,0x602000000018)
+freed by thread T0 here:
+    #0 0x555bffb86ea2 in free (/tmp/zaraban-fixtures/asan_double_free+0xa0ea2) (BuildId: 0b44bd7d628bebf1a120f2890d7bfbc138264ffe)
+    #1 0x555bffbc1ebe in bug /tmp/zaraban-fixtures/src/asan_double_free.c:8:48
+    #2 0x555bffbc1ed8 in caller /tmp/zaraban-fixtures/src/asan_double_free.c:9:30
+    #3 0x555bffbc1ef3 in main /tmp/zaraban-fixtures/src/asan_double_free.c:10:18
+    #4 0x7f65bb4bed8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+
+previously allocated by thread T0 here:
+    #0 0x555bffb8714e in __interceptor_malloc (/tmp/zaraban-fixtures/asan_double_free+0xa114e) (BuildId: 0b44bd7d628bebf1a120f2890d7bfbc138264ffe)
+    #1 0x555bffbc1eb1 in bug /tmp/zaraban-fixtures/src/asan_double_free.c:8:37
+    #2 0x555bffbc1ed8 in caller /tmp/zaraban-fixtures/src/asan_double_free.c:9:30
+    #3 0x555bffbc1ef3 in main /tmp/zaraban-fixtures/src/asan_double_free.c:10:18
+    #4 0x7f65bb4bed8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+
+SUMMARY: AddressSanitizer: double-free (/tmp/zaraban-fixtures/asan_double_free+0xa0ea2) (BuildId: 0b44bd7d628bebf1a120f2890d7bfbc138264ffe) in free
+==41==ABORTING

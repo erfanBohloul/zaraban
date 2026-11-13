@@ -1,0 +1,9 @@
+/tmp/zaraban-fixtures/src/ubsan_div_zero.c:8:47: runtime error: division by zero
+    #0 0x564edd492ef4 in bug /tmp/zaraban-fixtures/src/ubsan_div_zero.c:8:47
+    #1 0x564edd492f28 in caller /tmp/zaraban-fixtures/src/ubsan_div_zero.c:9:30
+    #2 0x564edd492f43 in main /tmp/zaraban-fixtures/src/ubsan_div_zero.c:10:18
+    #3 0x7f3ead365d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #4 0x7f3ead365e3f in __libc_start_main csu/../csu/libc-start.c:392:3
+    #5 0x564edd3d5304 in _start (/tmp/zaraban-fixtures/ubsan_div_zero+0x1e304) (BuildId: 0aa67da21560d50084384bce58b7f57bfc60dc74)
+
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior /tmp/zaraban-fixtures/src/ubsan_div_zero.c:8:47 in 

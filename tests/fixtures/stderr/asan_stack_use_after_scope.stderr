@@ -1,0 +1,50 @@
+=================================================================
+==31==ERROR: AddressSanitizer: stack-use-after-scope on address 0x7ffcc9399160 at pc 0x562d9be34fe1 bp 0x7ffcc9399130 sp 0x7ffcc9399128
+WRITE of size 1 at 0x7ffcc9399160 thread T0
+    #0 0x562d9be34fe0 in bug /tmp/zaraban-fixtures/src/asan_stack_use_after_scope.c:8:72
+    #1 0x562d9be35048 in caller /tmp/zaraban-fixtures/src/asan_stack_use_after_scope.c:9:30
+    #2 0x562d9be35063 in main /tmp/zaraban-fixtures/src/asan_stack_use_after_scope.c:10:18
+    #3 0x7f0d84fe7d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #4 0x7f0d84fe7e3f in __libc_start_main csu/../csu/libc-start.c:392:3
+    #5 0x562d9bd77304 in _start (/tmp/zaraban-fixtures/asan_stack_use_after_scope+0x1e304) (BuildId: ab6918a181693a2a7b94b56a06e85fbcd3a78dc6)
+
+Address 0x7ffcc9399160 is located in stack of thread T0 at offset 32 in frame
+    #0 0x562d9be34eaf in bug /tmp/zaraban-fixtures/src/asan_stack_use_after_scope.c:8
+
+  This frame has 1 object(s):
+    [32, 40) 'x' (line 8) <== Memory access at offset 32 is inside this variable
+HINT: this may be a false positive if your program uses some custom stack unwind mechanism, swapcontext or vfork
+      (longjmp and C++ exceptions *are* supported)
+SUMMARY: AddressSanitizer: stack-use-after-scope /tmp/zaraban-fixtures/src/asan_stack_use_after_scope.c:8:72 in bug
+Shadow bytes around the buggy address:
+  0x10001926b1d0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x10001926b1e0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x10001926b1f0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x10001926b200: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x10001926b210: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x10001926b220: 00 00 00 00 00 00 00 00 f1 f1 f1 f1[f8]f3 f3 f3
+  0x10001926b230: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x10001926b240: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x10001926b250: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x10001926b260: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x10001926b270: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==31==ABORTING

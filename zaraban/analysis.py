@@ -22,6 +22,27 @@ FRAME_RE = re.compile(
 RUNTIME_PREFIX = ("__asan_", "__interceptor_", "__sanitizer_", "__ubsan_", "__libc_")
 RUNTIME_LIBS = ("libasan", "libubsan", "libc.", "libc-", "ld-linux")
 
+# C library functions that AddressSanitizer intercepts. clang links the ASan
+# runtime into the program, so these interceptors show up in the program's own
+# module, without a source location: "#0 0x… in free (/path/prog+0x…)". They
+# are runtime frames, not application code (§7.4).
+LIBC_INTERCEPTED = frozenset({
+    "malloc", "calloc", "realloc", "free", "cfree", "reallocarray", "memalign",
+    "posix_memalign", "aligned_alloc", "valloc", "pvalloc", "malloc_usable_size",
+    "memcpy", "memmove", "memset", "memcmp", "bcmp", "memchr", "memrchr", "memmem",
+    "strcpy", "strncpy", "stpcpy", "strcat", "strncat", "strlen", "strnlen", "strdup",
+    "strndup", "strcmp", "strncmp", "strcasecmp", "strncasecmp", "strchr", "strrchr",
+    "strstr", "strcasestr", "strspn", "strcspn", "strpbrk", "strtok", "strtol", "strtoul",
+    "strtoll", "strtoull", "atoi", "atol", "atoll", "sprintf", "snprintf", "vsprintf",
+    "vsnprintf", "printf", "vprintf", "fprintf", "vfprintf", "puts", "fputs", "fwrite",
+    "fread", "fgets", "read", "write", "sscanf", "vsscanf", "scanf", "fscanf",
+})
+_OPERATOR_NEW_DELETE = ("operator new", "operator delete", "_Znw", "_Zna", "_Zdl", "_Zda")
+
+# The C library's start-up code, linked into every program (crt1.o): it calls
+# main, so it is below main in every stack and is not application code.
+C_STARTUP = frozenset({"_start", "__libc_start_main", "__libc_start_call_main"})
+
 ASAN_TYPE_MAP: dict[str, ErrorType] = {
     "stack-buffer-overflow": ErrorType.STACK_BUFFER_OVERFLOW,
     "dynamic-stack-buffer-overflow": ErrorType.STACK_BUFFER_OVERFLOW,
@@ -31,9 +52,19 @@ ASAN_TYPE_MAP: dict[str, ErrorType] = {
     "stack-use-after-scope": ErrorType.USE_AFTER_SCOPE,
     "stack-use-after-return": ErrorType.USE_AFTER_SCOPE,
     "stack-overflow": ErrorType.STACK_EXHAUSTION,
-    "attempting double-free": ErrorType.DOUBLE_FREE,
-    "attempting free on address which was not malloc()-ed": ErrorType.INVALID_FREE,
 }
+
+ZERO_PAGE = 0x1000  # first page; a SEGV there is a NULL dereference (§7.4)
+
+# AddressSanitizer's report when an allocation exceeds max_allocation_size_mb,
+# the memory limit of sanitized builds (§7.3).
+ASAN_MEMORY_LIMIT = ("allocation-size-too-big", "exceeds maximum supported size",
+                     "allocator is out of memory", "out-of-memory")
+
+
+def is_memory_limit(stderr: str) -> bool:
+    """True when a sanitized run hit its memory limit (§7.3, §7.4 rule 2)."""
+    return "ERROR: AddressSanitizer" in stderr and any(s in stderr for s in ASAN_MEMORY_LIMIT)
 
 ALLOCATOR_CHECK_STRINGS = (
     "double free detected",
@@ -107,26 +138,19 @@ def classify_error_type(
         raw_type = m.group(1) if m else ""
         if raw_type in ASAN_TYPE_MAP:
             return ASAN_TYPE_MAP[raw_type]
-
-        # Check for ASan SEGV
-        if "SEGV" in stderr:
-            segv_match = ASAN_SEGV_ADDR_RE.search(stderr)
-            if segv_match:
-                try:
-                    addr_val = int(segv_match.group(1), 16)
-                    if addr_val < 0x10000:
-                        return ErrorType.NULL_DEREF
-                except ValueError:
-                    pass
-            if "zero page" in stderr:
-                return ErrorType.NULL_DEREF
-            return ErrorType.SEGV
-
         if "attempting double-free" in stderr:
             return ErrorType.DOUBLE_FREE
         if "attempting free on address which was not malloc()-ed" in stderr:
             return ErrorType.INVALID_FREE
-
+        if raw_type == "SEGV":
+            # NULL_DEREF only for an address in the zero page (§7.4): ASan's own
+            # hint, or an address below the 4 KiB page size.
+            if "address points to the zero page" in stderr:
+                return ErrorType.NULL_DEREF
+            segv = ASAN_SEGV_ADDR_RE.search(stderr)
+            if segv and int(segv.group(1), 16) < ZERO_PAGE:
+                return ErrorType.NULL_DEREF
+            return ErrorType.SEGV
         return ErrorType.UNKNOWN
 
     if detection is Detection.UBSAN:
@@ -206,7 +230,8 @@ def frames(stderr: str, source_root: str = "") -> list[Frame]:
         lib_path = m.group(5) if m.lastindex >= 5 else None
 
         # Determine if this frame is in runtime or standard libraries
-        is_runtime = fn.startswith(RUNTIME_PREFIX)
+        is_runtime = fn.startswith(RUNTIME_PREFIX) or fn in C_STARTUP or (
+            file_path is None and (fn in LIBC_INTERCEPTED or fn.startswith(_OPERATOR_NEW_DELETE)))
         check_path = (file_path or lib_path or "").lower()
         if not is_runtime and check_path:
             if any(lib in check_path for lib in RUNTIME_LIBS):

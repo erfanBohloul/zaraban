@@ -1,0 +1,15 @@
+AddressSanitizer:DEADLYSIGNAL
+=================================================================
+==51==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000008 (pc 0x55f0eeaf7f3c bp 0x7ffd1026beb0 sp 0x7ffd1026be90 T0)
+==51==The signal is caused by a READ memory access.
+==51==Hint: address points to the zero page.
+    #0 0x55f0eeaf7f3c in bug /tmp/zaraban-fixtures/src/asan_null_deref.c:8:74
+    #1 0x55f0eeaf7f68 in caller /tmp/zaraban-fixtures/src/asan_null_deref.c:9:30
+    #2 0x55f0eeaf7f83 in main /tmp/zaraban-fixtures/src/asan_null_deref.c:10:18
+    #3 0x7fc0d511dd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #4 0x7fc0d511de3f in __libc_start_main csu/../csu/libc-start.c:392:3
+    #5 0x55f0eea3a304 in _start (/tmp/zaraban-fixtures/asan_null_deref+0x1e304) (BuildId: 05d5a91650f2c015ab16ac30ae1945635e612fcc)
+
+AddressSanitizer can not provide additional info.
+SUMMARY: AddressSanitizer: SEGV /tmp/zaraban-fixtures/src/asan_null_deref.c:8:74 in bug
+==51==ABORTING

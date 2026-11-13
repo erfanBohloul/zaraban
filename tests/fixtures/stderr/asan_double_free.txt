@@ -1,9 +1,0 @@
-==4567==ERROR: AddressSanitizer: attempting double-free on 0x602000000010 in thread T0:
-    #0 0x4b1234 in free (/usr/lib/clang/libclang_rt.asan.so+0x4b1234)
-    #1 0x4c2345 in cleanup_buffer /w/src/utils.c:42:5
-    #2 0x4c3456 in main /w/src/main.c:102:5
-
-0x602000000010 is located 0 bytes inside of 16-byte region [0x602000000010,0x602000000020)
-freed by thread T0 here:
-    #0 0x4b1234 in free (/usr/lib/clang/libclang_rt.asan.so+0x4b1234)
-    #1 0x4c2300 in cleanup_buffer /w/src/utils.c:38:5
