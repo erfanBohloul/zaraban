@@ -115,3 +115,17 @@ def test_2_3_bad_regression_file_is_a_config_error_before_any_build(tmp_path, mo
     assert e.value.code is ErrorCode.CONFIG_INVALID
     assert any("broken.yaml" in p for p in e.value.details["problems"])
     assert built == []  # nothing was built (§4.5)
+
+
+def test_7_4_source_root_is_absolute_even_for_a_relative_out_dir(tmp_path, monkeypatch):
+    # The debug info has absolute paths; a relative work_dir must not leave
+    # frames with build-specific paths (seen as FIXED + NEW_ISSUE instead of
+    # INCOMPLETE_FIX on token_parser).
+    from zaraban.models import BuildName
+    monkeypatch.chdir(tmp_path)
+    ctx = SimpleNamespace(work_dir=Path("out/token_parser/run/work"))
+    for build in (BuildName.BASE_SANITIZED, BuildName.PATCH_SANITIZED):
+        root = exec_stage.source_root(ctx, build)
+        assert root == str(tmp_path / "out/token_parser/run/work" / build.value)
+    ctx = SimpleNamespace(work_dir=tmp_path / "abs" / "work")
+    assert exec_stage.source_root(ctx, BuildName.BASE_SANITIZED) == str(tmp_path / "abs/work/base-sanitized")
