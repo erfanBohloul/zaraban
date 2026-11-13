@@ -1,0 +1,9 @@
+/tmp/zaraban-fixtures/src/ubsan_index_out_of_bounds.c:8:58: runtime error: index 5 out of bounds for type 'int[4]'
+    #0 0x56078ddb1f92 in bug /tmp/zaraban-fixtures/src/ubsan_index_out_of_bounds.c:8:58
+    #1 0x56078ddb20e8 in caller /tmp/zaraban-fixtures/src/ubsan_index_out_of_bounds.c:9:30
+    #2 0x56078ddb2103 in main /tmp/zaraban-fixtures/src/ubsan_index_out_of_bounds.c:10:18
+    #3 0x7f7cffe2cd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #4 0x7f7cffe2ce3f in __libc_start_main csu/../csu/libc-start.c:392:3
+    #5 0x56078dcf4304 in _start (/tmp/zaraban-fixtures/ubsan_index_out_of_bounds+0x1e304) (BuildId: 5147fcf39086c4519f82db0ea233dd4572a195f9)
+
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior /tmp/zaraban-fixtures/src/ubsan_index_out_of_bounds.c:8:58 in 

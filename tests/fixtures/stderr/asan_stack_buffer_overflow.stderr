@@ -1,0 +1,50 @@
+=================================================================
+==11==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7ffd9c04c7a8 at pc 0x55ea0ab2303b bp 0x7ffd9c04c770 sp 0x7ffd9c04c768
+WRITE of size 1 at 0x7ffd9c04c7a8 thread T0
+    #0 0x55ea0ab2303a in bug /tmp/zaraban-fixtures/src/asan_stack_buffer_overflow.c:8:90
+    #1 0x55ea0ab230e8 in caller /tmp/zaraban-fixtures/src/asan_stack_buffer_overflow.c:9:30
+    #2 0x55ea0ab23103 in main /tmp/zaraban-fixtures/src/asan_stack_buffer_overflow.c:10:18
+    #3 0x7fd2b3492d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #4 0x7fd2b3492e3f in __libc_start_main csu/../csu/libc-start.c:392:3
+    #5 0x55ea0aa65304 in _start (/tmp/zaraban-fixtures/asan_stack_buffer_overflow+0x1e304) (BuildId: ad3a28c84005f0c334791a6fb5d14bb83e6b3f6c)
+
+Address 0x7ffd9c04c7a8 is located in stack of thread T0 at offset 40 in frame
+    #0 0x55ea0ab22eaf in bug /tmp/zaraban-fixtures/src/asan_stack_buffer_overflow.c:8
+
+  This frame has 1 object(s):
+    [32, 40) 'buf' (line 8) <== Memory access at offset 40 overflows this variable
+HINT: this may be a false positive if your program uses some custom stack unwind mechanism, swapcontext or vfork
+      (longjmp and C++ exceptions *are* supported)
+SUMMARY: AddressSanitizer: stack-buffer-overflow /tmp/zaraban-fixtures/src/asan_stack_buffer_overflow.c:8:90 in bug
+Shadow bytes around the buggy address:
+  0x1000338018a0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x1000338018b0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x1000338018c0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x1000338018d0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x1000338018e0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x1000338018f0: f1 f1 f1 f1 00[f3]f3 f3 00 00 00 00 00 00 00 00
+  0x100033801900: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x100033801910: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x100033801920: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x100033801930: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x100033801940: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==11==ABORTING
