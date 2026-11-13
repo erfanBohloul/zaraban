@@ -6,7 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from zaraban.analysis_stage import analyze_and_report, build_checks, format_execution_logs
+from zaraban import analysis_stage
+from zaraban.analysis_stage import execution_logs
 from zaraban.builder import BuildSet
 from zaraban.models import (
     BUILD_ORDER,
@@ -215,41 +216,57 @@ def _fake_target(tmp_path: Path):
     )
 
 
+def fake_run_input(ctx, test, build, data: bytes) -> RunOutcome:
+    """Stands in for running the binary: inputs with "SET " crash like the exploit."""
+    if b"SET " in data:
+        return RunOutcome(
+            crashed=True,
+            signature=SIG,
+            signal="SIGABRT",
+            error_type=ErrorType.STACK_BUFFER_OVERFLOW,
+            detection=Detection.ASAN,
+            top_functions=["handle_set_command", "process_input", "main"],
+        )
+    return RunOutcome(crashed=False, signature=None, exit_code=0)
+
+
+def analyze_and_report(ctx: RunContext) -> int:
+    return analysis_stage.analyze_and_report(ctx, run_input=fake_run_input)
+
+
 def _make_context(tmp_path: Path, scenario: str = "correct", failed_build: BuildName | None = None,
                   flaky: bool = False) -> RunContext:
+    """A context as the build & execute stage leaves it."""
     out_dir = tmp_path / "out"
-    work_dir = tmp_path / "out" / "work"
+    work_dir = out_dir / "work"
     work_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "inputs").mkdir(exist_ok=True)
+    (out_dir / "inputs" / "config.yaml").write_text("name: token_parser\n")
     target = _fake_target(tmp_path)
-    sources = _fake_sources(tmp_path)
     build_set = _fake_build_set(tmp_path, failed_build=failed_build)
-    results = _fake_results(scenario=scenario, flaky=flaky)
-    def fake_run(data: bytes) -> RunOutcome:
-        if b"SET " in data:
-            return RunOutcome(
-                crashed=True,
-                signature=SIG,
-                signal="SIGABRT",
-                error_type=ErrorType.STACK_BUFFER_OVERFLOW,
-                detection=Detection.ASAN,
-                top_functions=["handle_set_command", "process_input", "main"],
-            )
-        return RunOutcome(crashed=False, signature=None, exit_code=0)
 
     ctx = RunContext(
-        args=SimpleNamespace(out=str(out_dir), no_promote=True, keep_work=False),
+        args=SimpleNamespace(out=str(tmp_path), no_promote=True, keep_work=False),
         target=target,
         work_dir=work_dir,
         out_dir=out_dir,
-        run_id="20261113T000000Z-test0001",
+        run_id="20261113-000000-test0001",
         started_at="2026-11-13T00:00:00Z",
-        sources=sources,
-        build_set=build_set,
-        hardening=_fake_hardening(),
-        results=results,
+        sources=_fake_sources(tmp_path),
         environment=_fake_environment(),
+        build_set=build_set,
     )
-    setattr(ctx, "_run_fn", fake_run)
+    ctx.checks.builds_ok = failed_build is None
+    ctx.checks.profiles_verified = failed_build is None
+    if failed_build is not None:  # the stage stops at the build (§6.2)
+        ctx.add_errors([build_set.error])
+        return ctx
+    ctx.hardening = _fake_hardening()
+    ctx.checks.hardening_checked = True
+    ctx.tests = target.all_tests()
+    ctx.results = _fake_results(scenario=scenario, flaky=flaky)
+    ctx.checks.all_runs_completed = True
+    ctx.checks.results_stable = not flaky
     return ctx
 
 
@@ -314,6 +331,8 @@ def test_build_failed_is_30(tmp_path):
     data = json.loads(report_file.read_text())
     assert data["status"]["exit_code"] == 30
     assert data["status"]["exit_name"] == "BUILD_OR_CONFIG_ERROR"
+    assert [e["code"] for e in data["errors"]] == ["BUILD_FAILED"]  # once, not twice
+    assert data["findings"] == [] and data["execution_logs"] == {}
 
 
 def test_inconclusive_when_results_flaky(tmp_path):
@@ -354,11 +373,8 @@ def test_work_dir_cleaned_up_unless_keep_work(tmp_path):
     analyze_and_report(ctx)
     assert not ctx.work_dir.exists()
 
-    ctx2 = _make_context(tmp_path, scenario="correct")
+    ctx2 = _make_context(tmp_path / "second", scenario="correct")
     ctx2.args.keep_work = True
-    ctx2.out_dir = tmp_path / "out2"
-    ctx2.work_dir = tmp_path / "out2" / "work"
-    ctx2.work_dir.mkdir(parents=True, exist_ok=True)
     analyze_and_report(ctx2)
     assert ctx2.work_dir.exists()
 
@@ -404,7 +420,7 @@ def test_missing_coverage_cmd_keeps_links_and_warns(tmp_path):
 
 def test_execution_logs_formatting(tmp_path):
     results = _fake_results("correct")
-    logs = format_execution_logs(results)
+    logs = execution_logs(results)
     assert set(logs.keys()) == set(BUILD_ORDER)
     for b in BUILD_ORDER:
         assert "valid_ping" in logs[b]
@@ -412,3 +428,38 @@ def test_execution_logs_formatting(tmp_path):
         assert entry["kind"] == "valid"
         assert entry["outcome"] == "NORMAL"
         assert not entry["flaky"]
+
+
+def test_report_paths_are_relative_to_the_run_dir(tmp_path):
+    ctx = _make_context(tmp_path, scenario="incomplete")
+    analyze_and_report(ctx)
+    data = json.loads((ctx.out_dir / "report.json").read_text())
+    assert data["target"]["config"] == "inputs/config.yaml"
+    assert data["versions"]["diff"]["path"] == "inputs/patch.diff"
+    bundles = [f["reproducer"] for f in data["findings"] if f["reproducer"]]
+    assert bundles
+    for path in bundles:
+        assert (ctx.out_dir / path / "reproduce.sh").is_file()
+
+
+def test_10_2_candidates_run_through_run_once_with_the_new_input(tmp_path, monkeypatch):
+    # Minimization candidates run exactly like the matrix runs (same runner),
+    # with only the input replaced, and their files are not kept in the run dir.
+    from zaraban import runner
+    ctx = _make_context(tmp_path)
+    seen = {}
+
+    def fake_run_once(binary, test, settings, build, repeat, out_dir, source_root=""):
+        seen.update(binary=binary, input=test.input_bytes, name=test.name, build=build,
+                    out_dir=Path(out_dir), source_root=source_root)
+        return _run_record(test.name, test.kind, build, 1, True, True)
+
+    monkeypatch.setattr(runner, "run_once", fake_run_once)
+    test = ctx.tests[-1]
+    outcome = analysis_stage.run_once_with_input(ctx, test, BuildName.PATCH_SANITIZED, b"SET x")
+
+    assert outcome.crashed and outcome.signature == SIG
+    assert seen["input"] == b"SET x" and seen["name"] == test.name
+    assert seen["binary"] == ctx.out_dir / "builds/patch-sanitized/bin/token_parser"
+    assert seen["source_root"] == str(ctx.work_dir / "patch-sanitized")
+    assert ctx.out_dir not in seen["out_dir"].parents and not seen["out_dir"].exists()

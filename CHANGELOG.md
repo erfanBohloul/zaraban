@@ -27,3 +27,12 @@ All notable changes to the Zaraban security patch validation engine are document
   - Builds the Docker container and runs unit tests and end-to-end integration tests in Docker.
 - **Documentation**:
   - Updated `README.md` with comprehensive "How to run" instructions, CLI flags, scenario descriptions, and output inspection details.
+
+### Fixed (Task 2.1 review)
+- Each run writes to its own `out/<target>/<run id>/` with the §12.1 run id (UTC time + diff hash) and `inputs/config.yaml`, `inputs/patch.diff`; report paths are relative to it.
+- Run files are written at `runs/<test>/<build>/<n>.*` again (they were nested one level deeper, so the paths in the records pointed at missing files).
+- Frame paths are made relative to each build's own copy `work/<build>/` (§7.4).
+- A patch that does not apply, any `ZarabanError` in a stage, and any tool bug now still end in a report with exit 30; a tool bug adds `TOOL_INTERNAL` and `errors.log` (§13.4).
+- Build errors and warnings are reported once, not twice; `NO_SYMBOLIZER` and `OUTPUT_TRUNCATED` reach the report; `settings.sanitizer_options` and the symbolizer path are recorded (§12.4).
+- The execution matrix uses the runner's `run_test`, and reproducer candidates use its `run_once`; the duplicate `execution.py` and the copied run code in `analysis_stage.py` are removed.
+- Places for Task 2.3 (`regression.load_tests`) and Task 2.4 (`completeness.check`) in the run; both are placeholders.
