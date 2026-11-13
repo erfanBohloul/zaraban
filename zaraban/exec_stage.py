@@ -95,7 +95,8 @@ def _make_run_one(ctx: RunContext) -> RunOne:
     runner is on the branch; if B's signature changes, this one function is the
     only thing to update.
     """
-    from .executor.runner import RunSettings, run_once  # Member B (§7)
+    # from .executor.runner import RunSettings, run_once
+    from .runner import RunSettings, run_once               # B's runner now lives here
 
     settings = RunSettings.from_target(ctx.target)
 
