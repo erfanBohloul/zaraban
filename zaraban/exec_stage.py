@@ -21,6 +21,7 @@ stage.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -85,5 +86,11 @@ def binary(ctx: RunContext, build: BuildName) -> Path:
 
 def source_root(ctx: RunContext, build: BuildName) -> str:
     """The build's own source copy ``work/<build>/`` (§6.2). Its binary's debug
-    info points there, so frame paths are made relative to it (§7.4)."""
-    return str(ctx.work_dir / build.value)
+    info points there, so frame paths are made relative to it (§7.4).
+
+    Always absolute: the debug info holds absolute paths
+    (``/workspace/out/.../work/patch-sanitized/src/main.c``), and a relative
+    ``--out`` would leave the prefix unmatched, so frames would keep
+    build-specific paths and the same bug would get a different key on base
+    and on patch (§8.2)."""
+    return os.path.abspath(ctx.work_dir / build.value)
