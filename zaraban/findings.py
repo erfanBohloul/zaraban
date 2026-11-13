@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import NamedTuple, Optional
 
-from zaraban.models import (
+from .models import (
     BUILD_ORDER,
     Analysis,
     BuildName,
