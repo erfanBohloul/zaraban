@@ -1,66 +1,37 @@
-"""Oracle matching for Zaraban (SPEC §5.4, Phase 1 Member B Task B3).
+"""Oracle matching (SPEC §5.4).
 
-Compares test execution results against expected exit codes and output patterns.
-Standard error is not compared (it is used solely for crash analysis).
+Compares a run with the test's expected exit code and standard output.
+Standard error is not compared; it is used only for crash analysis (§7.4).
 """
 
 from __future__ import annotations
 
-from typing import Any, Optional, Union
+from typing import Optional
 
-from .models import OracleResult, Outcome, OutputMatch
+from .models import OracleResult, Outcome, OutputMatch, TestCase
 
 
-def match(
-    test: Any,
-    outcome: Union[Outcome, str],
-    exit_code: Optional[int],
-    stdout: bytes,
-) -> OracleResult:
-    """Judge a run against the test's expected outcome, exit code, and stdout (§5.4).
+def match(test: TestCase, outcome: Outcome, exit_code: Optional[int], stdout: bytes) -> OracleResult:
+    """Judge one run against the test's oracle fields (§5.4).
 
-    Parameters:
-        test: The TestCase specification containing expected values.
-        outcome: The Outcome enum or string (e.g. Outcome.NORMAL, Outcome.CRASH).
-        exit_code: Process exit code (None if terminated by signal).
-        stdout: Raw standard output captured during the run.
-
-    Returns:
-        OracleResult with (checked, passed, reasons).
+    A run that did not end normally never matches. ``expected_output`` is
+    compared as UTF-8 bytes: anywhere in stdout for ``contains``, byte for
+    byte for ``exact``. A test with no oracle fields is not checked
+    (``checked=False``, ``passed=None``), but the reasons are still listed.
     """
-    outcome_str = outcome.value if isinstance(outcome, Outcome) else str(outcome)
     reasons: list[str] = []
 
-    # If the run did not end normally, it fails the functional oracle (§5.4)
-    if outcome_str != Outcome.NORMAL.value:
-        reasons.append(f"ended with {outcome_str}")
+    if outcome is not Outcome.NORMAL:
+        reasons.append(f"ended with {outcome.value}")
 
-    # Check exit code
-    expected_exit = getattr(test, "expected_exit_code", None)
-    if expected_exit is not None:
-        if exit_code != expected_exit:
-            reasons.append(f"exit code {exit_code}, expected {expected_exit}")
+    if test.expected_exit_code is not None and exit_code != test.expected_exit_code:
+        reasons.append(f"exit code {exit_code}, expected {test.expected_exit_code}")
 
-    # Check stdout
-    expected_output = getattr(test, "expected_output", None)
-    if expected_output is not None:
-        want = expected_output.encode("utf-8") if isinstance(expected_output, str) else expected_output
-        output_match = getattr(test, "output_match", "contains")
-        match_mode = output_match.value if isinstance(output_match, OutputMatch) else str(output_match).lower()
+    if test.expected_output is not None:
+        want = test.expected_output.encode("utf-8")
+        exact = test.output_match is OutputMatch.EXACT
+        if not (stdout == want if exact else want in stdout):
+            reasons.append(f"output does not {test.output_match.value}-match")
 
-        if match_mode == "exact":
-            ok = (stdout == want)
-        else:
-            ok = (want in stdout)
-
-        if not ok:
-            reasons.append(f"output does not {match_mode}-match")
-
-    checked = expected_exit is not None or expected_output is not None
-    passed = (not reasons) if checked else None
-
-    return OracleResult(
-        checked=checked,
-        passed=passed,
-        reasons=reasons,
-    )
+    checked = test.has_oracle
+    return OracleResult(checked=checked, passed=(not reasons) if checked else None, reasons=reasons)
