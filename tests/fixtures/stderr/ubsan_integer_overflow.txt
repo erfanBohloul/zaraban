@@ -1,0 +1,3 @@
+/w/src/math.c:88:20: runtime error: signed integer overflow: 2147483647 + 1 cannot be represented in type 'int'
+    #0 0x401789 in add_numbers /w/src/math.c:88:20
+    #1 0x402890 in main /w/src/main.c:40:5

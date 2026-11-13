@@ -1,0 +1,10 @@
+==2345==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x602000000030 pc 0x000000456789 bp 0x7ffcb7891230 sp 0x7ffcb7891228
+READ of size 4 at 0x602000000030 thread T0
+    #0 0x456789 in cJSON_GetArrayItem /w/src/cJSON.c:120:10
+    #1 0x457890 in parse_json /w/src/main.c:45:12
+    #2 0x458901 in main /w/src/main.c:90:5
+
+0x602000000030 is located 0 bytes to the right of 16-byte region [0x602000000020,0x602000000030)
+allocated by thread T0 here:
+    #0 0x421345 in malloc (/usr/lib/clang/libclang_rt.asan.so+0x421345)
+    #1 0x456000 in cJSON_CreateArray /w/src/cJSON.c:80:10

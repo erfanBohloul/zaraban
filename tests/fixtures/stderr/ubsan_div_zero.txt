@@ -1,0 +1,3 @@
+/w/src/calc.c:45:15: runtime error: division by zero
+    #0 0x401456 in calculate /w/src/calc.c:45:15
+    #1 0x402567 in main /w/src/main.c:30:5
