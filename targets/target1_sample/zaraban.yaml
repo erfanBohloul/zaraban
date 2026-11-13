@@ -5,6 +5,7 @@ build:
   binary_path: "token_parser"
   release_cmd: "make release"
   sanitized_cmd: "make sanitized"
+  coverage_cmd: "make coverage"
   clean_cmd: "make clean"
 
 limits:
