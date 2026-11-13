@@ -22,6 +22,12 @@ def test_12_4_tool_versions_are_str_or_none():
         assert v is None or isinstance(v, str)
 
 
+def test_12_4_symbolizer_is_the_path_the_runner_uses():
+    assert environment.gather("/usr/bin/llvm-symbolizer-14").llvm_symbolizer == \
+        "/usr/bin/llvm-symbolizer-14"
+    assert environment.gather(None).llvm_symbolizer is None
+
+
 def test_12_4_docker_image_from_env(monkeypatch):
     monkeypatch.setenv(environment.DOCKER_IMAGE_ENV, "zaraban:phase2")
     assert environment.gather().docker_image == "zaraban:phase2"

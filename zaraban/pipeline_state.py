@@ -3,15 +3,16 @@
 Phase 2 wires the Phase 1 modules into one run (SPEC §2). The run is split in
 two halves that two people build independently:
 
-* **build & execute** (stages 2–5): sources, the four builds, hardening, and
-  the execution matrix — fills the first group of fields here;
+* **build & execute** (stages 2–5): the four builds, hardening, and the
+  execution matrix — fills the second group of fields here;
 * **analyze & report** (stages 6–11): diff, findings, links, reproducers,
-  regression, status and the report — reads them.
+  regression, status and the report — reads them and fills the third group.
 
 :class:`RunContext` is the *only* thing they exchange. It is a plain data
 container: no logic lives here, exactly like :mod:`zaraban.models`. Keeping it
-in its own module means both branches import it without touching each other's
-files.
+in its own module means both stages import it without touching each other's
+files. Because every result is stored here as soon as it exists, a run that
+fails half-way still has everything collected so far for its report (§13.4).
 """
 
 from __future__ import annotations
@@ -27,37 +28,51 @@ if TYPE_CHECKING:  # annotations only; no runtime import, so this stays light
 
     from .builder import BuildSet
     from .config import Target
-    from .models import EnvironmentInfo, HardeningReport, Results
+    from .models import (Bundle, EnvironmentInfo, Finding, HardeningReport, RegressionTest,
+                         Results, TestCase)
+    from .runner import RunSettings
     from .sources import Sources
+
+# The copies of the run's inputs, relative to the run directory (§12.1).
+CONFIG_COPY = "inputs/config.yaml"
+DIFF_COPY = "inputs/patch.diff"
 
 
 @dataclass
 class RunContext:
     """Everything one run produces and consumes, passed between the two stages.
 
-    The pipeline builds it with the always-present fields; the build & execute
-    stage fills ``sources``..``environment``; the analyze & report stage reads
-    them and fills ``checks`` as it goes. ``warnings``/``errors`` accumulate
-    across the whole run.
+    ``out_dir`` is the run directory ``out/<target>/<run id>/`` (§12.1); every
+    path in the report is relative to it. ``work_dir`` is ``<run dir>/work``,
+    the temporary source and build copies, deleted at the end unless
+    ``--keep-work`` is given.
     """
 
-    # Always set by the pipeline before stage 1.
+    # Set by the pipeline before stage 1.
     args: "argparse.Namespace"
     target: "Target"
     work_dir: Path
     out_dir: Path
     run_id: str
     started_at: str  # ISO 8601 UTC
+    sources: Optional["Sources"] = None  # None when the sources could not be prepared
+    environment: Optional["EnvironmentInfo"] = None
+    run_settings: Optional["RunSettings"] = None
+    settings: dict[str, Any] = field(default_factory=dict)  # report.settings (§12.4)
 
-    # Filled by the build & execute stage (Person 1).
-    sources: Optional["Sources"] = None
+    # Filled by the build & execute stage.
     build_set: Optional["BuildSet"] = None
     hardening: Optional["HardeningReport"] = None
+    tests: list["TestCase"] = field(default_factory=list)  # in run order (§7.1)
     results: Optional["Results"] = None  # results[test][build] -> CombinedResult
-    environment: Optional["EnvironmentInfo"] = None
 
-    # Accumulated across both stages.
-    settings: dict[str, Any] = field(default_factory=dict)
+    # Filled by the analyze & report stage.
+    findings: list["Finding"] = field(default_factory=list)
+    bundles: list["Bundle"] = field(default_factory=list)
+    regression_added: list["RegressionTest"] = field(default_factory=list)
+    base_not_reproduced: list[str] = field(default_factory=list)
+
+    # Accumulated across the whole run.
     checks: Checks = field(default_factory=Checks)
     warnings: list[Issue] = field(default_factory=list)
     errors: list[Issue] = field(default_factory=list)

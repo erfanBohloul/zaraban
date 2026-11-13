@@ -17,14 +17,14 @@ stable replay (§10.4) this module:
 
 The program is run through an injected ``run_base`` callable, as in
 :mod:`zaraban.reproducer`, so this module does not depend on the runner.
-Loading the promoted tests in later runs belongs to the config loader.
+:func:`load_tests` gives the promoted tests back to later runs (Task 2.3).
 """
 
 from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from typing import Callable, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 import yaml
 
@@ -36,16 +36,36 @@ from .models import (
     Issue,
     RegressionStatus,
     RegressionTest,
+    TestCase,
     TestKind,
     WarningCode,
 )
 from .reproducer import RunOutcome
+
+if TYPE_CHECKING:
+    from .config import Target
 
 RunFn = Callable[[bytes], RunOutcome]
 
 # Categories whose input must crash on base with the finding's signature.
 _EXPECT_BASE_CRASH = {Category.FIXED: True, Category.INCOMPLETE_FIX: True,
                       Category.NEW_ISSUE: False}
+
+
+def target_regression_dir(target: "Target") -> Path:
+    """The target's ``regression_dir``; config paths are relative to the
+    config file's directory (§4.1)."""
+    return target.config_dir / target.spec.regression_dir
+
+
+def load_tests(target: "Target") -> list[TestCase]:
+    """The regression tests in the target's ``regression_dir``, as tests of
+    kind ``regression``, run after all other tests (§7.1, §10.6).
+
+    Phase 2 Task 2.3 (Member D): not written yet; returns no tests, so runs
+    behave as before until it is.
+    """
+    return []
 
 
 def regression_name(source_test: str, input_bytes: bytes) -> str:
