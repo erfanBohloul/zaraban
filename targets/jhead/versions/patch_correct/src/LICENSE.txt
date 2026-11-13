@@ -1,0 +1,16 @@
+jhead (version 3.04), by Matthias Wandel (https://www.sentex.net/~mwandel/jhead/).
+Base sources taken unchanged from upstream commit df124a4~1.
+
+License:
+
+    Jhead is public domain software - that is, you can do whatever you want
+    with it, and include it software that is licensed under the GNU or the 
+    BSD license, or whatever other licence you chose, including proprietary
+    closed source licenses.  Although not part of the license, I do expect
+    common courtesy, please.
+
+    If you do integrate the code into some software of yours, I'd appreciate
+    knowing about it though. 
+
+Matthias Wandel
+
