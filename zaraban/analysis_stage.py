@@ -7,7 +7,9 @@ and runs, in order:
 7. the findings and their links to the patch (``findings``, ``linking``);
 8. a reproducer bundle per finding that gets one (``reproducer``, §10.1–§10.5);
 9. a regression test per stable bundle (``regression``, §10.6);
-   then the completeness check (§8.7) and the analyze-side checks.
+   then ``REGRESSION_BASE_CLEAN`` for regression tests of earlier runs that no
+   longer crash on base (§8.6), the completeness check (§8.7) and the
+   analyze-side checks.
 
 :func:`finish` decides the status and writes ``report.json`` and
 ``summary.txt`` (steps 10–11). It works with whatever the context holds, so
@@ -71,6 +73,10 @@ def analyze(ctx: RunContext, *, run_input: Optional[RunInputFn] = None) -> None:
         if build is None or test_name is None:
             continue
         make_bundle(ctx, f, tests[test_name], build, run_input)
+
+    # §8.6: a regression test of an earlier run that no longer crashes on base
+    # is a warning, not a finding (Task 2.3).
+    ctx.add_warnings(regression.base_clean_warnings(ctx.tests, ctx.results))
 
     # §8.7: every abnormal result is in a finding (Task 2.4).
     completeness.check(ctx.results, ctx.findings)

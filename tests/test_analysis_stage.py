@@ -463,3 +463,81 @@ def test_10_2_candidates_run_through_run_once_with_the_new_input(tmp_path, monke
     assert seen["binary"] == ctx.out_dir / "builds/patch-sanitized/bin/token_parser"
     assert seen["source_root"] == str(ctx.work_dir / "patch-sanitized")
     assert ctx.out_dir not in seen["out_dir"].parents and not seen["out_dir"].exists()
+
+
+# -- Task 2.3: regression tests from earlier runs ----------------------------
+
+def _regression_results(name: str, crashes_on: tuple[BuildName, ...]) -> dict[BuildName, CombinedResult]:
+    return {b: CombinedResult(test=name, kind=TestKind.REGRESSION, build=b, flaky=False,
+                              runs=[_run_record(name, TestKind.REGRESSION, b, r, b in crashes_on, True)
+                                    for r in (1, 2, 3)])
+            for b in BUILD_ORDER}
+
+
+def test_2_3_regression_test_clean_on_base_is_a_warning_not_a_finding(tmp_path):
+    ctx = _make_context(tmp_path, scenario="correct")
+    reg = TestCase("reg-exploit_secondary-3f2a91c0", TestKind.REGRESSION, b"SET AAAA", ".txt",
+                   expect_base_crash=True, expected_signature=SIG)
+    ctx.tests.append(reg)
+    ctx.results[reg.name] = _regression_results(reg.name, crashes_on=())
+
+    rc = analyze_and_report(ctx)
+
+    assert rc == 0  # a warning never changes the exit code (§8.6, §12.6)
+    data = json.loads((ctx.out_dir / "report.json").read_text())
+    assert reg.name in data["execution_logs"]["base-sanitized"]
+    assert data["execution_logs"]["base-sanitized"][reg.name]["kind"] == "regression"
+    clean = [w for w in data["warnings"] if w["code"] == "REGRESSION_BASE_CLEAN"]
+    assert [w["details"]["test"] for w in clean] == [reg.name]
+    assert not any(t["test"] == reg.name for f in data["findings"] for t in f["tests"])
+
+
+def test_2_3_regression_test_crashing_on_patch_is_judged_by_the_crash_rules(tmp_path):
+    # §8.6: base clean, patch crashes -> NEW_ISSUE (exit 10), plus the warning.
+    ctx = _make_context(tmp_path, scenario="correct")
+    reg = TestCase("reg-exploit_secondary-3f2a91c0", TestKind.REGRESSION, b"SET AAAA", ".txt",
+                   expect_base_crash=True, expected_signature=SIG)
+    ctx.tests.append(reg)
+    ctx.results[reg.name] = _regression_results(
+        reg.name, crashes_on=(BuildName.PATCH_RELEASE, BuildName.PATCH_SANITIZED))
+
+    rc = analyze_and_report(ctx)
+
+    assert rc == 10
+    data = json.loads((ctx.out_dir / "report.json").read_text())
+    assert any(f["category"] in ("NEW_ISSUE", "INCOMPLETE_FIX")
+               and any(t["test"] == reg.name for t in f["tests"]) for f in data["findings"])
+    assert any(w["code"] == "REGRESSION_BASE_CLEAN" for w in data["warnings"])
+
+
+def test_2_3_second_run_runs_the_regression_test_and_does_not_add_it_again(tmp_path):
+    from zaraban import regression
+
+    # Run 1: the incomplete patch gives an INCOMPLETE_FIX; its minimized input
+    # is promoted to the target's regression_dir.
+    ctx1 = _make_context(tmp_path / "run1", scenario="incomplete")
+    ctx1.args.no_promote = False
+    assert analyze_and_report(ctx1) == 10
+    first = json.loads((ctx1.out_dir / "report.json").read_text())["regression_added"]
+    assert [r["status"] for r in first] == ["added"]
+    reg_dir = regression.target_regression_dir(ctx1.target)
+    assert len(list(reg_dir.glob("*.yaml"))) == 1
+
+    # Run 2, same target: the regression test is loaded and runs on all builds.
+    ctx2 = _make_context(tmp_path / "run2", scenario="incomplete")
+    ctx2.target = ctx1.target
+    ctx2.args.no_promote = False
+    [reg] = regression.load_tests(ctx2.target)
+    assert reg.name == first[0]["name"] and reg.kind is TestKind.REGRESSION
+    ctx2.tests.append(reg)
+    ctx2.results[reg.name] = _regression_results(reg.name, crashes_on=tuple(BUILD_ORDER))
+
+    assert analyze_and_report(ctx2) == 10
+    data = json.loads((ctx2.out_dir / "report.json").read_text())
+    for build in BUILD_ORDER:
+        assert data["execution_logs"][build.value][reg.name]["kind"] == "regression"
+    # The same minimized bytes are found again, and not added a second time.
+    assert [(r["name"], r["status"]) for r in data["regression_added"]] == [
+        (reg.name, "already_present")]
+    assert len(list(reg_dir.glob("*.yaml"))) == 1
+    assert not any(w["code"] == "REGRESSION_BASE_CLEAN" for w in data["warnings"])
