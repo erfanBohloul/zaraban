@@ -6,9 +6,9 @@ Standard error is not compared (it is used solely for crash analysis).
 
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence, Union
+from typing import Any, Optional, Union
 
-from .models import OracleResult, Outcome, OutputMatch, TestCase
+from .models import OracleResult, Outcome, OutputMatch
 
 
 def match(

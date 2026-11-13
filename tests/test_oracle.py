@@ -1,88 +1,58 @@
-"""Unit tests for zaraban/oracle.py (Phase 1 Member B Task B3, SPEC §5.4).
+"""Unit tests for oracle matching (SPEC §5.4)."""
 
-Verifies exit code matching, output matching (exact and contains),
-crash failure rules, and unchecked test handling. Compatible with pytest and unittest.
-"""
-
-import unittest
-
-from zaraban.models import OracleResult, Outcome, OutputMatch, TestCase, TestKind
+from zaraban.models import Outcome, OutputMatch, TestCase, TestKind
 from zaraban.oracle import match
 
 
-class TestOracleMatching(unittest.TestCase):
-    def test_exit_code_match(self):
-        test = TestCase(name="t1", kind=TestKind.VALID, input_bytes=None, expected_exit_code=0)
-        res = match(test, Outcome.NORMAL, exit_code=0, stdout=b"OK")
-        self.assertTrue(res.checked)
-        self.assertTrue(res.passed)
-        self.assertEqual(res.reasons, [])
-
-    def test_exit_code_mismatch(self):
-        test = TestCase(name="t1", kind=TestKind.VALID, input_bytes=None, expected_exit_code=0)
-        res = match(test, Outcome.NORMAL, exit_code=1, stdout=b"Error")
-        self.assertTrue(res.checked)
-        self.assertFalse(res.passed)
-        self.assertIn("exit code 1, expected 0", res.reasons)
-
-    def test_contains_output_match(self):
-        test = TestCase(
-            name="t1",
-            kind=TestKind.VALID,
-            input_bytes=None,
-            expected_output="SUCCESS",
-            output_match=OutputMatch.CONTAINS,
-        )
-        res_ok = match(test, Outcome.NORMAL, exit_code=0, stdout=b"[INFO] SUCCESS: test passed")
-        self.assertTrue(res_ok.passed)
-
-        res_fail = match(test, Outcome.NORMAL, exit_code=0, stdout=b"[INFO] FAILED: test error")
-        self.assertFalse(res_fail.passed)
-        self.assertIn("output does not contains-match", res_fail.reasons)
-
-    def test_exact_output_match(self):
-        test = TestCase(
-            name="t1",
-            kind=TestKind.VALID,
-            input_bytes=None,
-            expected_output="42\n",
-            output_match=OutputMatch.EXACT,
-        )
-        res_ok = match(test, Outcome.NORMAL, exit_code=0, stdout=b"42\n")
-        self.assertTrue(res_ok.passed)
-
-        res_fail = match(test, Outcome.NORMAL, exit_code=0, stdout=b"42\nextra")
-        self.assertFalse(res_fail.passed)
-        self.assertIn("output does not exact-match", res_fail.reasons)
-
-    def test_crash_fails_oracle_even_with_matching_exit(self):
-        """SPEC §5.4: If outcome != NORMAL, functional oracle must fail."""
-        test = TestCase(name="t1", kind=TestKind.VALID, input_bytes=None, expected_exit_code=0)
-        res = match(test, Outcome.CRASH, exit_code=0, stdout=b"")
-        self.assertFalse(res.passed)
-        self.assertIn("ended with CRASH", res.reasons)
-
-    def test_timeout_fails_oracle(self):
-        test = TestCase(name="t1", kind=TestKind.VALID, input_bytes=None, expected_exit_code=0)
-        res = match(test, Outcome.TIMEOUT, exit_code=None, stdout=b"")
-        self.assertFalse(res.passed)
-        self.assertIn("ended with TIMEOUT", res.reasons)
-
-    def test_unchecked_oracle(self):
-        """Test with no expected_exit_code and no expected_output."""
-        test = TestCase(name="t1", kind=TestKind.VALID, input_bytes=None)
-        res = match(test, Outcome.NORMAL, exit_code=0, stdout=b"anything")
-        self.assertFalse(res.checked)
-        self.assertIsNone(res.passed)
-        self.assertEqual(res.reasons, [])
-
-    def test_tuple_unpacking(self):
-        test = TestCase(name="t1", kind=TestKind.VALID, input_bytes=None, expected_exit_code=0)
-        checked, passed, reasons = match(test, Outcome.NORMAL, exit_code=0, stdout=b"")
-        self.assertTrue(checked)
-        self.assertTrue(passed)
-        self.assertEqual(reasons, [])
+def case(**kw) -> TestCase:
+    return TestCase(name="t", kind=TestKind.VALID, input_bytes=b"", **kw)
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_5_4_exit_code_matches():
+    r = match(case(expected_exit_code=0), Outcome.NORMAL, 0, b"")
+    assert (r.checked, r.passed, r.reasons) == (True, True, [])
+
+
+def test_5_4_exit_code_mismatch_gives_a_reason():
+    r = match(case(expected_exit_code=0), Outcome.NORMAL, 1, b"")
+    assert r.passed is False
+    assert r.reasons == ["exit code 1, expected 0"]
+
+
+def test_5_4_contains_matches_utf8_bytes_anywhere():
+    t = case(expected_output="PONG")
+    assert match(t, Outcome.NORMAL, 0, b"hello PONG\n").passed
+    assert match(case(expected_output="سلام"), Outcome.NORMAL, 0, "x سلام y".encode()).passed
+    assert match(t, Outcome.NORMAL, 0, b"PING\n").passed is False
+
+
+def test_5_4_exact_is_byte_for_byte_including_newlines():
+    t = case(expected_output="OK\n", output_match=OutputMatch.EXACT)
+    assert match(t, Outcome.NORMAL, 0, b"OK\n").passed
+    r = match(t, Outcome.NORMAL, 0, b"OK")
+    assert r.passed is False and r.reasons == ["output does not exact-match"]
+    assert match(t, Outcome.NORMAL, 0, b"OK\n\n").passed is False
+
+
+def test_5_4_a_run_that_did_not_end_normally_never_matches():
+    t = case(expected_exit_code=0)
+    for outcome in (Outcome.CRASH, Outcome.TIMEOUT, Outcome.RESOURCE_LIMIT):
+        r = match(t, outcome, None, b"")
+        assert r.passed is False
+        assert r.reasons[0] == f"ended with {outcome.value}"
+
+
+def test_5_4_all_reasons_are_listed():
+    t = case(expected_exit_code=0, expected_output="PONG")
+    r = match(t, Outcome.NORMAL, 2, b"nope")
+    assert r.reasons == ["exit code 2, expected 0", "output does not contains-match"]
+
+
+def test_5_4_standard_error_is_not_compared():
+    # Only stdout is passed to the oracle; a test with output in stderr fails.
+    assert match(case(expected_output="PONG"), Outcome.NORMAL, 0, b"").passed is False
+
+
+def test_5_4_no_oracle_fields_is_not_checked():
+    r = match(case(), Outcome.NORMAL, 0, b"")
+    assert (r.checked, r.passed, r.reasons) == (False, None, [])
