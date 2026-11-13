@@ -1,9 +1,10 @@
 """Record the environment the run happened in (SPEC §12.4).
 
 The report pins what produced its results: the OS and kernel, the architecture,
-the Docker image (when the run sets ``ZARABAN_DOCKER_IMAGE``), and the versions
-of Python and the toolchain (gcc, clang, llvm-symbolizer). A missing tool is
-recorded as ``None``, not an error — the build stage is what fails when a
+the Docker image (when the run sets ``ZARABAN_DOCKER_IMAGE``), the versions
+of Python and the compilers (gcc, clang), and the path of the
+``llvm-symbolizer`` the runs use. A missing tool is recorded as ``None``,
+not an error — the build stage is what fails when a
 required tool is absent, not this.
 
 This module only reads version strings; it builds and runs nothing of the
@@ -24,8 +25,13 @@ DOCKER_IMAGE_ENV = "ZARABAN_DOCKER_IMAGE"
 _VERSION_TIMEOUT_S = 5
 
 
-def gather() -> EnvironmentInfo:
-    """Collect the environment facts for ``report.environment`` (§12.4)."""
+def gather(symbolizer: Optional[str] = None) -> EnvironmentInfo:
+    """Collect the environment facts for ``report.environment`` (§12.4).
+
+    ``symbolizer`` is the path of the ``llvm-symbolizer`` the runner found
+    (``RunSettings.symbolizer``), or ``None``; §12.4 records the path, since
+    that is what the runs actually use.
+    """
     return EnvironmentInfo(
         os=_os_name(),
         kernel=platform.release(),
@@ -34,7 +40,7 @@ def gather() -> EnvironmentInfo:
         python=platform.python_version(),
         gcc=tool_version("gcc"),
         clang=tool_version("clang"),
-        llvm_symbolizer=tool_version("llvm-symbolizer"),
+        llvm_symbolizer=symbolizer,
     )
 
 
