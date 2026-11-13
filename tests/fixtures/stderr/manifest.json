@@ -1,0 +1,130 @@
+{
+  "source_root": "/tmp/zaraban-fixtures",
+  "fixtures": {
+    "asan_stack_buffer_overflow": {
+      "profile": "sanitized",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "asan_heap_buffer_overflow": {
+      "profile": "sanitized",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "asan_global_buffer_overflow": {
+      "profile": "sanitized",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "asan_heap_use_after_free": {
+      "profile": "sanitized",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "asan_stack_use_after_scope": {
+      "profile": "sanitized",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "asan_stack_overflow": {
+      "profile": "sanitized",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "asan_double_free": {
+      "profile": "sanitized",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "asan_invalid_free": {
+      "profile": "sanitized",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "asan_null_deref": {
+      "profile": "sanitized",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "asan_segv": {
+      "profile": "sanitized",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "asan_allocation_too_big": {
+      "profile": "sanitized",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "ubsan_div_zero": {
+      "profile": "sanitized",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "ubsan_integer_overflow": {
+      "profile": "sanitized",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "ubsan_index_out_of_bounds": {
+      "profile": "sanitized",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "ubsan_null_pointer": {
+      "profile": "sanitized",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "ubsan_shift": {
+      "profile": "sanitized",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "canary_stack_smashing": {
+      "profile": "release",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "fortify_buffer_overflow": {
+      "profile": "release",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "glibc_double_free": {
+      "profile": "release",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "glibc_invalid_pointer": {
+      "profile": "release",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "glibc_heap_corruption": {
+      "profile": "release",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "signal_segv": {
+      "profile": "release",
+      "signal": "SIGSEGV",
+      "exit_code": null
+    },
+    "signal_fpe": {
+      "profile": "release",
+      "signal": "SIGFPE",
+      "exit_code": null
+    },
+    "signal_abort": {
+      "profile": "release",
+      "signal": "SIGABRT",
+      "exit_code": null
+    },
+    "normal_exit_3": {
+      "profile": "release",
+      "signal": null,
+      "exit_code": 3
+    }
+  }
+}

@@ -1,0 +1,9 @@
+/tmp/zaraban-fixtures/src/ubsan_integer_overflow.c:8:47: runtime error: signed integer overflow: 2147483647 + 5 cannot be represented in type 'int'
+    #0 0x55be77b28ee5 in bug /tmp/zaraban-fixtures/src/ubsan_integer_overflow.c:8:47
+    #1 0x55be77b28f08 in caller /tmp/zaraban-fixtures/src/ubsan_integer_overflow.c:9:30
+    #2 0x55be77b28f23 in main /tmp/zaraban-fixtures/src/ubsan_integer_overflow.c:10:18
+    #3 0x7f65732dcd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #4 0x7f65732dce3f in __libc_start_main csu/../csu/libc-start.c:392:3
+    #5 0x55be77a6b304 in _start (/tmp/zaraban-fixtures/ubsan_integer_overflow+0x1e304) (BuildId: c81fc34c2226787b14f4139a15b482cc964e2459)
+
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior /tmp/zaraban-fixtures/src/ubsan_integer_overflow.c:8:47 in 
