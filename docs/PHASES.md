@@ -332,7 +332,7 @@ crashes.
 |---|---|
 | Upstream repo | `https://github.com/DaveGamble/cJSON` |
 | Vulnerable version | `v1.7.10`, commit `<hash>` |
-| Fix commit | `<hash>`, "fix out-of-bounds write in cJSON_Minify" |
+| Fix commit | `<hash>`, "fix out-of-bounds read in cJSON_Minify" |
 | PoC | `poc.json`, N bytes, source: issue #NNN |
 | ASan result on base | `heap-buffer-overflow` in `cJSON_Minify` |
 | Result on fix | no crash, output `...` |
@@ -354,7 +354,7 @@ stage. Send a short proposal.
 Group <n>: Zaraban, target proposal
 
 Target 1: cJSON (DaveGamble/cJSON), real library
-  Vulnerability: CVE-2019-11835, heap out-of-bounds write in cJSON_Minify
+  Vulnerabilities: CVE-2019-11834 and CVE-2019-11835, heap out-of-bounds reads in cJSON_Minify
   Base: v1.7.10. Correct patch: upstream fix <hash> (v1.7.11).
   Incomplete patch: blocks the public PoC only; a second input still overflows.
   Regression patch: removes the overflow but wrongly rejects valid JSON
