@@ -383,11 +383,12 @@ of real pipeline output.
 Folder layout:
 
 ```
-zaraban/cli.py  config.py  sources.py  builder.py  hardening.py   (A)
-zaraban/runner.py  analysis.py  oracle.py                         (B)
-zaraban/diffinfo.py  findings.py  linking.py                      (C)
-zaraban/minimize.py  bundle.py  regression.py  status.py  report.py   (D)
-tests/fixtures/                                                   (shared)
+zaraban/cli.py  config.py  sources.py  builder.py  elf.py  hardening.py   (A)
+zaraban/runner.py  analysis.py  oracle.py                                (B)
+zaraban/diffinfo.py  findings.py  linking.py                             (C)
+zaraban/reproducer.py  regression.py  status.py  report.py              (D)
+zaraban/models.py  util.py                                               (shared)
+tests/fixtures/                                                          (shared)
 ```
 
 ### Member A: CLI, config, sources, builds, hardening
@@ -527,7 +528,7 @@ def apply_diff(base_dir, diff_path, dest):
         if check.returncode == 0:
             subprocess.run(["git", "apply", f"-p{p}", diff_path], cwd=dest, check=True)
             return p                    # recorded in the report
-    raise ToolError("PATCH_APPLY_FAILED", details={"diff": diff_path})
+    raise ZarabanError(ErrorCode.PATCH_APPLY_FAILED, "the diff does not apply", {"diff": diff_path})
 ```
 
 Test with two fixture diffs: one made by `git diff` (needs `-p1`), one made
@@ -575,9 +576,9 @@ def verify_profile(path, sanitized):
     has_asan = "__asan_init" in s
     has_ubsan = any(n.startswith("__ubsan_handle_") for n in s)
     if sanitized and not (has_asan and has_ubsan):
-        raise ToolError("SANITIZER_MISSING", details={"binary": str(path)})
+        raise ZarabanError(ErrorCode.SANITIZER_MISSING, "no ASan/UBSan in the binary", {"binary": str(path)})
     if not sanitized and has_asan:
-        raise ToolError("PROFILE_MIXED", details={"binary": str(path)})
+        raise ZarabanError(ErrorCode.PROFILE_MIXED, "ASan in a release binary", {"binary": str(path)})
 ```
 
 #### A5. Hardening checker (§11)
@@ -662,7 +663,7 @@ def run_once(binary, test, cfg, sanitized, run_dir):
         stdin_bytes = test.input_bytes or b""
     elif test.input_bytes is not None:                   # args
         if b"\0" in test.input_bytes:
-            raise ToolError("CONFIG_INVALID", details={"test": test.name, "reason": "NUL in args input"})
+            raise ZarabanError(ErrorCode.CONFIG_INVALID, "NUL in args input", {"test": test.name})
         cmd.append(test.input_bytes.decode())
 
     env = run_env(cfg, sanitized)                        # PATH + cfg.env + sanitizer options
@@ -963,7 +964,7 @@ unit test built from fake results.
 #### D1. Delta debugging (§10.2)
 
 ```python
-# zaraban/minimize.py
+# zaraban/reproducer.py (ddmin)
 class Budget(Exception):
     pass
 
@@ -1149,23 +1150,41 @@ target, where every expected result is known in advance (§8.9).
 ### Task 2.1: Pipeline wiring (A)
 
 ```python
-# zaraban/pipeline.py
-def run(args):
-    cfg, warnings = load_config(args.config)                         # A
-    out = new_run_dir(args.out, cfg.name)
-    base, patch, diff, strip = prepare_sources(cfg, args)            # A
-    builds = build_all(cfg, base, patch, out)                        # A
-    if any(b.status != "ok" for b in builds.values()):
-        return finish(out, errors=[build_error(builds)])             # exit 30
-    hardening = compare_hardening(builds)                            # A
-    tests = all_tests(cfg)                                           # A: config + regression_dir
-    results = run_matrix(tests, builds, cfg, out)                    # B
-    findings = build_findings(results, tests)                        # C
-    link_all(findings, results, diff, base, patch)                   # C
-    make_bundles(findings, results, builds, cfg, out, args.no_promote)   # D
-    check_completeness(results, findings)                            # B
-    return finish(out, cfg, builds, hardening, results, findings, warnings)  # D: report + exit
+# zaraban/pipeline.py — called by cli.main as run(args, target, warnings) -> exit code
+from . import builder, diffinfo, findings, hardening, linking, report, runner, sources, status
+from .models import BUILD_ORDER, BuildName, Checks
+
+def run(args, target, warnings):                                     # target: config.Target, already validated
+    out, work = new_run_dir(args.out, target.name)                   # A (to write): out/<run id>/, work dir
+    src = sources.prepare(args.base or target.base_dir, args.patch, work / "src")   # A
+    builds = builder.build_all(src.base_tree, src.patch_tree, target, work / "builds", out)  # A
+    if not builds.ok:
+        return finish(out, errors=[builds.error])                    # D (to write): report, exit 30
+    rel = {b: out / r.binary.path for b, r in builds.records.items()}
+    hard, hard_warnings = hardening.report(rel[BuildName.BASE_RELEASE],             # A
+                                         rel[BuildName.PATCH_RELEASE])
+    tests = target.all_tests() + load_regression_tests(target)       # A + D (Task 2.3, to write)
+    settings = runner.RunSettings.from_target(target)                # B
+    results = {t.name: {b: runner.run_test(rel[b], t, settings, b, target.spec.repeats,
+                                           out, source_root=str(work / "builds" / b.value))
+                        for b in BUILD_ORDER}
+               for t in tests}                                       # B
+    found = findings.build_findings(results, [t.name for t in tests])                # C
+    hunks = diffinfo.sources_hunks(src)                              # C
+    linking.link_findings(found, results, hunks, src.base_tree, src.patch_tree)      # C
+    bundles, regs = make_bundles(found, results, builds, target, out, args.no_promote)  # D (to write):
+                                                                     #   reproducer.reproduce + apply_bundle,
+                                                                     #   regression.add_regression
+    check_completeness(results, found)                               # B (Task 2.4, to write)
+    st = status.compute_status(found, Checks(...), errors=[])        # D
+    rep = report.assemble_report(..., status=st, findings=found, hardening=hard,
+                                 regression_added=regs, warnings=warnings + builds.warnings + hard_warnings)
+    report.write(rep, out, bundles)                                  # D: report.json + summary.txt
+    return int(st.exit_code)
 ```
+
+Names marked "to write" do not exist yet; everything else is the real API
+on `main`. Check the exact parameters in each module's docstring.
 
 Each step's output is written to the run directory as it finishes, so a crash
 of the tool still leaves a partial report (§13.4).
@@ -1207,7 +1226,7 @@ def check_completeness(results, findings):
         abnormal = any(r.flaky or r.first.analysis.outcome != "NORMAL"
                        or r.first.oracle_passed is False for r in per_build.values())
         if abnormal and test not in referenced and not expected_abnormal(test, per_build):
-            raise ToolError("TOOL_INTERNAL", details={"unreferenced": test})
+            raise ZarabanError(ErrorCode.TOOL_INTERNAL, "abnormal result in no finding", {"unreferenced": test})
 ```
 
 (`expected_abnormal` covers a security test that crashes on base as it
