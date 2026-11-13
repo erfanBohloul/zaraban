@@ -80,8 +80,8 @@ is the upstream fix. The Incomplete and Regression patches are written by us.
 
 | Target | Upstream | Vulnerability | Bug class | Input | Status |
 |---|---|---|---|---|---|
-| `cjson` | DaveGamble/cJSON | CVE-2019-11835 (out-of-bounds write in `cJSON_Minify`, fixed in 1.7.11) | heap buffer overflow (write) | file, via a small driver | to confirm |
-| `md4c` | mity/md4c | CVE-2021-30027 (out-of-bounds read in `md_analyze_line`, fixed in 0.4.8) | heap buffer overflow (read) | stdin, official `md2html` CLI | to confirm |
+| `cjson` | DaveGamble/cJSON | CVE-2019-11835 (out-of-bounds read in `cJSON_Minify`, fixed in 1.7.11) | heap buffer overflow (read) | file, via a small driver | confirmed ([repro](docs/repro/cjson.md)) |
+| `md4c` | mity/md4c | CVE-2021-30027 (out-of-bounds read in `md_analyze_line`, fixed in 0.4.8) | heap buffer overflow (read) | file/stdin, official `md2html` CLI | to confirm (C+D) |
 
 Backups if one of these does not reproduce cleanly under ASan:
 
@@ -98,8 +98,11 @@ How we chose them:
   sanitized profiles stay simple.
 - Takes input from a file or stdin, so no network or GUI is involved.
 - The PoC crashes under ASan in a few milliseconds.
-- The two targets have different bug classes, so the classifier is tested on
-  more than one kind of error.
+- Both current CVEs are heap out-of-bounds reads, reached in different code
+  (a minifier vs. a Markdown line analyser) and through different input paths
+  (a driver vs. the official `md2html` CLI). If a second error class is wanted
+  for the classifier, one of the backups below (a NULL dereference, or a
+  heap-overflow write) can replace a target.
 
 Every target directory must contain `zaraban.yaml`, `ORACLE.md`,
 `scenarios.yaml`, a `Makefile` with `release` and `sanitized` rules, `src/`,
@@ -254,8 +257,8 @@ saved to `results/` with `--save`.
 - [ ] **Unseen-patch drill**: each pair writes two surprise patches for the
       other pair's target, gives only the diff, and records the tool's verdict.
       Fix anything it gets wrong.
-- [ ] Optional: the bounded variant step for security inputs (see
-      `SPEC_REVIEW.md`, risk 3).
+- [ ] Optional: the bounded variant step for security inputs (SPEC §9.4 and
+      the security-test notes in §5).
 
 **Gate:** CI is green on `main`, the drill verdicts are correct, and the README
 run guide works on a fresh clone.

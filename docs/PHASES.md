@@ -47,8 +47,8 @@ ASan.
 
 ### Task 0.1: Approve the SPEC (all)
 
-**What to do:** read `docs/SPEC.md` and `SPEC_REVIEW.md` together. Decide on
-each review point and edit the SPEC.
+**What to do:** read `docs/SPEC.md` and agree on it as the team's contract.
+Decide any open design point and edit the SPEC.
 
 **Sample decisions to record in SPEC.md:**
 
@@ -1234,9 +1234,9 @@ is listed in the FIXED finding anyway.)
   patch: patches/regression.patch
   version_dir: versions/patch_regression
   expect_exit: 20
-  expect_findings:
-    - {category: FIXED, tests: [exploit_primary, exploit_secondary]}
+  expect_findings:          # in finding id order (SPEC §8.8, §8.9)
     - {category: FUNCTIONAL_REGRESSION, tests: [valid_set]}
+    - {category: FIXED, tests: [exploit_primary, exploit_secondary]}
 ```
 
 Sample `run_matrix.py` output:
