@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "test": "valid_ping",
+  "kind": "valid",
+  "build": "base-sanitized",
+  "repeat": 1,
+  "cmd": [
+    "/workspace/out/builds/base-sanitized/bin/token_parser",
+    "input.txt"
+  ],
+  "env": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "ASAN_OPTIONS": "abort_on_error=1:detect_leaks=0:symbolize=1:disable_coredump=1:max_allocation_size_mb=128",
+    "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1",
+    "ASAN_SYMBOLIZER_PATH": "/usr/bin/llvm-symbolizer"
+  },
+  "cwd": "/tmp/zaraban-run-8l8rdoja",
+  "input": {
+    "method": "file",
+    "name": "input.txt",
+    "size": 5,
+    "sha256": "23b8be7673546c504142529fc88346b4d2b80f3205e7872453871b0f92e072c1"
+  },
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "limit_hit": null,
+  "duration_s": 0.0049,
+  "stdout": {
+    "path": "runs/valid_ping/base-sanitized/1.stdout",
+    "bytes": 5,
+    "sha256": "9597e5d74f44f182ebb56b65a79c6b1b84829735af1ff583d44c3384d8a0a45e",
+    "truncated": false
+  },
+  "stderr": {
+    "path": "runs/valid_ping/base-sanitized/1.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "truncated": false
+  },
+  "analysis": {
+    "outcome": "NORMAL",
+    "detection": null,
+    "error_type": null,
+    "summary": null,
+    "frames": [],
+    "signature": null
+  },
+  "oracle": {
+    "checked": true,
+    "passed": true,
+    "reasons": []
+  }
+}
