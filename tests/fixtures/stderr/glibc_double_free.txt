@@ -1,0 +1,2 @@
+double free or corruption (out)
+Aborted (core dumped)

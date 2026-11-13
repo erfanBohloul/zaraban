@@ -1,0 +1,6 @@
+==5678==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000008 (pc 0x000000401234 bp 0x7fff98765432 sp 0x7fff98765420 T0)
+The signal is caused by a READ memory access.
+Hint: address points to the zero page.
+    #0 0x401234 in deref_struct /w/src/parser.c:25:12
+    #1 0x402345 in process /w/src/main.c:70:8
+    #2 0x403456 in main /w/src/main.c:110:5
