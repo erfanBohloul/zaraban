@@ -40,7 +40,11 @@ def test_build_and_execute_stub_raises():
     assert "Person 1" in str(e.value)  # points at who owns it
 
 
-def test_analyze_and_report_stub_raises():
-    with pytest.raises(NotImplementedError) as e:
-        analysis_stage.analyze_and_report(_ctx())
-    assert "Person 2" in str(e.value)
+def test_analyze_and_report_is_implemented(tmp_path):
+    ctx = _ctx()
+    ctx.out_dir = tmp_path / "out"
+    ctx.work_dir = tmp_path / "out" / "work"
+    rc = analysis_stage.analyze_and_report(ctx)
+    assert isinstance(rc, int)
+    assert (ctx.out_dir / "report.json").exists()
+    assert (ctx.out_dir / "summary.txt").exists()
