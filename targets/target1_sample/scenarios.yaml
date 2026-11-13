@@ -1,0 +1,23 @@
+# Delivered scenarios of token_parser (SPEC §8.9, §14.3). Read only by
+# scripts/run_matrix.py. Paths are relative to this directory. Findings are
+# listed in finding id order (§8.8): valid_set runs before the exploits, so in
+# the regression scenario its finding comes first.
+- name: correct
+  patch: patches/correct.patch
+  version_dir: versions/patch_correct
+  expect_exit: 0
+  expect_findings:
+    - {category: FIXED, tests: [exploit_primary, exploit_secondary]}
+- name: incomplete
+  patch: patches/incomplete.patch
+  version_dir: versions/patch_incomplete
+  expect_exit: 10
+  expect_findings:
+    - {category: INCOMPLETE_FIX, tests: [exploit_primary, exploit_secondary]}
+- name: regression
+  patch: patches/regression.patch
+  version_dir: versions/patch_regression
+  expect_exit: 20
+  expect_findings:
+    - {category: FUNCTIONAL_REGRESSION, tests: [valid_set]}
+    - {category: FIXED, tests: [exploit_primary, exploit_secondary]}
