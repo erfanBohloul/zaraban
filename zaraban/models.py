@@ -479,9 +479,6 @@ class OracleResult:
     passed: Optional[bool]  # None when not checked
     reasons: list[str] = field(default_factory=list)
 
-    def __iter__(self):
-        return iter((self.checked, self.passed, self.reasons))
-
 
 @dataclass
 class InputInfo:
