@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - phase2
+      - "feat/**"
+      - "phase1-**"
+  pull_request:
+    branches:
+      - main
+      - phase2
+
+jobs:
+  test:
+    name: Run Test Suite & E2E in Docker
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure ASan kernel parameters (Issue #002)
+        run: |
+          sudo sysctl vm.mmap_rnd_bits=28
+
+      - name: Build Docker image
+        run: |
+          docker compose build
+
+      - name: Run unit test suite
+        run: |
+          docker compose run --rm zaraban pytest -v
+
+      - name: Run end-to-end tests
+        run: |
+          docker compose run --rm zaraban pytest -v tests/test_e2e.py
