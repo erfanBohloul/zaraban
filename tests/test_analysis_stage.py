@@ -363,6 +363,45 @@ def test_work_dir_cleaned_up_unless_keep_work(tmp_path):
     assert ctx2.work_dir.exists()
 
 
+def test_functional_regression_link_uses_execution_trace(tmp_path, monkeypatch):
+    """§9.4: a FUNCTIONAL_REGRESSION has no crash stack, so its link comes only
+    from the execution trace of a coverage build (faked here: no compiler)."""
+    from zaraban import coverage
+
+    seen = []
+
+    def fake_run_trace(target, tree, test, changed, work_dir, *, label="coverage"):
+        seen.append((test.name, label))
+        lines = sorted(ln for lns in changed.values() for ln in lns)
+        return coverage.TraceResult(True, executed_changed_lines=lines,
+                                    per_file={f: sorted(ls) for f, ls in changed.items()})
+
+    monkeypatch.setattr(coverage, "run_trace", fake_run_trace)
+
+    ctx = _make_context(tmp_path, scenario="regression")
+    rc = analyze_and_report(ctx)
+
+    assert rc == 20  # the trace never changes the exit code (§9.6)
+    data = json.loads((ctx.out_dir / "report.json").read_text())
+    fr = next(f for f in data["findings"] if f["category"] == "FUNCTIONAL_REGRESSION")
+    assert fr["link"]["level"] == "CHANGED_CODE_EXECUTED"
+    assert fr["link"]["executed_changed_lines"] == [2]   # the line the fake diff adds
+    assert ("valid_set", "patch-coverage") in seen
+
+
+def test_missing_coverage_cmd_keeps_links_and_warns(tmp_path):
+    """Without build.coverage_cmd no trace is made: the run still succeeds,
+    the link stays as the stack check left it, and TRACE_UNAVAILABLE is recorded."""
+    ctx = _make_context(tmp_path, scenario="regression")  # fake target has no build section
+    rc = analyze_and_report(ctx)
+
+    assert rc == 20
+    data = json.loads((ctx.out_dir / "report.json").read_text())
+    fr = next(f for f in data["findings"] if f["category"] == "FUNCTIONAL_REGRESSION")
+    assert fr["link"]["level"] == "UNDETERMINED"
+    assert any(w["code"] == "TRACE_UNAVAILABLE" for w in data["warnings"])
+
+
 def test_execution_logs_formatting(tmp_path):
     results = _fake_results("correct")
     logs = format_execution_logs(results)
