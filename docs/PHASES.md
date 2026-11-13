@@ -1277,6 +1277,14 @@ target1_sample/regression   exit 20 (expected 20)  findings ok   PASS
 **Goal:** make cJSON (A+B) and md4c (C+D) complete targets with four versions,
 tests, oracles and scenarios. The two pairs work in parallel.
 
+**Status:** cJSON is done in `targets/cjson` (Tasks 3.1 to 3.4, and its
+`scenarios.yaml`); its `ORACLE.md` describes what was built. It differs from
+the samples below in a few places: the driver is `src/main.c` (so every
+version tree is complete), the exploits are `exploit_comment`,
+`exploit_string` and `exploit_comment_bypass`, and the base has two CVEs
+(2019-11834 and 2019-11835). Saving its results (Task 3.5) waits for
+`run_matrix.py` (Task 2.5).
+
 ### Task 3.1: Target directory and Makefile
 
 ```

@@ -442,14 +442,14 @@ tests, and approved by the instructor. The output of the patched version, or
 the opinion of a language model, is not a valid source on its own.
 
 So each target has a file `ORACLE.md` next to its config. For every test it
-states the expected behavior and its source. For example, for the cJSON
-target (`invalid_truncated` is a test still to be written):
+states the expected behavior and its source. For example, from the cJSON
+target (`targets/cjson/ORACLE.md`):
 
 | Test | Expected behavior | Source |
 |---|---|---|
-| `valid_rfc7386` | Prints `{"title":"Hello!",…}` and exits with `0`. | RFC 7386, §3 example |
-| `valid_delete` | A key whose patch value is `null` is removed from the result. | RFC 7386, §2 |
-| `invalid_truncated` | Prints an error and exits with `1`, without crashing. | `main.c` usage contract |
+| `minify_spaces` | Prints `{"key":true}` and exits with `0`. | upstream `tests/minify_tests.c`, `cjson_minify_should_remove_spaces` |
+| `parse_test1` | Prints exactly `tests/inputs/test1.expected`. | upstream `tests/parse_examples.c` |
+| `parse_incomplete_object` | Prints `parse error` and exits with `1`, without crashing. | upstream `test12`; driver contract in `src/main.c` |
 
 The tool does not read `ORACLE.md`. It exists for review, for the instructor's
 approval, and for the defense.
