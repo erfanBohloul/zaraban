@@ -30,10 +30,12 @@ BR, BS, PR, PS = BUILD_ORDER
 
 def _run(test, kind, build, state, repeat=1):
     """state: "ok", "fail" (oracle mismatch), "timeout", "crash", "crash:<func>",
-    "unsigned" (crash without frames)."""
+    "unsigned" (crash without frames); "crash@<file>" puts the frames in <file>."""
     crashed = state.startswith("crash") or state == "unsigned"
+    state, _, file = state.partition("@")
+    file = file or "src/main.c"
     func = state.split(":", 1)[1] if ":" in state else "handle_set_command"
-    frames = [Frame(0, func, "src/main.c", 37, False), Frame(1, "main", "src/main.c", 90, False)] \
+    frames = [Frame(0, func, file, 37, False), Frame(1, "main", file, 90, False)] \
         if crashed and state != "unsigned" else []
     outcome = Outcome.CRASH if crashed else Outcome.TIMEOUT if state == "timeout" else Outcome.NORMAL
     a = Analysis(outcome,
@@ -107,6 +109,16 @@ def test_8_7_every_finding_rule_passes_the_check(change):
     _passes({**CORRECT, **change})
 
 
+def test_8_7_same_signature_text_with_two_bug_keys_is_two_findings_each_counted_once():
+    # Same functions but another file on patch: two bug keys with the same
+    # signature text, so FIXED (base key) and NEW_ISSUE (patch key). Each
+    # crash is in exactly the finding of its own key (seen on token_parser).
+    results, findings = _passes({**CORRECT, "exploit_secondary": (
+        S, ("crash", "crash", "crash@patch/src/main.c", "crash@patch/src/main.c"))})
+    assert sorted(f.category.value for f in findings) == ["FIXED", "NEW_ISSUE"]
+    assert findings[0].signature == findings[1].signature
+
+
 def test_8_7_security_test_not_reproduced_on_base_is_a_status_condition_not_a_loss():
     # Base does not crash: no finding, condition base_not_reproduced (exit 40).
     _passes({**CORRECT, "exploit_primary": (S, ("ok", "ok", "ok", "ok")),
@@ -161,11 +173,15 @@ def test_8_7_crash_in_two_crash_findings_fails():
                for p in problems)
 
 
-def test_8_7_crash_finding_whose_signature_no_test_has_fails():
+def test_8_7_crash_finding_whose_category_does_not_fit_its_tests_fails():
+    # Base crashes, patch does not: that is FIXED, never NEW_ISSUE.
+    from zaraban.models import Category
     results, findings = _passes(CORRECT)
-    findings[0].signature = "HEAP_BUFFER_OVERFLOW @ nowhere < main"
+    findings[0].category = Category.NEW_ISSUE
     problems = crash_counts(results, findings)
-    assert any(p.startswith("F-001: has signature") for p in problems)
+    assert any(p.startswith("F-001: NEW_ISSUE with signature") for p in problems)
+    assert any("exploit_primary on base-sanitized" in p and "no crash finding" in p
+               for p in problems)
 
 
 def test_8_7_all_problems_are_reported_together():

@@ -32,6 +32,7 @@ from typing import Optional
 from .findings import BugKey, bug_key
 from .models import (
     BuildName,
+    Category,
     CombinedResult,
     ErrorCode,
     Finding,
@@ -44,6 +45,9 @@ from .models import (
 
 _SANITIZED = (BuildName.BASE_SANITIZED, BuildName.PATCH_SANITIZED)
 _BASE_NOT_JUDGED = (TestKind.SECURITY, TestKind.REGRESSION)
+# Crash categories of §8.2 -> (key seen on base, key seen on patch).
+_CRASH_CATEGORIES = {Category.FIXED: (True, False), Category.NEW_ISSUE: (False, True),
+                     Category.INCOMPLETE_FIX: (True, True)}
 
 
 def check(results: Optional[Results], findings: list[Finding]) -> None:
@@ -99,18 +103,36 @@ def unreferenced(results: Results, findings: list[Finding]) -> list[str]:
 def finding_key(f: Finding, results: Results) -> Optional[BugKey]:
     """The bug key of a crash finding (§8.2), or None for any other finding.
 
-    A crash finding's ``signature`` is the first signature seen in its group,
-    so one of its tests has a stable sanitized crash with exactly that
-    signature; that crash's bug key is the finding's key.
+    The key is rebuilt from the finding's tests, not from its ``signature``
+    text: two different bug keys can share a signature (same functions, a
+    different file), so the text alone cannot tell them apart. The key is the
+    one that every test of the finding has on a sanitized build and that fits
+    the category: ``FIXED`` only on base, ``NEW_ISSUE`` only on patch,
+    ``INCOMPLETE_FIX`` on both (§8.2).
     """
-    if f.signature is None:
+    if f.signature is None or f.category not in _CRASH_CATEGORIES:
         return None
-    for name in f.test_names:
-        for build in _SANITIZED:
-            r = results.get(name, {}).get(build)
-            if r is not None and r.stable_crash and r.signature == f.signature:
-                return bug_key(r.first.analysis)
-    return None
+    per_test = [_sanitized_keys(results.get(name, {})) for name in f.test_names]
+    if not per_test:
+        return None
+    common = set.intersection(*(base | patch for base, patch in per_test))
+    fitting = []
+    for key in common:
+        on_base = any(key in base for base, _ in per_test)
+        on_patch = any(key in patch for _, patch in per_test)
+        if (on_base, on_patch) == _CRASH_CATEGORIES[f.category]:
+            fitting.append(key)
+    return fitting[0] if len(fitting) == 1 else None
+
+
+def _sanitized_keys(per_build) -> tuple[set[BugKey], set[BugKey]]:
+    """The bug keys of the stable crashes on base-sanitized and patch-sanitized."""
+    out = []
+    for build in _SANITIZED:
+        r = per_build.get(build)
+        key = bug_key(r.first.analysis) if r is not None and r.stable_crash else None
+        out.append({key} if key is not None else set())
+    return out[0], out[1]
 
 
 def crash_counts(results: Results, findings: list[Finding]) -> list[str]:
@@ -119,9 +141,9 @@ def crash_counts(results: Results, findings: list[Finding]) -> list[str]:
     keyed = [(f, finding_key(f, results)) for f in findings]
     problems = []
     for f, key in keyed:
-        if f.signature is not None and key is None:
-            problems.append(f"{f.id}: has signature {f.signature!r} but no stable sanitized "
-                            f"crash of its tests has it")
+        if f.signature is not None and f.category in _CRASH_CATEGORIES and key is None:
+            problems.append(f"{f.id}: {f.category.value} with signature {f.signature!r}, but "
+                            f"its tests share no bug key that fits the category")
     for test, per_build in results.items():
         for build in _SANITIZED:
             r = per_build.get(build)
