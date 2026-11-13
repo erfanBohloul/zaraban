@@ -1,88 +1,140 @@
-"""Regression tests from reproducers (SPEC §10.6).
+"""Regression tests from reproducer bundles (SPEC §10.6).
 
-A confirmed, stable reproducer becomes a regression test so the fixed bug
-cannot silently come back: the minimized crashing input is saved with the
-expectation that the **base** version crashes with its signature and the
-**patched** version does not. The test is written into the run's output, and —
-unless ``--no-promote`` — copied into the target's ``regression_dir``
-(``tests/regression/``) so future runs replay it automatically (§5.1, §10.6).
+Section 3.3 of the course spec requires the minimized input to be added
+automatically to the project's regression suite. For every bundle with a
+stable replay (§10.4) this module:
 
-This module only writes files and records a
-:class:`~zaraban.models.RegressionTest`. It does not run anything; the next
-run picks the promoted tests up through the config loader (§10).
+1. skips it when the input came from a regression test, or when the same bytes
+   (SHA-256) are already in ``regression_dir`` (status ``already_present``);
+2. runs the input once on ``base-sanitized``: ``FIXED`` and ``INCOMPLETE_FIX``
+   inputs must crash there with the finding's signature, ``NEW_ISSUE`` inputs
+   must not crash. If the check fails, nothing is added and the warning
+   ``REGRESSION_NOT_ADDED`` is recorded (status ``not_added``);
+3. writes two files, ``reg-<source test>-<sha8><ext>`` (the input, byte for
+   byte) and ``reg-<source test>-<sha8>.yaml`` (what the test expects), to
+   ``regression/`` in the run's output and, unless ``--no-promote``, to the
+   target's ``regression_dir``.
+
+The program is run through an injected ``run_base`` callable, as in
+:mod:`zaraban.reproducer`, so this module does not depend on the runner.
+Loading the promoted tests in later runs belongs to the config loader.
 """
 
 from __future__ import annotations
 
 import hashlib
-import json
-import shutil
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
+import yaml
+
+from . import __version__
 from .models import (
+    Bundle,
+    Category,
+    Finding,
     Issue,
     RegressionStatus,
     RegressionTest,
+    TestKind,
     WarningCode,
 )
+from .reproducer import RunOutcome
 
-INPUT_FILE = "input.bin"
-META_FILE = "meta.json"
+RunFn = Callable[[bytes], RunOutcome]
+
+# Categories whose input must crash on base with the finding's signature.
+_EXPECT_BASE_CRASH = {Category.FIXED: True, Category.INCOMPLETE_FIX: True,
+                      Category.NEW_ISSUE: False}
+
+
+def regression_name(source_test: str, input_bytes: bytes) -> str:
+    """``reg-exploit_secondary-3f2a91c0``: the source test and the first 8 hex
+    digits of the input's SHA-256 (§10.6)."""
+    return f"reg-{source_test}-{hashlib.sha256(input_bytes).hexdigest()[:8]}"
 
 
 def add_regression(
     *,
-    finding_id: str,
-    source_test: str,
+    finding: Finding,
+    bundle: Bundle,
     input_bytes: bytes,
+    input_ext: str,
+    source_kind: TestKind,
     signature: Optional[str],
-    stable: bool,
+    run_base: RunFn,
+    run_id: str,
+    base_version: Optional[str],
+    base_binary_sha256: Optional[str],
     out_dir: str | Path,
     regression_dir: str | Path,
     promote: bool = True,
-) -> tuple[RegressionTest, list[Issue]]:
-    """Make a regression test from one reproducer and (optionally) promote it.
+) -> tuple[Optional[RegressionTest], list[Issue]]:
+    """Turn one bundle into a regression test (§10.6).
 
-    Only a **stable** reproducer is turned into a test (§10.6); an unstable one
-    is skipped with a ``REGRESSION_NOT_ADDED`` warning. Returns the
-    :class:`RegressionTest` record and any warnings.
+    ``input_bytes`` is the bundle's replayed input (minimized, or the original
+    when the minimized one was unstable); ``signature`` is the bundle's
+    expected signature. ``run_base`` runs an input once on ``base-sanitized``
+    with the source test's command and environment.
+
+    Returns ``(None, [])`` when no test is considered (unstable bundle, input
+    from a regression test, category without regression test); otherwise the
+    :class:`RegressionTest` entry for ``regression_added`` and any warnings.
+    On ``added`` the finding's ``regression_test`` is set.
     """
-    name = f"regression_{finding_id}"
+    expect_crash = _EXPECT_BASE_CRASH.get(finding.category)
+    if expect_crash is None or not bundle.stable or source_kind is TestKind.REGRESSION:
+        return None, []
+
     sha = hashlib.sha256(input_bytes).hexdigest()
-    run_rel = f"regression/{name}"
+    name = regression_name(bundle.source_test, input_bytes)
+    run_rel = f"regression/{name}.yaml"
+    regression_dir = Path(regression_dir)
 
-    if not stable:
-        warning = Issue(
+    def record(status: RegressionStatus, path: str = run_rel,
+               promoted_to: Optional[str] = None) -> RegressionTest:
+        return RegressionTest(name=name, from_finding=finding.id, path=path, input_sha256=sha,
+                              status=status, promoted_to=promoted_to)
+
+    existing = _find_same_input(regression_dir, sha)
+    if existing is not None:
+        return record(RegressionStatus.ALREADY_PRESENT, path=str(existing),
+                      promoted_to=str(regression_dir)), []
+
+    outcome = run_base(input_bytes)
+    if expect_crash:
+        ok = outcome.crashed and (outcome.signature == signature if signature is not None
+                                  else outcome.error_type == finding.error_type)
+        want = f"a crash with {signature or finding.error_type}"
+    else:
+        ok = not outcome.crashed
+        want = "no crash"
+    if not ok:
+        got = outcome.signature or ("a crash without signature" if outcome.crashed
+                                    else f"no crash (exit {outcome.exit_code})")
+        return record(RegressionStatus.NOT_ADDED), [Issue(
             WarningCode.REGRESSION_NOT_ADDED.value,
-            f"{finding_id}: reproducer was not stable, so no regression test was created",
-            {"finding": finding_id})
-        return RegressionTest(name=name, from_finding=finding_id, path=run_rel,
-                              input_sha256=sha, status=RegressionStatus.NOT_ADDED,
-                              promoted_to=None), [warning]
+            f"{finding.id}: the input of {name} was expected to give {want} on "
+            f"base-sanitized, but gave {got}; no regression test was added",
+            {"finding": finding.id, "test": name, "expected": want, "got": got,
+             "bundle": bundle.path})]
 
-    # Write the test into the run output (always), as input + metadata.
-    run_test_dir = Path(out_dir) / "regression" / name
-    _write_test(run_test_dir, name, finding_id, source_test, input_bytes, signature, sha)
-
-    if not promote:
-        # Generated but deliberately not copied into the target (§3: --no-promote).
-        return RegressionTest(name=name, from_finding=finding_id, path=run_rel,
-                              input_sha256=sha, status=RegressionStatus.NOT_ADDED,
-                              promoted_to=None), []
-
-    target_dir = Path(regression_dir) / name
-    existing = target_dir / INPUT_FILE
-    if existing.is_file() and _sha256_file(existing) == sha:
-        # An identical test is already promoted (e.g. from an earlier run).
-        return RegressionTest(name=name, from_finding=finding_id, path=run_rel,
-                              input_sha256=sha, status=RegressionStatus.ALREADY_PRESENT,
-                              promoted_to=str(target_dir)), []
-
-    _write_test(target_dir, name, finding_id, source_test, input_bytes, signature, sha)
-    return RegressionTest(name=name, from_finding=finding_id, path=run_rel,
-                          input_sha256=sha, status=RegressionStatus.ADDED,
-                          promoted_to=str(target_dir)), []
+    spec = {
+        "name": name,
+        "input_file": f"{name}{input_ext}",
+        "expect_base_crash": expect_crash,
+        "signature": signature,
+        "created_by": {"tool_version": __version__, "run_id": run_id,
+                       "finding": finding.id, "source_test": bundle.source_test},
+        "created_on": {"base_version": base_version, "base_binary_sha256": base_binary_sha256},
+    }
+    _write_test(Path(out_dir) / "regression", name, input_ext, input_bytes, spec)
+    promoted_to = None
+    if promote:
+        _write_test(regression_dir, name, input_ext, input_bytes, spec)
+        promoted_to = str(regression_dir)
+    finding.regression_test = run_rel
+    return record(RegressionStatus.ADDED, promoted_to=promoted_to), []
 
 
 # ---------------------------------------------------------------------------
@@ -90,27 +142,22 @@ def add_regression(
 # ---------------------------------------------------------------------------
 
 
-def _write_test(dest: Path, name: str, finding_id: str, source_test: str,
-                input_bytes: bytes, signature: Optional[str], sha: str) -> None:
-    """Write one regression test directory: the input and a metadata file.
+def _find_same_input(regression_dir: Path, sha: str) -> Optional[Path]:
+    """The ``.yaml`` of a test in ``regression_dir`` whose input has the same
+    bytes, or ``None`` (§10.6: duplicates are compared by SHA-256)."""
+    if not regression_dir.is_dir():
+        return None
+    for path in sorted(regression_dir.iterdir()):
+        if not path.is_file() or path.suffix in (".yaml", ".yml"):
+            continue
+        if hashlib.sha256(path.read_bytes()).hexdigest() == sha:
+            return path.with_suffix(".yaml")
+    return None
 
-    The metadata records the oracle a regression run checks (§10.6): the base
-    must crash with ``expected_signature``; the patch must not.
-    """
+
+def _write_test(dest: Path, name: str, input_ext: str, data: bytes, spec: dict) -> None:
     dest.mkdir(parents=True, exist_ok=True)
-    (dest / INPUT_FILE).write_bytes(input_bytes)
-    meta = {
-        "name": name,
-        "from_finding": finding_id,
-        "source_test": source_test,
-        "input_file": INPUT_FILE,
-        "input_sha256": sha,
-        "expect_base_crash": True,
-        "expected_signature": signature,
-    }
-    (dest / META_FILE).write_text(json.dumps(meta, indent=2, ensure_ascii=False) + "\n",
-                                  encoding="utf-8")
-
-
-def _sha256_file(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    (dest / f"{name}{input_ext}").write_bytes(data)
+    (dest / f"{name}.yaml").write_text(
+        yaml.safe_dump(spec, sort_keys=False, allow_unicode=True, default_flow_style=False),
+        encoding="utf-8")
