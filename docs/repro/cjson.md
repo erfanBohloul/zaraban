@@ -1,13 +1,15 @@
-# Reproduction: cJSON CVE-2019-11835
+# Reproduction: cJSON CVE-2019-11834 and CVE-2019-11835
 
-Heap buffer over-read in `cJSON_Minify`. An unterminated string or comment
-makes the minifier read one byte past the end of the input buffer.
+Two heap buffer over-reads in `cJSON_Minify` (both CWE-125). An unterminated
+comment (CVE-2019-11835, issue #338) or a string that ends in a backslash
+(CVE-2019-11834, issue #337) makes the minifier read past the end of the
+input buffer.
 
 | Item | Value |
 |---|---|
 | Upstream | https://github.com/DaveGamble/cJSON |
 | Vulnerable base | tag `v1.7.10` |
-| Fix commit | `a43fa56` ("Rewrite cJSON_Minify, fixing buffer overflows, fixes #338"), released in `v1.7.11` |
+| Fix commit | `a43fa56` ("Rewrite cJSON_Minify, fixing buffer overflows, fixes #338"), released in `v1.7.11`; it fixes both issues. `08d2bc7` (in `v1.7.12`) fixes an infinite loop the rewrite introduced. |
 | Vulnerable function | `cJSON_Minify` in `cJSON.c` |
 | Error type | `HEAP_BUFFER_OVERFLOW` (READ), detected by ASan, SIGABRT (exit 134) |
 
@@ -15,8 +17,8 @@ makes the minifier read one byte past the end of the input buffer.
 
 Two one-line inputs, each an unterminated token (no trailing newline):
 
-- `poc_escape.json`: the two bytes `"\` (a string with a dangling backslash).
-- `poc_comment.json`: the two bytes `/*` (an unterminated comment).
+- `poc_escape.json`: the two bytes `"\` (a string with a dangling backslash), CVE-2019-11834.
+- `poc_comment.json`: the two bytes `/*` (an unterminated comment), CVE-2019-11835.
 
 Create them:
 
@@ -95,3 +97,7 @@ exit=0
 Confirmed: the bug reproduces on base and is gone on the fix, as the project
 requires. The two inputs reach the bug at different lines (2682 and 2642) in
 the same function, so they are useful as two distinct exploit inputs later.
+
+The target built from this is `targets/cjson` (see its `ORACLE.md`): the
+driver there reads the file the same way, and both inputs crash at the same
+lines.
