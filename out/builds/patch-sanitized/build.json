@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "build": "patch-sanitized",
+  "status": "ok",
+  "cmd": "make sanitized",
+  "env": {
+    "PATH": "/usr/local/bin:/usr/bin:/bin",
+    "HOME": "/tmp",
+    "LANG": "C"
+  },
+  "cwd": "out/work/patch-sanitized",
+  "exit_code": 0,
+  "duration_s": 0.1732,
+  "log": "builds/patch-sanitized/build.log",
+  "binary": {
+    "path": "builds/patch-sanitized/bin/token_parser",
+    "size": 1411736,
+    "sha256": "638ce9fa64f60b77cef894bdbc71951ca7bca55e2c6c3d308fb2106692fd7279"
+  },
+  "sanitizers_verified": true,
+  "has_debug_info": true
+}
