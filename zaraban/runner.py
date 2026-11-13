@@ -1,26 +1,40 @@
-"""Subprocess runner with watchdogs and resource isolation (SPEC §5.3, §7.2, §7.3, §7.5).
+"""Running a test on a build (SPEC §5.3, §7.1–§7.3, §7.5).
 
-Implements Phase 1 Member B Tasks B1 & B4:
-- Runs a test against a target binary with strict CPU, memory, and timeout limits.
-- Enforces input methods: file, stdin, args (§5.3).
-- Constructs minimal execution environment with sanitizer flags (§7.2).
-- Truncates output to 1 MB (§7.3).
-- Coordinates crash analysis and oracle checking.
-- Combines repeats and flags flakiness (§7.5).
+One run (:func:`run_once`):
+
+* happens in a **fresh, empty working directory** that holds only the input
+  file when ``input_method`` is ``file`` (§7.2). It is deleted afterwards;
+* uses the command of §5.3: the build's binary, the test's ``args``, and the
+  input as a file (``input<ext>``, or in place of the placeholder), on standard
+  input, or as one extra argument, byte for byte;
+* gets only ``PATH``, the config's ``env`` and, for sanitized builds, the
+  sanitizer options of §7.2;
+* is limited as in §7.3: wall-clock timeout (the whole process group is
+  killed), ``RLIMIT_CPU``, ``RLIMIT_DATA`` on release builds,
+  ``max_allocation_size_mb`` on sanitized builds, no core dumps, and at most
+  1 MB of each output stream kept;
+* is analysed (:mod:`zaraban.analysis`, §7.4) and judged against its oracle
+  (:mod:`zaraban.oracle`, §5.4), and written to
+  ``runs/<test>/<build>/<n>.json``, ``<n>.stdout`` and ``<n>.stderr`` (§12.1).
+
+:func:`run_test` runs the repeats of one test on one build and combines them
+(:func:`combine`, §7.5).
 """
 
 from __future__ import annotations
 
 import hashlib
 import os
-import platform
+import resource
 import shutil
 import signal
 import subprocess
+import tempfile
+import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional, Sequence, Union
+from typing import Any, Optional
 
 from . import analysis, oracle
 from .models import (
@@ -29,392 +43,355 @@ from .models import (
     ErrorCode,
     InputInfo,
     InputMethod,
+    Issue,
     LimitKind,
-    Outcome,
+    Profile,
     RunRecord,
     StreamInfo,
     TestCase,
-    TestKind,
+    WarningCode,
     ZarabanError,
+    dump_json,
 )
 
-try:
-    import resource
-except ImportError:
-    resource = None  # type: ignore[assignment]
+MAX_OUTPUT_BYTES = 1 << 20  # 1 MB per stream (§7.3)
 
-MAX_OUTPUT_BYTES = 1 << 20  # 1 MB (SPEC §7.3)
-
-
-def _apply_limits(cpu_s: int, data_bytes: Optional[int]) -> Any:
-    """Pre-exec hook to set kernel resource limits on child process."""
-    def apply() -> None:
-        if resource is None:
-            return
-        # RLIMIT_CPU: Kernel sends SIGXCPU when exceeded
-        try:
-            resource.setrlimit(resource.RLIMIT_CPU, (cpu_s, cpu_s))
-        except (ValueError, OSError):
-            pass
-
-        # RLIMIT_CORE: Disable core dumps
-        try:
-            resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-        except (ValueError, OSError):
-            pass
-
-        # RLIMIT_DATA: Release builds only (Linux ELF)
-        if data_bytes is not None and platform.system() == "Linux":
-            try:
-                if hasattr(resource, "RLIMIT_DATA"):
-                    resource.setrlimit(resource.RLIMIT_DATA, (data_bytes, data_bytes))
-            except (ValueError, OSError):
-                pass
-
-    return apply
+def _find_symbolizer() -> Optional[str]:
+    found = shutil.which("llvm-symbolizer")
+    if found:
+        return found
+    for n in range(20, 10, -1):  # versioned names, newest first
+        found = shutil.which(f"llvm-symbolizer-{n}")
+        if found:
+            return found
+    return None
 
 
-def run_env(cfg: Any, sanitized: bool) -> dict[str, str]:
-    """Construct minimal run environment (SPEC §7.2)."""
-    env: dict[str, str] = {
-        "PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"),
-    }
+@dataclass
+class RunSettings:
+    """The run settings of a target (§4.2, §4.3, §7.2), in one place.
 
-    # Add config-specified environment variables
-    cfg_env = getattr(cfg, "env", {})
-    if isinstance(cfg_env, dict):
-        env.update(cfg_env)
+    Build it from a loaded config with :meth:`from_target`, so the config's
+    ``env`` and ``limits`` are always the ones used.
+    """
 
-    if sanitized:
-        symbolizer = shutil.which("llvm-symbolizer") or "/usr/bin/llvm-symbolizer"
-        mem_mb = getattr(getattr(cfg, "limits", None), "memory_limit_mb", 256)
+    input_method: InputMethod = InputMethod.STDIN
+    file_arg_placeholder: str = "{input_file}"
+    env: dict[str, str] = field(default_factory=dict)
+    timeout_seconds: float = 3.0
+    memory_limit_mb: int = 256
+    symbolizer: Optional[str] = field(default_factory=_find_symbolizer)
+    path: str = field(default_factory=lambda: os.environ.get("PATH", "/usr/bin:/bin"))
 
-        # On macOS Darwin, ASan symbolizer IPC can deadlock in sandboxed subshells;
-        # adapt symbolize flag if symbolizer is missing.
-        symbolize_flag = 1
-        if platform.system() == "Darwin" and not shutil.which("llvm-symbolizer"):
-            symbolize_flag = 0
-
-        tool_asan = (
-            f"abort_on_error=1:detect_leaks=0:symbolize={symbolize_flag}:"
-            f"disable_coredump=1:max_allocation_size_mb={mem_mb}"
+    @classmethod
+    def from_target(cls, target: Any) -> "RunSettings":
+        """From a :class:`zaraban.config.Target`."""
+        spec = target.spec
+        return cls(
+            input_method=InputMethod(spec.input_method),
+            file_arg_placeholder=spec.file_arg_placeholder,
+            env=dict(spec.env),
+            timeout_seconds=float(spec.limits.timeout_seconds),
+            memory_limit_mb=int(spec.limits.memory_limit_mb),
         )
-        tool_ubsan = f"halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize={symbolize_flag}"
 
-        # If cfg sets options, append tool options so tool options win (§7.2)
-        if "ASAN_OPTIONS" in env:
-            env["ASAN_OPTIONS"] = f"{env['ASAN_OPTIONS']}:{tool_asan}"
-        else:
-            env["ASAN_OPTIONS"] = tool_asan
+    @property
+    def cpu_seconds(self) -> int:
+        """``RLIMIT_CPU``: the timeout rounded up, plus 1 second (§7.3)."""
+        return int(-(-self.timeout_seconds // 1)) + 1
 
-        if "UBSAN_OPTIONS" in env:
-            env["UBSAN_OPTIONS"] = f"{env['UBSAN_OPTIONS']}:{tool_ubsan}"
-        else:
-            env["UBSAN_OPTIONS"] = tool_ubsan
+    def env_for(self, sanitized: bool) -> dict[str, str]:
+        """The run environment (§7.2): ``PATH``, the config's ``env`` and, for
+        sanitized builds, the tool's sanitizer options, appended after any the
+        config sets so that the tool's values win."""
+        env = {"PATH": self.path, **self.env}
+        if not sanitized:
+            return env
+        asan = ("abort_on_error=1:detect_leaks=0:symbolize=1:disable_coredump=1:"
+                f"max_allocation_size_mb={self.memory_limit_mb}")
+        ubsan = "halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1"
+        env["ASAN_OPTIONS"] = f"{env['ASAN_OPTIONS']}:{asan}" if env.get("ASAN_OPTIONS") else asan
+        env["UBSAN_OPTIONS"] = (f"{env['UBSAN_OPTIONS']}:{ubsan}" if env.get("UBSAN_OPTIONS")
+                                else ubsan)
+        if self.symbolizer:
+            env["ASAN_SYMBOLIZER_PATH"] = self.symbolizer
+        return env
 
-        if os.path.exists(symbolizer):
-            env["ASAN_SYMBOLIZER_PATH"] = symbolizer
+    def warnings(self) -> list[Issue]:
+        """``NO_SYMBOLIZER`` when ``llvm-symbolizer`` was not found (§7.2)."""
+        if self.symbolizer:
+            return []
+        return [Issue(WarningCode.NO_SYMBOLIZER.value,
+                      "llvm-symbolizer was not found; sanitizer stack traces have no "
+                      "function names, so crashes have no signature", {})]
 
-    return env
+
+# ---------------------------------------------------------------------------
+# One run (§5.3, §7.2, §7.3)
+# ---------------------------------------------------------------------------
 
 
 def run_once(
-    binary: Union[str, Path],
-    test: Any,
-    cfg: Any,
-    sanitized: bool,
-    run_dir: Path,
-    build_name: BuildName = BuildName.BASE_RELEASE,
-    repeat: int = 1,
+    binary: str | Path,
+    test: TestCase,
+    settings: RunSettings,
+    build: BuildName,
+    repeat: int,
+    out_dir: str | Path,
     source_root: str = "",
 ) -> RunRecord:
-    """Execute one test on one build inside a fresh working directory (§5.3, §7.2, §7.3)."""
-    run_dir.mkdir(parents=True, exist_ok=True)
+    """Run ``test`` once on ``build`` and write its files under ``out_dir``
+    (the run's output directory, §12.1). ``source_root`` is the build's source
+    tree; frame paths under it are made relative (§7.4)."""
+    out_dir = Path(out_dir)
+    rel_dir = f"runs/{test.name}/{build.value}"
+    record_dir = out_dir / rel_dir
+    record_dir.mkdir(parents=True, exist_ok=True)
+    sanitized = build.profile is Profile.SANITIZED
+    data = test.input_bytes
 
-    input_method_val = getattr(cfg, "input_method", "stdin")
-    if hasattr(input_method_val, "value"):
-        input_method_val = input_method_val.value
-
-    test_args = list(getattr(test, "args", []))
-    cmd = [str(binary)] + test_args
+    exe = str(Path(binary).resolve())
+    args = list(test.args)
+    shown = list(test.args)  # the command as recorded in JSON
     stdin_bytes = b""
-    input_file_name: Optional[str] = None
-    input_bytes = getattr(test, "input_bytes", None)
-    if input_bytes is None:
-        # Fallback if test has input_data as string
-        raw_data = getattr(test, "input_data", None)
-        if raw_data is not None:
-            input_bytes = raw_data.encode("utf-8")
+    input_name: Optional[str] = None
+    method = settings.input_method
 
-    if input_method_val == "file":
-        ext = getattr(test, "input_ext", ".txt") or ".txt"
-        input_file_name = "input" + ext
-        input_file_path = run_dir / input_file_name
-        input_file_path.write_bytes(input_bytes or b"")
-
-        ph = getattr(cfg, "file_arg_placeholder", "{input_file}")
-        if any(ph in a for a in cmd[1:]):
-            cmd = [cmd[0]] + [a.replace(ph, input_file_name) for a in cmd[1:]]
+    if method is InputMethod.FILE:
+        input_name = "input" + (test.input_ext or "")
+        ph = settings.file_arg_placeholder
+        if any(ph in a for a in args):
+            args = [a.replace(ph, input_name) for a in args]
+            shown = list(args)
         else:
-            cmd.append(input_file_name)
-    elif input_method_val == "stdin":
-        stdin_bytes = input_bytes or b""
-    elif input_method_val == "args":
-        if input_bytes is not None:
-            if b"\0" in input_bytes:
-                raise ZarabanError(
-                    ErrorCode.CONFIG_INVALID,
-                    f"NUL byte in args input for test '{getattr(test, 'name', '')}'",
-                    details={"test": getattr(test, "name", ""), "reason": "NUL in args input"},
-                )
-            cmd.append(input_bytes.decode("utf-8", errors="replace"))
+            args.append(input_name)
+            shown.append(input_name)
+    elif method is InputMethod.STDIN:
+        stdin_bytes = data or b""
+    elif data is not None:  # args
+        if b"\0" in data:
+            raise ZarabanError(ErrorCode.CONFIG_INVALID,
+                               f"{test.name}: input_method is 'args' but the input contains "
+                               "a NUL byte", {"test": test.name})
+        args.append(os.fsdecode(data))  # passed to the program byte for byte
+        shown.append(data.decode("utf-8", errors="backslashreplace"))
 
-    env = run_env(cfg, sanitized)
-
-    timeout_s = 3.0
-    mem_mb = 256
-    if hasattr(cfg, "limits") and cfg.limits is not None:
-        timeout_s = getattr(cfg.limits, "timeout_seconds", 3.0)
-        mem_mb = getattr(cfg.limits, "memory_limit_mb", 256)
-
-    cpu_s = int(timeout_s + 0.999) + 1
-    data_bytes = None if sanitized else mem_mb * 1024 * 1024
-
-    t0 = time.monotonic()
-    timed_out = False
-    limit_hit: Optional[LimitKind] = None
-
+    env = settings.env_for(sanitized)
+    cwd = tempfile.mkdtemp(prefix="zaraban-run-")
     try:
-        p = subprocess.Popen(
-            cmd,
-            cwd=str(run_dir),
-            env=env,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            start_new_session=True,
-            preexec_fn=_apply_limits(cpu_s, data_bytes),
-        )
-        try:
-            raw_out, raw_err = p.communicate(stdin_bytes, timeout=timeout_s)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            try:
-                os.killpg(p.pid, signal.SIGKILL)
-            except OSError:
-                pass
-            raw_out, raw_err = p.communicate()
-    except Exception as exc:
-        raise ZarabanError(
-            ErrorCode.TOOL_INTERNAL,
-            f"Failed to spawn target process: {exc}",
-            {"cmd": cmd, "error": str(exc)},
-        )
+        if input_name is not None:
+            Path(cwd, input_name).write_bytes(data or b"")
+        res = _execute([exe, *args], cwd, env, stdin_bytes, settings.timeout_seconds,
+                       settings.cpu_seconds,
+                       None if sanitized else settings.memory_limit_mb * 1024 * 1024)
+    finally:
+        shutil.rmtree(cwd, ignore_errors=True)
 
-    duration_s = time.monotonic() - t0
-    rc = p.returncode
+    rc = res.returncode
+    sig = _signal_name(-rc) if rc < 0 else None
+    exit_code = None if rc < 0 else rc
 
-    sig_name: Optional[str] = None
-    exit_code: Optional[int] = None
-    if rc < 0:
-        sig_name = signal.Signals(-rc).name
-        exit_code = None
-    else:
-        sig_name = None
-        exit_code = rc
+    stderr_text = res.stderr.decode("utf-8", errors="replace")
+    limit_hit: Optional[LimitKind] = None
+    if not res.timed_out:
+        if sig == "SIGXCPU" or (sig == "SIGKILL" and res.cpu_s >= settings.cpu_seconds):
+            limit_hit = LimitKind.CPU  # SIGKILL: the hard CPU limit, 1 s after SIGXCPU
+        elif sanitized and analysis.is_memory_limit(stderr_text):
+            limit_hit = LimitKind.MEMORY
 
-    if sig_name == "SIGXCPU":
-        limit_hit = LimitKind.CPU
+    n = repeat
+    (record_dir / f"{n}.stdout").write_bytes(res.stdout)
+    (record_dir / f"{n}.stderr").write_bytes(res.stderr)
 
-    # Check for memory limit exceeded in sanitized build
-    if sanitized and (b"allocator is terminating the process" in raw_err or b"allocation-size-too-big" in raw_err):
-        limit_hit = LimitKind.MEMORY
-
-    # Truncate outputs to 1 MB (§7.3)
-    out_truncated = len(raw_out) > MAX_OUTPUT_BYTES
-    err_truncated = len(raw_err) > MAX_OUTPUT_BYTES
-    stdout_bytes = raw_out[:MAX_OUTPUT_BYTES]
-    stderr_bytes = raw_err[:MAX_OUTPUT_BYTES]
-
-    # Save stdout.txt and stderr.txt in the run directory (§12.3)
-    (run_dir / "stdout.txt").write_bytes(stdout_bytes)
-    (run_dir / "stderr.txt").write_bytes(stderr_bytes)
-
-    stdout_str = stdout_bytes.decode("utf-8", errors="replace")
-    stderr_str = stderr_bytes.decode("utf-8", errors="replace")
-
-    # Run crash analysis (§7.4)
     run_analysis = analysis.analyse(
-        stderr=stderr_str,
-        stdout=stdout_str,
-        exit_code=exit_code,
-        sig=sig_name,
-        timed_out=timed_out,
-        limit_hit=limit_hit,
-        source_root=source_root,
-    )
+        stderr=stderr_text,
+        exit_code=exit_code, sig=sig, timed_out=res.timed_out, limit_hit=limit_hit,
+        source_root=source_root)
+    run_oracle = oracle.match(test=test, outcome=run_analysis.outcome, exit_code=exit_code,
+                              stdout=res.stdout)
 
-    # Run oracle matching (§5.4)
-    run_oracle = oracle.match(
-        test=test,
-        outcome=run_analysis.outcome,
-        exit_code=exit_code,
-        stdout=stdout_bytes,
+    record = RunRecord(
+        test=test.name, kind=test.kind, build=build, repeat=repeat,
+        cmd=[exe, *shown], env=env, cwd=cwd,
+        input=InputInfo(method=method, name=input_name, size=len(data or b""),
+                        sha256=hashlib.sha256(data or b"").hexdigest()),
+        exit_code=exit_code, signal=sig, timed_out=res.timed_out, limit_hit=limit_hit,
+        duration_s=round(res.duration_s, 4),
+        stdout=_stream(f"{rel_dir}/{n}.stdout", res.stdout, res.stdout_truncated),
+        stderr=_stream(f"{rel_dir}/{n}.stderr", res.stderr, res.stderr_truncated),
+        analysis=run_analysis, oracle=run_oracle,
     )
+    dump_json(record, record_dir / f"{n}.json")
+    return record
 
-    # Prepare stream and input records
-    inp_bytes = input_bytes or b""
-    input_info = InputInfo(
-        method=InputMethod(input_method_val) if hasattr(InputMethod, input_method_val.upper()) else InputMethod.STDIN,
-        name=input_file_name,
-        size=len(inp_bytes),
-        sha256=hashlib.sha256(inp_bytes).hexdigest(),
-    )
 
-    stdout_info = StreamInfo(
-        path="stdout.txt",
-        bytes=len(stdout_bytes),
-        sha256=hashlib.sha256(stdout_bytes).hexdigest(),
-        truncated=out_truncated,
-    )
-
-    stderr_info = StreamInfo(
-        path="stderr.txt",
-        bytes=len(stderr_bytes),
-        sha256=hashlib.sha256(stderr_bytes).hexdigest(),
-        truncated=err_truncated,
-    )
-
-    test_kind = getattr(test, "kind", TestKind.VALID)
-    if isinstance(test_kind, str):
-        test_kind = TestKind(test_kind)
-
-    return RunRecord(
-        test=getattr(test, "name", "unknown"),
-        kind=test_kind,
-        build=build_name,
-        repeat=repeat,
-        cmd=cmd,
-        env=env,
-        cwd=str(run_dir),
-        input=input_info,
-        exit_code=exit_code,
-        signal=sig_name,
-        timed_out=timed_out,
-        limit_hit=limit_hit,
-        duration_s=duration_s,
-        stdout=stdout_info,
-        stderr=stderr_info,
-        analysis=run_analysis,
-        oracle=run_oracle,
-    )
+def run_test(
+    binary: str | Path,
+    test: TestCase,
+    settings: RunSettings,
+    build: BuildName,
+    repeats: int,
+    out_dir: str | Path,
+    source_root: str = "",
+) -> CombinedResult:
+    """Run the repeats 1 … ``repeats`` of one test on one build, one at a time,
+    and combine them (§7.1, §7.5)."""
+    runs = [run_once(binary, test, settings, build, n, out_dir, source_root)
+            for n in range(1, repeats + 1)]
+    return combine(runs)
 
 
 def combine(runs: list[RunRecord]) -> CombinedResult:
-    """Combine repeats for one test on one build and check for flakiness (§7.5)."""
+    """Combine the repeats of one test on one build (§7.5). The result is flaky
+    when the repeats differ in outcome, signature or oracle result."""
     if not runs:
-        raise ValueError("Cannot combine an empty list of runs")
-
-    # Flakiness rule: outcome, signature, or oracle result differs across repeats
-    def key(r: RunRecord) -> tuple[Any, ...]:
-        return (r.analysis.outcome, r.analysis.signature, r.oracle.passed)
-
-    distinct_keys = {key(r) for r in runs}
-    flaky = len(distinct_keys) > 1
-
+        raise ValueError("cannot combine an empty list of runs")
+    keys = {(r.analysis.outcome, r.analysis.signature, r.oracle.passed) for r in runs}
     first = runs[0]
-    return CombinedResult(
-        test=first.test,
-        kind=first.kind,
-        build=first.build,
-        runs=runs,
-        flaky=flaky,
-    )
+    return CombinedResult(test=first.test, kind=first.kind, build=first.build, runs=runs,
+                          flaky=len(keys) > 1)
 
 
-class SafeRunner:
-    """Convenience class providing backwards-compatible invocation for Phase 0 tests."""
+def output_warnings(records: list[RunRecord]) -> list[Issue]:
+    """``OUTPUT_TRUNCATED`` for each run whose output was cut at 1 MB (§7.3)."""
+    out = []
+    for r in records:
+        for stream in (r.stdout, r.stderr):
+            if stream.truncated:
+                out.append(Issue(WarningCode.OUTPUT_TRUNCATED.value,
+                                 f"{r.test} on {r.build.value}, repeat {r.repeat}: output "
+                                 "was cut at 1 MB", {"path": stream.path}))
+    return out
 
-    @classmethod
-    def run(
-        cls,
-        cmd: Sequence[str],
-        input_data: Optional[Union[str, bytes]] = None,
-        timeout_seconds: float = 3.0,
-        memory_limit_mb: int = 256,
-        is_sanitized: bool = False,
-        cwd: Optional[Union[str, Path]] = None,
-    ) -> Any:
-        """Run a command with resource watchdogs and return an ExecutionResult."""
-        class DummyLimits:
-            def __init__(self, t: float, m: int):
-                self.timeout_seconds = t
-                self.memory_limit_mb = m
 
-        class DummyConfig:
-            def __init__(self, t: float, m: int):
-                self.input_method = "stdin"
-                self.file_arg_placeholder = "{input_file}"
-                self.limits = DummyLimits(t, m)
-                self.env = {}
+# ---------------------------------------------------------------------------
+# Process handling
+# ---------------------------------------------------------------------------
 
-        class DummyTest:
-            def __init__(self, raw: Optional[Union[str, bytes]]):
-                self.name = "dummy"
-                self.kind = TestKind.VALID
-                self.args = list(cmd[1:])
-                self.input_bytes = raw.encode() if isinstance(raw, str) else raw
-                self.input_ext = ".txt"
-                self.expected_exit_code = None
-                self.expected_output = None
 
-        cfg = DummyConfig(timeout_seconds, memory_limit_mb)
-        test = DummyTest(input_data)
-        run_dir = Path(cwd) if cwd else Path("/tmp/zaraban_run")
-        run_dir.mkdir(parents=True, exist_ok=True)
+@dataclass
+class _Result:
+    returncode: int
+    stdout: bytes
+    stderr: bytes
+    stdout_truncated: bool
+    stderr_truncated: bool
+    timed_out: bool
+    duration_s: float
+    cpu_s: float
 
-        rec = run_once(
-            binary=cmd[0],
-            test=test,
-            cfg=cfg,
-            sanitized=is_sanitized,
-            run_dir=run_dir,
-            build_name=BuildName.PATCH_SANITIZED if is_sanitized else BuildName.PATCH_RELEASE,
-        )
 
-        @dataclass
-        class ExecutionResultCompat:
-            stdout: str
-            stderr: str
-            exit_code: int
-            signal_num: Optional[int]
-            signal_name: Optional[str]
-            timed_out: bool
-            cpu_limit_exceeded: bool
-            memory_limit_exceeded: bool
-            duration_seconds: float
-            detection_mechanism: Optional[str]
-            error_summary: Optional[str]
+class _Capture(threading.Thread):
+    """Reads a pipe to its end, keeping the first ``limit`` bytes (§7.3). The
+    rest is read and discarded, so the program never blocks on a full pipe and
+    the tool never holds more than 1 MB."""
 
-            @property
-            def is_crash(self) -> bool:
-                return self.signal_num is not None or self.signal_name is not None or "AddressSanitizer" in self.stderr or "runtime error:" in self.stderr or "***" in self.stderr
+    def __init__(self, pipe: Any, limit: int = MAX_OUTPUT_BYTES):
+        super().__init__(daemon=True)
+        self.pipe, self.limit = pipe, limit
+        self.chunks: list[bytes] = []
+        self.kept = 0
+        self.truncated = False
 
-        sig_num = getattr(signal.Signals, rec.signal).value if rec.signal else None
-        det_mech = rec.analysis.detection.value if rec.analysis.detection else (
-            "ResourceLimit/Timeout" if rec.timed_out else None
-        )
+    def run(self) -> None:
+        try:
+            while True:
+                chunk = self.pipe.read1(65536) if hasattr(self.pipe, "read1") \
+                    else self.pipe.read(65536)
+                if not chunk:
+                    break
+                room = self.limit - self.kept
+                if room > 0:
+                    self.chunks.append(chunk[:room])
+                    self.kept += min(room, len(chunk))
+                if len(chunk) > room:
+                    self.truncated = True
+        except (OSError, ValueError):
+            pass
 
-        return ExecutionResultCompat(
-            stdout=rec.stdout.sha256 and run_dir.joinpath("stdout.txt").exists() and run_dir.joinpath("stdout.txt").read_text(errors="replace") or "",
-            stderr=rec.stderr.sha256 and run_dir.joinpath("stderr.txt").exists() and run_dir.joinpath("stderr.txt").read_text(errors="replace") or "",
-            exit_code=rec.exit_code if rec.exit_code is not None else -1,
-            signal_num=sig_num,
-            signal_name=rec.signal,
-            timed_out=rec.timed_out,
-            cpu_limit_exceeded=rec.limit_hit is LimitKind.CPU,
-            memory_limit_exceeded=rec.limit_hit is LimitKind.MEMORY,
-            duration_seconds=rec.duration_s,
-            detection_mechanism=det_mech,
-            error_summary=rec.analysis.summary,
-        )
+    @property
+    def data(self) -> bytes:
+        return b"".join(self.chunks)
+
+
+def _feed(pipe: Any, data: bytes) -> None:
+    try:
+        if data:
+            pipe.write(data)
+    except (BrokenPipeError, OSError):
+        pass
+    finally:
+        try:
+            pipe.close()  # the program sees end-of-file (§5.3)
+        except OSError:
+            pass
+
+
+def _limits(cpu_s: int, data_bytes: Optional[int]) -> Any:
+    def apply() -> None:
+        # Soft limit -> SIGXCPU; the hard limit one second later -> SIGKILL.
+        # (With soft == hard the kernel sends SIGKILL straight away.)
+        resource.setrlimit(resource.RLIMIT_CPU, (cpu_s, cpu_s + 1))
+        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+        if data_bytes is not None:  # release builds only (§7.3)
+            resource.setrlimit(resource.RLIMIT_DATA, (data_bytes, data_bytes))
+    return apply
+
+
+def _killpg(pid: int) -> None:
+    try:
+        os.killpg(pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
+def _execute(cmd: list[str], cwd: str, env: dict[str, str], stdin_bytes: bytes,
+             timeout_s: float, cpu_s: int, data_bytes: Optional[int]) -> _Result:
+    before = resource.getrusage(resource.RUSAGE_CHILDREN)
+    t0 = time.monotonic()
+    try:
+        p = subprocess.Popen(cmd, cwd=cwd, env=env, stdin=subprocess.PIPE,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             start_new_session=True, preexec_fn=_limits(cpu_s, data_bytes))
+    except OSError as exc:
+        raise ZarabanError(ErrorCode.TOOL_INTERNAL, f"could not start {cmd[0]}: {exc}",
+                           {"cmd": cmd, "error": str(exc)}) from exc
+
+    out, err = _Capture(p.stdout), _Capture(p.stderr)
+    feeder = threading.Thread(target=_feed, args=(p.stdin, stdin_bytes), daemon=True)
+    for t in (out, err, feeder):
+        t.start()
+
+    timed_out = False
+    try:
+        p.wait(timeout=timeout_s)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        _killpg(p.pid)
+        p.wait()
+    duration = time.monotonic() - t0
+    _killpg(p.pid)  # children left in the process group die with the program (§7.3)
+    for t in (out, err, feeder):
+        t.join(timeout=5)
+    for pipe in (p.stdout, p.stderr):
+        try:
+            pipe.close()
+        except OSError:
+            pass
+
+    after = resource.getrusage(resource.RUSAGE_CHILDREN)
+    cpu = (after.ru_utime + after.ru_stime) - (before.ru_utime + before.ru_stime)
+    return _Result(p.returncode, out.data, err.data, out.truncated, err.truncated,
+                   timed_out, duration, cpu)
+
+
+def _signal_name(num: int) -> str:
+    try:
+        return signal.Signals(num).name
+    except ValueError:
+        return f"SIG{num}"
+
+
+def _stream(path: str, data: bytes, truncated: bool) -> StreamInfo:
+    return StreamInfo(path=path, bytes=len(data), sha256=hashlib.sha256(data).hexdigest(),
+                      truncated=truncated)
