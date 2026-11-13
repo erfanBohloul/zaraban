@@ -19,9 +19,9 @@ import posixpath
 from pathlib import Path
 from typing import Optional
 
-from zaraban.diffinfo import changed_functions
-from zaraban.findings import oracle_mismatches, stable_key
-from zaraban.models import (
+from .diffinfo import changed_functions
+from .findings import oracle_mismatches, stable_key
+from .models import (
     BuildName,
     Category,
     CombinedResult,

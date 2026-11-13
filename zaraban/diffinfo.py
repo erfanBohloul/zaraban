@@ -39,8 +39,8 @@ from pathlib import Path
 from unidiff import PatchSet
 from unidiff.errors import UnidiffParseError
 
-from zaraban.models import ErrorCode, Hunk, Version, ZarabanError
-from zaraban.sources import _DIR_DIFF_STRIP, Sources, _strip_path
+from .models import ErrorCode, Hunk, Version, ZarabanError
+from .sources import DIR_DIFF_STRIP, Sources, strip_path
 
 
 def parse_hunks(diff_text: str, strip: int) -> list[Hunk]:
@@ -59,7 +59,7 @@ def parse_hunks(diff_text: str, strip: int) -> list[Hunk]:
     for patched_file in patch_set:
         raw_path = patched_file.source_file if patched_file.is_removed_file \
             else patched_file.target_file
-        path = _strip_path(raw_path, strip)
+        path = strip_path(raw_path, strip)
         for h in patched_file:
             hunks.append(Hunk(
                 file=path,
@@ -91,7 +91,7 @@ def sources_hunks(sources: Sources) -> list[Hunk]:
     The level is taken with ``is None``, because ``-p0`` is a valid level.
     """
     level = sources.patch.strip_level
-    return load_hunks(sources.diff_path, _DIR_DIFF_STRIP if level is None else level)
+    return load_hunks(sources.diff_path, DIR_DIFF_STRIP if level is None else level)
 
 
 # ---------------------------------------------------------------------------
