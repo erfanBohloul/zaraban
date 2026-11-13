@@ -1560,7 +1560,7 @@ Correct patch of each is the upstream fix:
 
 | Target | Upstream | Vulnerability | Base | Correct patch |
 |---|---|---|---|---|
-| `cjson` | DaveGamble/cJSON | CVE-2019-11835, heap buffer over-read in `cJSON_Minify` | `v1.7.10` | upstream commit `a43fa56` (in `v1.7.11`) |
+| `cjson` | DaveGamble/cJSON | CVE-2019-11834 and CVE-2019-11835, heap buffer over-reads in `cJSON_Minify` | `v1.7.10` | upstream commit `a43fa56` (in `v1.7.11`), with its follow-up `08d2bc7` (in `v1.7.12`) |
 | `md4c` | mity/md4c | CVE-2021-30027, heap buffer over-read in `md_analyze_line` | `release-0.4.7` | upstream fix, in `release-0.4.8` |
 
 The Incomplete and Regression patches are written by the team, and the

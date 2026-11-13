@@ -80,7 +80,7 @@ is the upstream fix. The Incomplete and Regression patches are written by us.
 
 | Target | Upstream | Vulnerability | Bug class | Input | Status |
 |---|---|---|---|---|---|
-| `cjson` | DaveGamble/cJSON | CVE-2019-11835 (out-of-bounds read in `cJSON_Minify`, fixed in 1.7.11) | heap buffer overflow (read) | file, via a small driver | confirmed ([repro](docs/repro/cjson.md)) |
+| `cjson` | DaveGamble/cJSON | CVE-2019-11834 and CVE-2019-11835 (out-of-bounds reads in `cJSON_Minify`, fixed in 1.7.11) | heap buffer overflow (read) | file, via a small driver | confirmed ([repro](docs/repro/cjson.md)); target ready in `targets/cjson` |
 | `md4c` | mity/md4c | CVE-2021-30027 (out-of-bounds read in `md_analyze_line`, fixed in 0.4.8) | heap buffer overflow (read) | file/stdin, official `md2html` CLI | to confirm (C+D) |
 
 Backups if one of these does not reproduce cleanly under ASan:
