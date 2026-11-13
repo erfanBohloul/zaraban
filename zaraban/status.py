@@ -27,7 +27,7 @@ the name is ``VULN_REMAINS`` (§13.4). Every condition stays in the report.
 
 from __future__ import annotations
 
-from typing import Iterable, Optional
+from typing import Optional
 
 from .models import (
     EXIT_PRIORITY,
@@ -40,6 +40,7 @@ from .models import (
     OnPatch,
     Status,
 )
+from .util import unique
 
 # A finding of this category raises this condition. FIXED raises nothing.
 _CATEGORY_CONDITION: dict[Category, ConditionName] = {
@@ -104,7 +105,7 @@ def compute_status(
                 f"{', '.join(fixed)}: the error is reproduced on base and not observed "
                 "on patch; all other checks passed",
                 findings=fixed,
-                tests=_unique(t for f in findings if f.id in fixed for t in f.test_names))]
+                tests=unique(t for f in findings if f.id in fixed for t in f.test_names))]
         else:
             # Cannot happen when base_reproduced succeeded (§13.3).
             conditions = [Condition(
@@ -133,7 +134,7 @@ def _error_conditions(errors: list[Issue], checks: Checks) -> list[Condition]:
     reasons += [msg for attr, msg in _ERROR_CHECKS if not getattr(checks, attr)]
     if not reasons:
         return []
-    return [Condition(ConditionName.BUILD_OR_CONFIG_ERROR, "; ".join(_unique(reasons)))]
+    return [Condition(ConditionName.BUILD_OR_CONFIG_ERROR, "; ".join(unique(reasons)))]
 
 
 def _finding_conditions(findings: list[Finding]) -> list[Condition]:
@@ -146,7 +147,7 @@ def _finding_conditions(findings: list[Finding]) -> list[Condition]:
 
     out: list[Condition] = []
     for name, group in grouped.items():
-        tests = _unique(t for f in group for t in _causing_tests(f))
+        tests = unique(t for f in group for t in _causing_tests(f))
         out.append(Condition(name, _finding_reason(name, group),
                              findings=[f.id for f in group], tests=tests))
     return out
@@ -185,8 +186,8 @@ def _merge_by_name(conditions: list[Condition]) -> list[Condition]:
             merged[c.name] = Condition(c.name, c.reason, list(c.findings), list(c.tests))
             continue
         m = merged[c.name]
-        m.findings = _unique([*m.findings, *c.findings])
-        m.tests = _unique([*m.tests, *c.tests])
+        m.findings = unique([*m.findings, *c.findings])
+        m.tests = unique([*m.tests, *c.tests])
         if c.reason and c.reason not in m.reason:
             m.reason = f"{m.reason}; {c.reason}" if m.reason else c.reason
     return list(merged.values())
@@ -215,11 +216,3 @@ def _status_reason(deciding: Condition, conditions: list[Condition]) -> str:
 
 def _priority(c: Condition) -> tuple[int, int]:
     return (EXIT_PRIORITY.index(c.code), _NAME_RANK[c.name])
-
-
-def _unique(items: Iterable[str]) -> list[str]:
-    """De-duplicate while keeping first-seen order."""
-    seen: dict[str, None] = {}
-    for it in items:
-        seen.setdefault(it, None)
-    return list(seen)

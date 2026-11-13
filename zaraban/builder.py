@@ -23,9 +23,7 @@ report, and exits with code 30").
 from __future__ import annotations
 
 import hashlib
-import os
 import shutil
-import signal
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -36,6 +34,7 @@ from . import models
 from .config import Target
 from .elf import ElfView
 from .sources import copy_tree
+from .util import kill_group
 from .models import (
     BUILD_ORDER,
     BinaryInfo,
@@ -218,20 +217,12 @@ def _run_step(cmd: str, cwd: Path, log) -> Optional[int]:
         code: Optional[int] = proc.wait(timeout=BUILD_TIMEOUT_S)
     except subprocess.TimeoutExpired:
         code = None
-    _kill_group(proc.pid)
+    kill_group(proc.pid)
     if code is None:
         proc.wait()
         log.write(f"\n[zaraban] stopped after {BUILD_TIMEOUT_S}s\n".encode())
         log.flush()
     return code
-
-
-def _kill_group(pgid: int) -> None:
-    """Kill every process left in a build step's process group."""
-    try:
-        os.killpg(pgid, signal.SIGKILL)
-    except (ProcessLookupError, PermissionError):
-        pass  # the group is already empty
 
 
 def _step_failure(what: str, code: Optional[int]) -> str:

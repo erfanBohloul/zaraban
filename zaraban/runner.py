@@ -53,6 +53,7 @@ from .models import (
     ZarabanError,
     dump_json,
 )
+from .util import kill_group
 
 MAX_OUTPUT_BYTES = 1 << 20  # 1 MB per stream (§7.3)
 
@@ -338,13 +339,6 @@ def _limits(cpu_s: int, data_bytes: Optional[int]) -> Any:
     return apply
 
 
-def _killpg(pid: int) -> None:
-    try:
-        os.killpg(pid, signal.SIGKILL)
-    except (ProcessLookupError, PermissionError):
-        pass
-
-
 def _execute(cmd: list[str], cwd: str, env: dict[str, str], stdin_bytes: bytes,
              timeout_s: float, cpu_s: int, data_bytes: Optional[int]) -> _Result:
     before = resource.getrusage(resource.RUSAGE_CHILDREN)
@@ -367,10 +361,10 @@ def _execute(cmd: list[str], cwd: str, env: dict[str, str], stdin_bytes: bytes,
         p.wait(timeout=timeout_s)
     except subprocess.TimeoutExpired:
         timed_out = True
-        _killpg(p.pid)
+        kill_group(p.pid)
         p.wait()
     duration = time.monotonic() - t0
-    _killpg(p.pid)  # children left in the process group die with the program (§7.3)
+    kill_group(p.pid)  # children left in the process group die with the program (§7.3)
     for t in (out, err, feeder):
         t.join(timeout=5)
     for pipe in (p.stdout, p.stderr):
