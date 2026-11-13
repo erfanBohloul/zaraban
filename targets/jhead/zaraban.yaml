@@ -16,70 +16,139 @@ limits:
   timeout_seconds: 2.0
   memory_limit_mb: 256
 
+# Expected outputs come from the EXIF bytes the camera wrote into each image
+# (confirmed by jhead's own tests/expected-txt), matched with `contains` on a
+# stable field, never on the varying File date line. The *_datetime tests are
+# what the Regression version breaks (the time is dropped); the *_model tests
+# stay stable, so they confirm the regression is limited to DateTime.
 valid_tests:
   - name: valid_s100_model
-    description: "Canon PowerShot S100: camera model from the EXIF Model tag. Source: EXIF in the image; jhead expected-txt S100."
+    description: "Canon PowerShot S100: EXIF Model tag."
     args: ["{input_file}"]
     input_file: tests/valid/canon_s100.jpg
     expected_exit_code: 0
     expected_output: "Canon PowerShot S100"
   - name: valid_s100_datetime
-    description: "Canon PowerShot S100: EXIF DateTime. Source: EXIF DateTime tag in the image."
+    description: "Canon PowerShot S100: EXIF DateTime."
     args: ["{input_file}"]
     input_file: tests/valid/canon_s100.jpg
     expected_exit_code: 0
     expected_output: "2000:06:27 15:53:09"
   - name: valid_kodak_model
-    description: "Kodak DX6340: camera model from the EXIF Model tag. Source: EXIF in the image."
+    description: "Kodak DX6340: EXIF Model tag."
     args: ["{input_file}"]
     input_file: tests/valid/kodak_dx6340.jpg
     expected_exit_code: 0
     expected_output: "KODAK DX6340 ZOOM DIGITAL CAMERA"
   - name: valid_kodak_datetime
-    description: "Kodak DX6340: EXIF DateTime. Source: EXIF DateTime tag in the image."
+    description: "Kodak DX6340: EXIF DateTime."
     args: ["{input_file}"]
     input_file: tests/valid/kodak_dx6340.jpg
     expected_exit_code: 0
     expected_output: "2004:01:04 18:38:15"
   - name: valid_pro1_datetime
-    description: "Canon PowerShot Pro1: EXIF DateTime. Source: EXIF DateTime tag in the image."
+    description: "Canon PowerShot Pro1: EXIF DateTime."
     args: ["{input_file}"]
     input_file: tests/valid/nikon_zoomed.jpg
     expected_exit_code: 0
     expected_output: "2004:12:28 20:47:05"
+  - name: valid_nikon_d100_model
+    description: "Nikon D100: EXIF Model tag."
+    args: ["{input_file}"]
+    input_file: tests/valid/nikon_d100.jpg
+    expected_exit_code: 0
+    expected_output: "NIKON D100"
+  - name: valid_nikon_d100_datetime
+    description: "Nikon D100: EXIF DateTime."
+    args: ["{input_file}"]
+    input_file: tests/valid/nikon_d100.jpg
+    expected_exit_code: 0
+    expected_output: "2003:12:26 09:12:21"
+  - name: valid_fuji_model
+    description: "Fujifilm DX-10: EXIF Model tag."
+    args: ["{input_file}"]
+    input_file: tests/valid/fuji_dx10.jpg
+    expected_exit_code: 0
+    expected_output: "DX-10"
+  - name: valid_sony_model
+    description: "Sony Cybershot: EXIF Model tag."
+    args: ["{input_file}"]
+    input_file: tests/valid/sony_cybershot.jpg
+    expected_exit_code: 0
+    expected_output: "CYBERSHOT"
+  - name: valid_olympus_datetime
+    description: "Olympus C830L/D340R: EXIF DateTime."
+    args: ["{input_file}"]
+    input_file: tests/valid/olympus_c830l.jpg
+    expected_exit_code: 0
+    expected_output: "1999:07:18 20:41:25"
+  - name: valid_hp_model
+    description: "HP PhotoSmart 620: EXIF Model tag."
+    args: ["{input_file}"]
+    input_file: tests/valid/hp_photosmart.jpg
+    expected_exit_code: 0
+    expected_output: "hp PhotoSmart 620"
+  - name: valid_canon_g2_model
+    description: "Canon PowerShot G2: EXIF Model tag."
+    args: ["{input_file}"]
+    input_file: tests/valid/canon_g2.jpg
+    expected_exit_code: 0
+    expected_output: "Canon PowerShot G2"
 
 boundary_tests:
   - name: boundary_bigendian_model
-    description: "Big-endian (Motorola order) EXIF, Canon A710 IS: model read correctly. Source: EXIF in the image."
+    description: "Big-endian (Motorola order) EXIF, Canon A710 IS: model read correctly."
     args: ["{input_file}"]
     input_file: tests/boundary/bigendian.jpg
     expected_exit_code: 0
     expected_output: "Canon PowerShot A710 IS"
   - name: boundary_bigendian_datetime
-    description: "Big-endian EXIF: DateTime read correctly. Source: EXIF DateTime tag in the image."
+    description: "Big-endian EXIF: DateTime read correctly."
     args: ["{input_file}"]
     input_file: tests/boundary/bigendian.jpg
     expected_exit_code: 0
     expected_output: "2010:01:24 12:31:13"
+  - name: boundary_minolta_model
+    description: "Minolta DiMAGE E223, an unusual DateTime punctuation in the file: the Model still reads correctly."
+    args: ["{input_file}"]
+    input_file: tests/boundary/minolta_odd_datetime.jpg
+    expected_exit_code: 0
+    expected_output: "DiMAGE E223"
+  - name: boundary_no_exif
+    description: "A JPEG with no EXIF at all: jhead prints the JPEG's own fields and exits 0."
+    args: ["{input_file}"]
+    input_file: tests/boundary/no_exif.jpg
+    expected_exit_code: 0
+    expected_output: "987 x 518"
   - name: boundary_corrupt_exif
-    description: "A JPEG with a malformed EXIF subdirectory is handled without crashing. Source: driver/jhead contract (graceful degradation, exit 0)."
+    description: "A JPEG with a malformed EXIF subdirectory is handled without crashing (exit 0)."
     args: ["{input_file}"]
     input_file: tests/boundary/corrupt_exif.jpg
     expected_exit_code: 0
 
 invalid_tests:
   - name: invalid_not_jpeg
-    description: "A plain text file is not a JPEG: jhead exits 1 without crashing. Source: jhead contract."
+    description: "A short text file is not a JPEG: exit 1 without crashing."
     args: ["{input_file}"]
     input_file: tests/invalid/not_jpeg.txt
     expected_exit_code: 1
+  - name: invalid_textfile
+    description: "jhead's own non-JPEG test file: exit 1 without crashing."
+    args: ["{input_file}"]
+    input_file: tests/invalid/textfile.txt
+    expected_exit_code: 1
   - name: invalid_truncated
-    description: "A JPEG cut mid-stream: jhead reports the error and exits 1. Source: jhead contract."
+    description: "A JPEG cut mid-stream: error, exit 1."
     args: ["{input_file}"]
     input_file: tests/invalid/truncated.jpg
     expected_exit_code: 1
+  - name: invalid_truncated_header
+    description: "Only the first three bytes of a JPEG: exit 1 without crashing."
+    args: ["{input_file}"]
+    input_file: tests/invalid/truncated_header.jpg
+    expected_exit_code: 1
   - name: invalid_empty
-    description: "An empty file: jhead exits 1 without crashing. Source: jhead contract."
+    description: "An empty file: exit 1 without crashing."
     args: ["{input_file}"]
     input_file: tests/invalid/empty.jpg
     expected_exit_code: 1
