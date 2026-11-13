@@ -32,13 +32,7 @@ def test_stage_functions_are_callable():
     assert callable(analysis_stage.analyze_and_report)
 
 
-# -- they fail loudly while unimplemented ------------------------------------
-
-def test_build_and_execute_stub_raises():
-    with pytest.raises(NotImplementedError) as e:
-        exec_stage.build_and_execute(_ctx())
-    assert "Person 1" in str(e.value)  # points at who owns it
-
+# -- analyze_and_report is still a stub on this branch (Person 2 owns it) ----
 
 def test_analyze_and_report_is_implemented(tmp_path):
     ctx = _ctx()
