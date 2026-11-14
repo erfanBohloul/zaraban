@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run and check every delivered scenario (SPEC §14.3, PHASES Task 2.5).
+"""Run and check every delivered scenario.
 
 For each ``targets/<target>/scenarios.yaml`` and each scenario in it:
 
@@ -100,7 +100,7 @@ def load_scenarios(target_dir: Path) -> list[Scenario]:
 
 
 def base_tree(target_dir: Path) -> Path:
-    """The target's base tree: ``base_dir`` of its config (§4.1, default ``.``)."""
+    """The target's base tree: ``base_dir`` of its config (default ``.``)."""
     cfg = yaml.safe_load((target_dir / "zaraban.yaml").read_text(encoding="utf-8")) or {}
     return (target_dir / cfg.get("base_dir", ".")).resolve()
 
@@ -172,7 +172,7 @@ def find_run_dir(out_dir: Path) -> Optional[Path]:
 
 
 def compare_findings(expected: list[dict], report: dict) -> list[str]:
-    """Category and tests of each finding, in finding id order (§8.8, §8.9).
+    """Category and tests of each finding, in finding id order.
     Regression-kind tests are ignored (module docstring)."""
     got = [(f["category"], sorted(t["test"] for t in f["tests"] if t.get("kind") != "regression"))
            for f in report.get("findings", [])]
@@ -215,7 +215,7 @@ def run_scenario(s: Scenario, out_root: Path, run: RunTool = run_tool) -> Outcom
 
 def save(run_dir: Path, dest: Path) -> None:
     """Copy a run to ``results/<target>/<scenario>/`` without ``work/`` and
-    the ``builds/*/bin/`` binaries (§14.3)."""
+    the ``builds/*/bin/`` binaries."""
     def ignore(directory: str, names: list[str]) -> set[str]:
         d = Path(directory)
         skip = set()
@@ -236,7 +236,7 @@ def save(run_dir: Path, dest: Path) -> None:
 
 
 def main(argv: Optional[list[str]] = None, *, root: Path = ROOT, run: RunTool = run_tool) -> int:
-    p = argparse.ArgumentParser(description="Run and check the delivered scenarios (SPEC §14.3).")
+    p = argparse.ArgumentParser(description="Run and check the delivered scenarios.")
     p.add_argument("targets", nargs="*", help="target names (default: every target with scenarios.yaml)")
     p.add_argument("--save", action="store_true", help="copy each run to results/<target>/<scenario>/")
     p.add_argument("--out", default="out/run_matrix", help="where the runs are written")

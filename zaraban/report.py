@@ -1,17 +1,17 @@
-"""Assemble and write the run's report (SPEC §12).
+"""Assemble and write the run's report.
 
 ``report.json`` is the machine-readable record of everything the run did: the
 versions and diff, the environment, the four builds, hardening, every
 finding, the regression tests added, and the final status. It is a dump of the
 :class:`~zaraban.models.Report` dataclass, so its field order is the order in
-that class and its JSON form comes from :func:`~zaraban.models.dump_json`
-(§12.2). Alongside it this module writes ``summary.txt`` in the layout of
-§12.5; the same text is printed at the end of the run.
+that class and its JSON form comes from :func:`~zaraban.models.dump_json`.
+Alongside it this module writes ``summary.txt``, the short human-readable
+version; the same text is printed at the end of the run.
 
 This module only *collects* already-produced pieces into the report and
 writes them. It makes no judgements: the verdict comes from
-:mod:`zaraban.status` (§13), the findings from Member C (§8), the runs from
-Member B (§7). It does not build or run anything.
+:mod:`zaraban.status`, the findings from :mod:`zaraban.findings`, the runs
+from :mod:`zaraban.runner`. It does not build or run anything.
 """
 
 from __future__ import annotations
@@ -67,7 +67,7 @@ def assemble_report(
     Only ``execution_logs``, ``hardening``, ``findings``, ``regression_added``,
     ``warnings`` and ``errors`` are optional; they default to empty, so a run
     that stopped early (a build failure with no findings) still produces a
-    complete report (§12.1).
+    complete report.
     """
     return Report(
         tool=dict(TOOL),
@@ -92,7 +92,7 @@ def assemble_report(
 
 
 def build_entries(records: dict[BuildName, BuildRecord]) -> dict[BuildName, dict[str, Any]]:
-    """The ``builds`` field of report.json (§12.4): for each build its
+    """The ``builds`` field of report.json: for each build its
     ``status``, ``binary_sha256`` and ``details`` (path of ``build.json``)."""
     return {
         name: {
@@ -106,9 +106,9 @@ def build_entries(records: dict[BuildName, BuildRecord]) -> dict[BuildName, dict
 
 def write(report: Report, out_dir: str | Path,
           bundles: Optional[list[Bundle]] = None) -> tuple[Path, Path]:
-    """Write ``report.json`` and ``summary.txt`` into the run directory (§12.1).
+    """Write ``report.json`` and ``summary.txt`` into the run directory.
 
-    ``bundles`` gives the size and replay line of each finding (§12.5).
+    ``bundles`` gives the size and replay line of each finding.
     Returns the two paths.
     """
     out = Path(out_dir)
@@ -121,7 +121,7 @@ def write(report: Report, out_dir: str | Path,
 
 
 # ---------------------------------------------------------------------------
-# summary.txt (§12.5)
+# summary.txt
 # ---------------------------------------------------------------------------
 
 _W = 11  # width of the section labels ("BUILDS     ")
@@ -130,7 +130,7 @@ _D = 11  # width of the per-finding labels ("sanitized: ")
 
 def human_summary(report: Report, bundles: Optional[list[Bundle]] = None,
                   report_path: str | Path = REPORT_FILE) -> str:
-    """The human-readable summary, in the order of §12.5: target and run id;
+    """The human-readable summary, in the agreed order: target and run id;
     base and patch; the four builds; the hardening comparison; tests, builds,
     repeats and flaky results; one block per finding; the exit code and name;
     the path of ``report.json``. Tests without findings are only counted."""

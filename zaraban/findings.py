@@ -3,7 +3,6 @@
 Input is the combined results of the runner, one per test per build
 (``results[test][build]``). Output is a list of
 :class:`Finding`. This module never runs anything.
-
 :func:`build_findings` is the entry point. It applies every rule (crash,
 unsigned crash, release-only crash, functional and flaky findings) and
 numbers the findings in the order they are first observed in the run order.
@@ -559,8 +558,8 @@ def _reasons(results: list[CombinedResult]) -> str:
 
 
 def flaky_findings(results: Results, tests: Optional[list[str]] = None) -> list[Finding]:
-    """One ``INCONCLUSIVE`` finding per test with a flaky result on any build
-   , listing the flaky builds and how their repeats differ.
+    """One ``INCONCLUSIVE`` finding per test with a flaky result on any build,
+    listing the flaky builds and how their repeats differ.
 
     The other finding rules leave flaky results out, so this is the only
     finding that reports them.

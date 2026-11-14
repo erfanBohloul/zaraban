@@ -16,8 +16,8 @@ diff, so they match the paths in stack traces (``src/main.c``). As in
 ``git apply``, a changed or added file is named by its new path and a deleted
 file by its old path.
 
-**Changed functions** come from the source code, not from hunk headers
-: ``universal-ctags`` gives the start and end line of every function in
+**Changed functions** come from the source code, not from hunk headers:
+``universal-ctags`` gives the start and end line of every function in
 the base or patch tree, and a function is changed on a side when a changed
 line of that side falls inside it. On the base side the changed lines are the
 removed lines, on the patch side the added lines. A change can also be an
