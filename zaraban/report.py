@@ -267,7 +267,8 @@ def _finding_block(f: Finding, bundle: Optional[Bundle]) -> list[str]:
     out = [f"  {f.id} {f.category.value}" + (f"  {headline}" if headline else "")]
 
     def row(label: str, text: str) -> None:
-        out.append(f"        {label + ':':<{_D}}{text}")
+        # At least one space after the label, also for "regression:" (as wide as _D).
+        out.append(f"        {label + ':':<{_D - 1}} {text}")
 
     row("tests", " · ".join(
         f"{t.test} {t.on_patch.value}" if t.on_patch else t.test for t in f.tests) or "-")
