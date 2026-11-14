@@ -50,7 +50,7 @@ Zaraban executes targets in an isolated Linux environment (Ubuntu 22.04 with GCC
 sudo sysctl -w vm.mmap_rnd_bits=28
 
 # 2. Build the Docker image with your own user ids, so files in out/ are yours
-UID=$(id -u) GID=$(id -g) docker compose build
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose build
 ```
 
 ### Run guide on a fresh clone
@@ -60,7 +60,7 @@ These are exactly the steps CI runs. From a new clone, they need nothing else:
 ```bash
 git clone <repo url> zaraban && cd zaraban
 sudo sysctl -w vm.mmap_rnd_bits=28                       # Linux, once per boot
-UID=$(id -u) GID=$(id -g) docker compose build
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose build
 docker compose run --rm zaraban python3 -m pytest -q     # all unit and e2e tests
 docker compose run --rm zaraban python3 scripts/run_matrix.py cjson jhead test_token_parser
 ```

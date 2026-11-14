@@ -35,7 +35,7 @@ jobs:
       # Build with the runner's own ids, so the container user can write
       # out/ in the checked-out workspace (the bind mount).
       - name: Build Docker image
-        run: UID=$(id -u) GID=$(id -g) docker compose build
+        run: HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose build
 
       - name: Unit tests
         run: docker compose run --rm -T zaraban python3 -m pytest -q --ignore=tests/test_e2e.py

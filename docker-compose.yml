@@ -10,7 +10,7 @@
 # If downloads fail during the build, set BUILD_PROXY in .env (see .env.example).
 #
 # On Linux, build with your own user ids so files in out/ belong to you:
-#   UID=$(id -u) GID=$(id -g) docker compose build
+#   HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose build
 
 services:
   zaraban:
@@ -18,8 +18,8 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        USER_UID: ${UID:-1000}
-        USER_GID: ${GID:-1000}
+        USER_UID: ${HOST_UID:-1000}
+        USER_GID: ${HOST_GID:-1000}
         # Used only if a direct download fails. Set it in .env (see .env.example).
         BUILD_PROXY: ${BUILD_PROXY:-}
       # Lets the build reach a proxy running on your own machine, also on Linux.
