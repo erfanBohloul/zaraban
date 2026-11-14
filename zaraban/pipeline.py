@@ -1,4 +1,4 @@
-"""The Phase 2 pipeline: one run, wired end to end (SPEC §2).
+"""The pipeline: one run, wired end to end.
 
 ``cli.py`` imports :func:`run` for a full run. This module owns the run's
 set-up and its safety net; the work itself lives in :mod:`zaraban.exec_stage`
@@ -6,10 +6,10 @@ set-up and its safety net; the work itself lives in :mod:`zaraban.exec_stage`
 reproducers, status, report):
 
 1. :func:`start_run` prepares the sources, creates the run directory
-   ``out/<target>/<run id>/`` with ``inputs/`` (§12.1) and builds the
+   ``out/<target>/<run id>/`` with ``inputs/`` and builds the
    :class:`~zaraban.pipeline_state.RunContext`;
 2. the two stages run in order;
-3. whatever goes wrong, a report is still written (§13.4): a
+3. whatever goes wrong, a report is still written: a
    :class:`~zaraban.models.ZarabanError` becomes its error (exit 30), and any
    other exception becomes ``TOOL_INTERNAL`` with the traceback in
    ``errors.log`` (exit 30).
@@ -53,7 +53,7 @@ def run(
     build_and_execute: Optional[BuildExecFn] = None,
     analyze_and_report: Optional[AnalyzeReportFn] = None,
 ) -> int:
-    """Run the whole pipeline and return the process exit code (§13.1).
+    """Run the whole pipeline and return the process exit code.
 
     ``warnings`` are the config-load warnings from the CLI; they carry into the
     report.
@@ -62,7 +62,7 @@ def run(
     analyze_report = analyze_and_report or analysis_stage.analyze_and_report
 
     ctx = start_run(args, target, list(warnings or []))
-    if ctx.errors:  # the sources could not be prepared: report the error (§3.2)
+    if ctx.errors:  # the sources could not be prepared: report the error
         return analysis_stage.finish(ctx)
     try:
         ctx = build_exec(ctx)
@@ -71,7 +71,7 @@ def run(
         if exc.code is ErrorCode.TOOL_INTERNAL:
             write_errors_log(ctx.out_dir, traceback.format_exc())
         ctx.add_errors([exc.to_issue()])
-    except Exception as exc:  # a bug in the tool (§13.4)
+    except Exception as exc:  # a bug in the tool
         write_errors_log(ctx.out_dir, traceback.format_exc())
         ctx.add_errors([internal_error(exc)])
     return analysis_stage.finish(ctx)
@@ -102,7 +102,7 @@ def start_run(args: "argparse.Namespace", target: "Target", warnings: list[Issue
         srcs = sources.prepare(base, args.patch, tmp_work)
     except ZarabanError as exc:
         error = exc.to_issue()
-    except Exception as exc:  # a bug in the tool (§13.4)
+    except Exception as exc:  # a bug in the tool
         error, trace = internal_error(exc), traceback.format_exc()
 
     diff_sha = srcs.diff.sha256 if srcs else _file_sha256(getattr(args, "patch", None))
@@ -122,7 +122,7 @@ def start_run(args: "argparse.Namespace", target: "Target", warnings: list[Issue
         environment=environment.gather(settings.symbolizer), run_settings=settings,
         settings=report_settings(target, settings), warnings=warnings,
     )
-    ctx.add_warnings(settings.warnings())  # NO_SYMBOLIZER (§7.2)
+    ctx.add_warnings(settings.warnings())  # NO_SYMBOLIZER
     if error is not None:
         ctx.add_errors([error])
     return ctx
@@ -130,13 +130,13 @@ def start_run(args: "argparse.Namespace", target: "Target", warnings: list[Issue
 
 def new_run_id(started: datetime, diff_sha256: str) -> str:
     """``20261111-183002-3f2a91c0``: the UTC start time and the first 8 hex
-    digits of the diff's SHA-256 (§12.1)."""
+    digits of the diff's SHA-256."""
     return f"{started.strftime('%Y%m%d-%H%M%S')}-{diff_sha256[:8]}"
 
 
 def report_settings(target: "Target", settings: runner.RunSettings) -> dict:
-    """``report.settings`` (§12.4): repeats, limits and the sanitizer options
-    that sanitized runs get (§7.2)."""
+    """``report.settings``: repeats, limits and the sanitizer options
+    that sanitized runs get."""
     sanitized_env = settings.env_for(True)
     return {
         "repeats": target.spec.repeats,
@@ -147,14 +147,14 @@ def report_settings(target: "Target", settings: runner.RunSettings) -> dict:
 
 
 def internal_error(exc: BaseException) -> Issue:
-    """The ``TOOL_INTERNAL`` error of an unexpected exception (§12.6)."""
+    """The ``TOOL_INTERNAL`` error of an unexpected exception."""
     return Issue(ErrorCode.TOOL_INTERNAL.value,
                  f"unexpected error in zaraban (a bug in the tool): {exc!r}",
                  {"exception": type(exc).__name__, "log": ERRORS_LOG})
 
 
 def write_errors_log(run_dir: Path, text: str) -> None:
-    """Append full error details to ``errors.log`` (§12.1)."""
+    """Append full error details to ``errors.log``."""
     with open(run_dir / ERRORS_LOG, "a", encoding="utf-8") as f:
         f.write(text if text.endswith("\n") else text + "\n")
 
@@ -182,8 +182,8 @@ def _moved(srcs: sources.Sources, old: Path, new: Path) -> sources.Sources:
 
 
 def _copy_inputs(run_dir: Path, target: "Target", srcs: Optional[sources.Sources]) -> None:
-    """``inputs/config.yaml`` and ``inputs/patch.diff`` (§12.1). The report's
-    diff path then points at the copy, relative to the run directory (§12.2)."""
+    """``inputs/config.yaml`` and ``inputs/patch.diff``. The report's
+    diff path then points at the copy, relative to the run directory."""
     (run_dir / "inputs").mkdir()
     shutil.copyfile(target.config_path, run_dir / CONFIG_COPY)
     if srcs is not None:

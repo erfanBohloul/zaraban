@@ -1,7 +1,7 @@
-"""The shared pipeline state that the two Phase 2 stages pass between them.
+"""The shared state that the two pipeline stages pass between them.
 
-Phase 2 wires the Phase 1 modules into one run (SPEC §2). The run is split in
-two halves that two people build independently:
+The pipeline connects the modules into one run. The run is split in two
+halves that are developed and tested independently:
 
 * **build & execute** (stages 2–5): the four builds, hardening, and the
   execution matrix — fills the second group of fields here;
@@ -12,7 +12,7 @@ two halves that two people build independently:
 container: no logic lives here, exactly like :mod:`zaraban.models`. Keeping it
 in its own module means both stages import it without touching each other's
 files. Because every result is stored here as soon as it exists, a run that
-fails half-way still has everything collected so far for its report (§13.4).
+fails half-way still has everything collected so far for its report.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ if TYPE_CHECKING:  # annotations only; no runtime import, so this stays light
     from .runner import RunSettings
     from .sources import Sources
 
-# The copies of the run's inputs, relative to the run directory (§12.1).
+# The copies of the run's inputs, relative to the run directory.
 CONFIG_COPY = "inputs/config.yaml"
 DIFF_COPY = "inputs/patch.diff"
 
@@ -42,7 +42,7 @@ DIFF_COPY = "inputs/patch.diff"
 class RunContext:
     """Everything one run produces and consumes, passed between the two stages.
 
-    ``out_dir`` is the run directory ``out/<target>/<run id>/`` (§12.1); every
+    ``out_dir`` is the run directory ``out/<target>/<run id>/``; every
     path in the report is relative to it. ``work_dir`` is ``<run dir>/work``,
     the temporary source and build copies, deleted at the end unless
     ``--keep-work`` is given.
@@ -58,12 +58,12 @@ class RunContext:
     sources: Optional["Sources"] = None  # None when the sources could not be prepared
     environment: Optional["EnvironmentInfo"] = None
     run_settings: Optional["RunSettings"] = None
-    settings: dict[str, Any] = field(default_factory=dict)  # report.settings (§12.4)
+    settings: dict[str, Any] = field(default_factory=dict)  # report.settings
 
     # Filled by the build & execute stage.
     build_set: Optional["BuildSet"] = None
     hardening: Optional["HardeningReport"] = None
-    tests: list["TestCase"] = field(default_factory=list)  # in run order (§7.1)
+    tests: list["TestCase"] = field(default_factory=list)  # in run order
     results: Optional["Results"] = None  # results[test][build] -> CombinedResult
 
     # Filled by the analyze & report stage.
