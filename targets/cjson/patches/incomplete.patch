@@ -1,0 +1,35 @@
+diff --git a/src/cJSON.c b/src/cJSON.c
+index 74df6ec..431934c 100644
+--- a/src/cJSON.c
++++ b/src/cJSON.c
+@@ -2669,6 +2669,11 @@ CJSON_PUBLIC(void) cJSON_Minify(char *json)
+         else if ((*json == '/') && (json[1] == '*'))
+         {
+             /* multiline comments. */
++            if (json[2] == '\0')
++            {
++                /* a comment opener at the very end of the input has nothing to skip (#338) */
++                break;
++            }
+             while (*json && !((*json == '*') && (json[1] == '/')))
+             {
+                 json++;
+@@ -2681,13 +2686,16 @@ CJSON_PUBLIC(void) cJSON_Minify(char *json)
+             *into++ = (unsigned char)*json++;
+             while (*json && (*json != '\"'))
+             {
+-                if (*json == '\\')
++                if ((*json == '\\') && (json[1] != '\0'))
+                 {
+                     *into++ = (unsigned char)*json++;
+                 }
+                 *into++ = (unsigned char)*json++;
+             }
+-            *into++ = (unsigned char)*json++;
++            if (*json)
++            {
++                *into++ = (unsigned char)*json++;
++            }
+         }
+         else
+         {

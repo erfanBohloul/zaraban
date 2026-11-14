@@ -160,8 +160,13 @@ is the upstream fix. The Incomplete and Regression patches are written by us.
 
 | Target | Upstream | Vulnerability | Bug class | Input | Status |
 |---|---|---|---|---|---|
-| `cjson` | DaveGamble/cJSON | CVE-2019-11835 (out-of-bounds read in `cJSON_Minify`, fixed in 1.7.11) | heap buffer overflow (read) | file, via a small driver | confirmed ([repro](docs/repro/cjson.md)) |
-| `md4c` | mity/md4c | CVE-2021-30027 (out-of-bounds read in `md_analyze_line`, fixed in 0.4.8) | heap buffer overflow (read) | file/stdin, official `md2html` CLI | to confirm (C+D) |
+| `cjson` | DaveGamble/cJSON | CVE-2019-11834 and CVE-2019-11835 (out-of-bounds reads in `cJSON_Minify`, fixed in 1.7.11) | heap buffer overflow (read) | file, via a small driver | confirmed ([repro](docs/repro/cjson.md)); target ready in `targets/cjson` |
+| `jhead` | Matthias Wandel's jhead | Heap out-of-bounds read in `ProcessExifDir` (EXIF DateTime), fixed upstream in commit `df124a4` | heap buffer overflow (read) | file, own CLI (`jhead FILE`) | confirmed; target ready in `targets/jhead` |
+
+`md4c` (CVE-2021-30027) was dropped: its CVE is a use-of-uninitialized-value
+found with MemorySanitizer, which AddressSanitizer/UBSan (our profile) does
+not catch, so it cannot reproduce cleanly as a crash. jhead replaces it: a
+real C program with its own CLI and an ASan-detectable over-read.
 
 Backups if one of these does not reproduce cleanly under ASan:
 

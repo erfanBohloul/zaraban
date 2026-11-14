@@ -1,0 +1,30 @@
+# Delivered scenarios of the jhead target (SPEC §14.3). The tool never reads
+# this file; scripts/run_matrix.py runs each scenario and checks the exit code
+# and findings, in finding id order (SPEC §8.8). Rationale: ORACLE.md.
+
+- name: correct
+  patch: patches/correct.patch
+  version_dir: versions/patch_correct
+  expect_exit: 0
+  expect_findings:
+    - {category: FIXED, tests: [exploit_datetime_original, exploit_datetime]}
+
+- name: incomplete
+  patch: patches/incomplete.patch
+  version_dir: versions/patch_incomplete
+  expect_exit: 10
+  expect_findings:
+    - {category: INCOMPLETE_FIX, tests: [exploit_datetime_original, exploit_datetime]}
+
+- name: regression
+  patch: patches/regression.patch
+  version_dir: versions/patch_regression
+  expect_exit: 20
+  expect_findings:          # one per DateTime test, in finding id order (SPEC §8.8)
+    - {category: FUNCTIONAL_REGRESSION, tests: [valid_s100_datetime]}
+    - {category: FUNCTIONAL_REGRESSION, tests: [valid_kodak_datetime]}
+    - {category: FUNCTIONAL_REGRESSION, tests: [valid_pro1_datetime]}
+    - {category: FUNCTIONAL_REGRESSION, tests: [valid_nikon_d100_datetime]}
+    - {category: FUNCTIONAL_REGRESSION, tests: [valid_olympus_datetime]}
+    - {category: FUNCTIONAL_REGRESSION, tests: [boundary_bigendian_datetime]}
+    - {category: FIXED, tests: [exploit_datetime_original, exploit_datetime]}
