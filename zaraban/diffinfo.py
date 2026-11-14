@@ -192,3 +192,15 @@ def changed_functions(tree: str | Path, hunks: list[Hunk], side: Version) -> set
                         or any(lo <= a and b <= hi for a, b in gaps):
                     changed.add((rel_path, name))
     return changed
+
+
+def changed_lines_by_file(hunks: list[Hunk], side: Version) -> dict[str, set[int]]:
+    """The changed line numbers of ``side``, per file (§9.4): added lines on the
+    patch side, removed lines on the base side. Insertions that leave nothing on
+    ``side`` have no line there and are omitted."""
+    out: dict[str, set[int]] = {}
+    for h in hunks:
+        lines, _gaps = changed_positions(h, side)
+        if lines:
+            out.setdefault(h.file, set()).update(lines)
+    return out
