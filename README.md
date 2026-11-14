@@ -218,7 +218,7 @@ In the summary, look at:
 - for a security finding, the `reproducers/<finding id>/` bundle holds the
   minimized input and a `reproduce.sh` you can run on its own.
 
-Each run also prints `warning [NO_INVALID_TESTS]`. That is expected: these
+Each run also prints `warning NO_INVALID_TESTS`. That is expected: these
 demos have no `invalid_tests`, and the tool reminds you that a real target
 should. It is only a warning and never changes the exit code.
 

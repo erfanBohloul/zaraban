@@ -32,7 +32,8 @@ class _Parser(argparse.ArgumentParser):
 
     def error(self, message: str) -> NoReturn:
         self.print_usage(sys.stderr)
-        print(f"{ErrorCode.ARGUMENT_INVALID.value}: {message}", file=sys.stderr)
+        print(f"{ErrorCode.ARGUMENT_INVALID.value}: {message} (see {self.prog} --help)",
+              file=sys.stderr)
         raise SystemExit(int(ExitCode.BUILD_OR_CONFIG_ERROR))
 
 
@@ -70,9 +71,10 @@ def parse(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     if args.version:
         return args
     if not args.config:
-        parser.error("the following arguments are required: -c/--config")
+        parser.error("-c/--config is required: give the path of the target's zaraban.yaml")
     if not args.check_config and not args.patch:
-        parser.error("--patch is required unless --check-config is given")
+        parser.error("--patch is required: give the patched version as a diff file or a "
+                     "source directory, or add --check-config to only check the config")
     return args
 
 
@@ -102,11 +104,11 @@ def main(argv: Optional[Sequence[str]] = None, run: Optional[RunPipeline] = None
         return _report_internal_error()
 
     for w in warnings:
-        print(f"warning [{w.code}]: {w.message}", file=sys.stderr)
+        print(f"warning {w.code}: {w.message}", file=sys.stderr)
 
     if args.check_config:
-        print(f"config OK: {target.name} "
-              f"({len(target.all_tests())} tests, {len(warnings)} warning(s))")
+        print(f"config OK: {target.name}, {len(target.all_tests())} tests, "
+              f"{len(warnings)} warning{'' if len(warnings) == 1 else 's'}")
         return int(ExitCode.PASS)
 
     # Imported here, not at the top, so --version and --check-config do not
@@ -137,8 +139,8 @@ def _report_error(exc: ZarabanError) -> None:
 
 def _report_internal_error() -> int:
     """Report an unexpected exception as TOOL_INTERNAL; return exit code 30."""
-    print(f"{ErrorCode.TOOL_INTERNAL.value}: unexpected error in zaraban "
-          "(this is a bug in the tool)", file=sys.stderr)
+    print(f"{ErrorCode.TOOL_INTERNAL.value}: unexpected error in zaraban, which is a bug "
+          "in the tool; please report it with the traceback below", file=sys.stderr)
     traceback.print_exc(file=sys.stderr)
     return int(ExitCode.BUILD_OR_CONFIG_ERROR)
 

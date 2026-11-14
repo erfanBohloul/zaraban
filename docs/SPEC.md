@@ -1378,8 +1378,11 @@ run: `name`, `from_finding`, `path`, `input_sha256`, `status` (`added`,
 The same text is printed at the end of the run. It has these parts, in order:
 the target and run id; base and patch; the state of the four builds; the
 hardening comparison; the number of tests, builds and repeats, and how many
-results were flaky; one block per finding; the final exit code and name; the
-path of `report.json`. Tests without findings are only counted, not listed.
+results were flaky; one block per finding; the warnings and errors, each with
+its message (an error also lists its problems, for example why the diff did
+not apply at each strip level); the final exit code and name; the path of
+`report.json`. Tests without findings are only counted, not listed. Builds and
+tests that never ran (the sources or a build failed) show `not run`.
 
 ```
 ZARABAN 0.2.0  token_parser  run 20261111-183002-3f2a91c0

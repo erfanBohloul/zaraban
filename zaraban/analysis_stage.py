@@ -109,7 +109,9 @@ def link_with_traces(ctx: RunContext, hunks: list) -> None:
         )
     except OSError as exc:  # e.g. the source tree could not be copied for the coverage build
         ctx.add_warnings([Issue(WarningCode.TRACE_UNAVAILABLE.value,
-                                f"no execution trace could be made: {exc}", {"error": str(exc)})])
+                                f"no execution trace could be made ({exc}), so a functional "
+                                "regression is linked to the patch by its changed lines only",
+                                {"error": str(exc)})])
         return
     ctx.add_warnings(warnings)
     if traces:

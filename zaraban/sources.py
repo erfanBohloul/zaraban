@@ -69,7 +69,8 @@ def prepare(
     base_dir = Path(base_arg)
     if not base_dir.is_dir():
         raise ZarabanError(ErrorCode.SOURCE_NOT_FOUND,
-                           f"--base must be an existing directory: {base_arg}",
+                           f"the base version {base_arg} is not a directory; give the "
+                           "base sources with --base or base_dir in the config",
                            {"base": str(base_arg)})
 
     patch_path = Path(patch_arg)
@@ -91,7 +92,8 @@ def prepare(
         patch_commit = _git_commit(patch_path)
     else:
         raise ZarabanError(ErrorCode.SOURCE_NOT_FOUND,
-                           f"--patch is neither a file nor a directory: {patch_arg}",
+                           f"--patch {patch_arg} does not exist; give a diff file or a "
+                           "directory with the patched sources",
                            {"patch": str(patch_arg)})
 
     base_info = VersionInfo(
@@ -155,7 +157,9 @@ def _apply_diff(diff_file: Path, base_tree: Path, patch_tree: Path) -> int:
     if not touched:
         raise ZarabanError(
             ErrorCode.PATCH_APPLY_FAILED,
-            f"the diff does not apply to the base at any strip level -p0..-p{_MAX_STRIP}",
+            f"the patch {diff_file} does not apply to the base version (tried with "
+            f"-p0 to -p{_MAX_STRIP} leading path parts removed); check that it was made "
+            "against this base",
             {"diff": str(diff_file),
              "problems": [f"-p{lvl}: {_first_line(err)}" for lvl, err in failures.items()]},
         )
@@ -164,7 +168,8 @@ def _apply_diff(diff_file: Path, base_tree: Path, patch_tree: Path) -> int:
     applied = _git_apply(patch_tree, level, diff)
     if applied.returncode != 0:
         raise ZarabanError(ErrorCode.PATCH_APPLY_FAILED,
-                           f"the diff passed git apply --check at -p{level} but did not apply",
+                           f"the patch {diff_file} passed 'git apply --check' at "
+                           f"-p{level} but then did not apply",
                            {"diff": str(diff_file), "problems": [_first_line(applied.stderr)]})
     return level
 
@@ -177,8 +182,9 @@ def _choose_level(touched: dict[int, list[str]], base_tree: Path, diff_file: Pat
     if len(anchored) > 1:
         raise ZarabanError(
             ErrorCode.PATCH_APPLY_FAILED,
-            "the diff applies at more than one strip level, to different files; "
-            "make its paths unambiguous (for example with git diff)",
+            f"the patch {diff_file} applies to different files depending on how many "
+            "leading path parts are removed, so it is ambiguous; make it with "
+            "'git diff' or 'diff -ru base patched' from the target directory",
             {"diff": str(diff_file),
              "problems": [f"-p{lvl} would patch: {', '.join(touched[lvl])}" for lvl in anchored]},
         )
@@ -287,7 +293,7 @@ def _diff_info(diff_path: Path, strip: int) -> DiffInfo:
         patch_set = PatchSet(raw.decode("utf-8", errors="replace"))
     except UnidiffParseError as exc:
         raise ZarabanError(ErrorCode.PATCH_APPLY_FAILED,
-                           f"the diff could not be parsed: {exc}",
+                           f"the patch {diff_path} is not a valid unified diff: {exc}",
                            {"diff": str(diff_path)})
     files: list[str] = []
     for f in patch_set:

@@ -124,8 +124,9 @@ class RunSettings:
         if self.symbolizer:
             return []
         return [Issue(WarningCode.NO_SYMBOLIZER.value,
-                      "llvm-symbolizer was not found; sanitizer stack traces have no "
-                      "function names, so crashes have no signature", {})]
+                      "llvm-symbolizer was not found, so sanitizer stack traces have no "
+                      "function names and crashes cannot be told apart; install LLVM or "
+                      "run the tool in its Docker image", {})]
 
 
 # ---------------------------------------------------------------------------
@@ -173,8 +174,9 @@ def run_once(
     elif data is not None:  # args
         if b"\0" in data:
             raise ZarabanError(ErrorCode.CONFIG_INVALID,
-                               f"{test.name}: input_method is 'args' but the input contains "
-                               "a NUL byte", {"test": test.name})
+                               f"test {test.name}: input_method is 'args', so the input is "
+                               "passed as a command-line argument and cannot contain a NUL "
+                               "byte", {"test": test.name})
         args.append(os.fsdecode(data))  # passed to the program byte for byte
         shown.append(data.decode("utf-8", errors="backslashreplace"))
 
@@ -261,8 +263,9 @@ def output_warnings(records: list[RunRecord]) -> list[Issue]:
         for stream in (r.stdout, r.stderr):
             if stream.truncated:
                 out.append(Issue(WarningCode.OUTPUT_TRUNCATED.value,
-                                 f"{r.test} on {r.build.value}, repeat {r.repeat}: output "
-                                 "was cut at 1 MB", {"path": stream.path}))
+                                 f"{r.test} on {r.build.value}, repeat {r.repeat}: the "
+                                 "output was longer than 1 MB and only its first 1 MB was "
+                                 "kept", {"path": stream.path}))
     return out
 
 
