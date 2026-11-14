@@ -241,6 +241,34 @@ def test_12_5_summary_with_no_findings_warnings_and_errors():
     assert "RESULT     exit 30  BUILD_OR_CONFIG_ERROR" in text
 
 
+def test_12_5_summary_keeps_a_space_after_the_longest_label():
+    f = _incomplete_fix()
+    f.regression_test = "regression/reg-x-12345678.yaml"
+    text = report_mod.human_summary(_assemble(findings=[f]))
+    assert "        regression: regression/reg-x-12345678.yaml" in text
+    assert "        tests:     " in text  # the other rows keep their alignment
+
+
+def test_12_5_summary_shows_each_warning_with_its_message():
+    warns = [Issue(WarningCode.NO_DEBUG_INFO.value, "no debug info")] + [
+        Issue(WarningCode.OUTPUT_TRUNCATED.value, f"repeat {i}: cut") for i in range(1, 6)]
+    text = report_mod.human_summary(_assemble(findings=[], warnings=warns))
+    assert ("WARNINGS   NO_DEBUG_INFO: no debug info\n"
+            "           OUTPUT_TRUNCATED: repeat 1: cut\n"
+            "           OUTPUT_TRUNCATED: repeat 2: cut\n"
+            "           OUTPUT_TRUNCATED: repeat 3: cut\n"
+            "           OUTPUT_TRUNCATED: ... and 2 more (see report.json)\n") in text
+
+
+def test_12_5_summary_lists_the_problems_of_an_error():
+    err = Issue(ErrorCode.PATCH_APPLY_FAILED.value, "the patch does not apply",
+                {"problems": ["-p0: no such file", "-p1: patch failed: src/main.c:12"]})
+    text = report_mod.human_summary(_assemble(findings=[], errors=[err]))
+    assert ("ERROR      PATCH_APPLY_FAILED: the patch does not apply\n"
+            "             - -p0: no such file\n"
+            "             - -p1: patch failed: src/main.c:12\n") in text
+
+
 def test_12_5_summary_marks_an_unstable_bundle():
     b = _bundle()
     b.stable = False

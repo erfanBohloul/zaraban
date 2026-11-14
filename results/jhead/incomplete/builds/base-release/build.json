@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "build": "base-release",
+  "status": "ok",
+  "cmd": "make release",
+  "env": {
+    "PATH": "/usr/local/bin:/usr/bin:/bin",
+    "HOME": "/tmp",
+    "LANG": "C"
+  },
+  "cwd": "/tmp/run_matrix/jhead/incomplete/jhead/20261114-093448-279059a3/work/base-release",
+  "exit_code": 0,
+  "duration_s": 0.8746,
+  "log": "builds/base-release/build.log",
+  "binary": {
+    "path": "builds/base-release/bin/jhead",
+    "size": 89144,
+    "sha256": "803d60508cc0e7e95b7025ea58413dd54cbe6ff193ec246f36cddf72460b8c12"
+  },
+  "sanitizers_verified": null,
+  "has_debug_info": null
+}

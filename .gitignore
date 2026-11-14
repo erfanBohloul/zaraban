@@ -229,3 +229,7 @@ token_parser
 
 tmp/
 out/
+
+# The saved outputs of the delivered scenarios are committed in full
+# (scripts/run_matrix.py --save), so none of the patterns above applies there.
+!results/**

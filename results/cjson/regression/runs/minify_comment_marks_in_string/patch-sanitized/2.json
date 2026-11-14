@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "test": "minify_comment_marks_in_string",
+  "kind": "valid",
+  "build": "patch-sanitized",
+  "repeat": 2,
+  "cmd": [
+    "/tmp/run_matrix/cjson/regression/cjson/20261114-093427-f42ffd37/builds/patch-sanitized/bin/cjson_driver",
+    "minify",
+    "input.json"
+  ],
+  "env": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "ASAN_OPTIONS": "abort_on_error=1:detect_leaks=0:symbolize=1:disable_coredump=1:max_allocation_size_mb=256",
+    "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1",
+    "ASAN_SYMBOLIZER_PATH": "/usr/bin/llvm-symbolizer"
+  },
+  "cwd": "/tmp/zaraban-run-sf60rlx_",
+  "input": {
+    "method": "file",
+    "name": "input.json",
+    "size": 16,
+    "sha256": "667f63a2d691e3348cca115f70e85d10120708919f89bb5e4c56ec98ac2e4c3f"
+  },
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "limit_hit": null,
+  "duration_s": 0.0066,
+  "stdout": {
+    "path": "runs/minify_comment_marks_in_string/patch-sanitized/2.stdout",
+    "bytes": 13,
+    "sha256": "52610b56f59c3dbd7c95429ea013339bf56cb942f757f028d78e49bd6f895a33",
+    "truncated": false
+  },
+  "stderr": {
+    "path": "runs/minify_comment_marks_in_string/patch-sanitized/2.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "truncated": false
+  },
+  "analysis": {
+    "outcome": "NORMAL",
+    "detection": null,
+    "error_type": null,
+    "summary": null,
+    "frames": [],
+    "signature": null
+  },
+  "oracle": {
+    "checked": true,
+    "passed": false,
+    "reasons": [
+      "output does not exact-match"
+    ]
+  }
+}

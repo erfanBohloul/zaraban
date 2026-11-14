@@ -34,7 +34,6 @@ from .models import (
     Status,
     dump_json,
 )
-from .util import unique
 
 REPORT_FILE = "report.json"
 SUMMARY_FILE = "summary.txt"
@@ -132,8 +131,9 @@ def human_summary(report: Report, bundles: Optional[list[Bundle]] = None,
                   report_path: str | Path = REPORT_FILE) -> str:
     """The human-readable summary, in the agreed order: target and run id;
     base and patch; the four builds; the hardening comparison; tests, builds,
-    repeats and flaky results; one block per finding; the exit code and name;
-    the path of ``report.json``. Tests without findings are only counted."""
+    repeats and flaky results; one block per finding; warnings and errors
+    (each error with its listed problems); the exit code and name; the path
+    of ``report.json``. Tests without findings are only counted."""
     by_finding = {b.finding: b for b in bundles or []}
     lines = [
         f"{report.tool['name'].upper()} {report.tool['version']}  "
@@ -154,12 +154,13 @@ def human_summary(report: Report, bundles: Optional[list[Bundle]] = None,
 
     if report.warnings:
         lines.append("")
-        lines.append(_label("WARNINGS") + " · ".join(unique(w.code for w in report.warnings)))
+        lines.extend(_warning_lines(report.warnings))
     if report.errors:
         if not report.warnings:
             lines.append("")
         for e in report.errors:
             lines.append(_label("ERROR") + f"{e.code}: {e.message}")
+            lines.extend(f"{'':<{_W}}  - {p}" for p in (e.details or {}).get("problems", []))
 
     st: Status = report.status
     lines += [
@@ -168,6 +169,28 @@ def human_summary(report: Report, bundles: Optional[list[Bundle]] = None,
         f"{'report:':<{_W}}{report_path}",
     ]
     return "\n".join(lines) + "\n"
+
+
+_MAX_PER_CODE = 3  # warnings of one code shown in full; the rest are counted
+
+
+def _warning_lines(warnings: list[Issue]) -> list[str]:
+    """One line per warning, with its message; a code that repeats (one
+    truncated output per repeat, say) shows its first few and a count."""
+    by_code: dict[str, list[str]] = {}
+    for w in warnings:
+        by_code.setdefault(w.code, [])
+        if w.message not in by_code[w.code]:
+            by_code[w.code].append(w.message)
+    lines = []
+    for code, messages in by_code.items():
+        for m in messages[:_MAX_PER_CODE]:
+            lines.append(f"{code}: {m}")
+        if len(messages) > _MAX_PER_CODE:
+            lines.append(f"{code}: ... and {len(messages) - _MAX_PER_CODE} more "
+                         "(see report.json)")
+    return [(_label("WARNINGS") if i == 0 else _label("")) + line
+            for i, line in enumerate(lines)]
 
 
 def _label(text: str) -> str:
@@ -197,7 +220,7 @@ def _builds_line(builds: dict[Any, Any]) -> str:
     order = [b.value for b in BUILD_ORDER] + [k for k in by_name if k not in
                                               {b.value for b in BUILD_ORDER}]
     return " · ".join(f"{n} {_get(by_name[n], 'status') or '-'}" for n in order if n in by_name) \
-        or "-"
+        or "not run"
 
 
 def _on_off(value: Any) -> str:
@@ -225,6 +248,8 @@ def _hardening_line(h: Optional[HardeningReport]) -> str:
 
 
 def _tests_line(report: Report) -> str:
+    if not report.execution_logs:
+        return "not run"
     tests: set[str] = set()
     flaky = 0
     for per_test in report.execution_logs.values():
@@ -242,7 +267,8 @@ def _finding_block(f: Finding, bundle: Optional[Bundle]) -> list[str]:
     out = [f"  {f.id} {f.category.value}" + (f"  {headline}" if headline else "")]
 
     def row(label: str, text: str) -> None:
-        out.append(f"        {label + ':':<{_D}}{text}")
+        # At least one space after the label, also for "regression:" (as wide as _D).
+        out.append(f"        {label + ':':<{_D - 1}} {text}")
 
     row("tests", " · ".join(
         f"{t.test} {t.on_patch.value}" if t.on_patch else t.test for t in f.tests) or "-")

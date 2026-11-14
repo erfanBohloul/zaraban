@@ -28,7 +28,7 @@ Members:
 | 0. Foundation | Agree on what to build and on the shared types; prove the targets work | `models.py`, Docker image, two reproduced CVEs, target proposal | Models merged, image builds, both PoCs crash under ASan |
 | 1. Modules | Each member builds and unit-tests their module alone | Four tested modules | `pytest` green, one test per SPEC rule |
 | 2. Integration | Connect the modules into one pipeline, prove it on `token_parser` | Working end-to-end tool | `token_parser` gives exits 0, 10, 20 with the right findings |
-| 3. Real targets | Prepare cJSON and md4c with four versions, tests and oracles | Two complete target directories | `run_matrix.py` passes all six scenarios |
+| 3. Real targets | Prepare cJSON and jhead with four versions, tests and oracles | Two complete target directories | `run_matrix.py` passes all six scenarios |
 | 4. CI and defense | Automate, document, rehearse unseen patches | CI pipeline, docs, drill results | CI green, drill verdicts correct, fresh-clone run works |
 
 Why this order: Phase 0 removes the two biggest risks early (shared types that
@@ -1274,16 +1274,27 @@ target1_sample/regression   exit 20 (expected 20)  findings ok   PASS
 
 ## Phase 3: Real targets
 
-**Goal:** make cJSON (A+B) and md4c (C+D) complete targets with four versions,
-tests, oracles and scenarios. The two pairs work in parallel.
+**Goal:** make cJSON (A+B) and a second real target (C+D) complete targets
+with four versions, tests, oracles and scenarios. The two pairs work in
+parallel. md4c was the first plan for the second target; it was replaced by
+jhead (README, "Targets"), so the md4c samples below are kept only as
+examples.
 
-**Status:** cJSON is done in `targets/cjson` (Tasks 3.1 to 3.4, and its
-`scenarios.yaml`); its `ORACLE.md` describes what was built. It differs from
-the samples below in a few places: the driver is `src/main.c` (so every
-version tree is complete), the exploits are `exploit_comment`,
-`exploit_string` and `exploit_comment_bypass`, and the base has two CVEs
-(2019-11834 and 2019-11835). Saving its results (Task 3.5) waits for
-`run_matrix.py` (Task 2.5).
+**Status: done.** Both targets are complete, and the Phase 3 gate is met:
+
+- `targets/cjson` (Tasks 3.1 to 3.5): 17 valid, 10 boundary, 10 invalid and
+  3 security tests. It differs from the samples below in a few places: the
+  driver is `src/main.c` (so every version tree is complete), the exploits
+  are `exploit_comment`, `exploit_string` and `exploit_comment_bypass`, and
+  the base has two CVEs (2019-11834 and 2019-11835).
+- `targets/jhead` (Tasks 3.1, 3.3 to 3.5; jhead has its own CLI, so it needs
+  no driver): 12 valid, 10 boundary, 10 invalid and 2 security tests.
+- `run_matrix.py cjson jhead` matches all six scenarios (exits 0, 10 and 20
+  for each target, with the expected findings), and `results/<target>/<scenario>/`
+  holds their reports, summaries and reproducer bundles.
+
+Each target's `ORACLE.md` describes what was built and why each scenario
+gives its result.
 
 ### Task 3.1: Target directory and Makefile
 

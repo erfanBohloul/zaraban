@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "test": "driver_unknown_mode",
+  "kind": "invalid",
+  "build": "base-release",
+  "repeat": 1,
+  "cmd": [
+    "/tmp/run_matrix/cjson/regression/cjson/20261114-093427-f42ffd37/builds/base-release/bin/cjson_driver",
+    "bogus",
+    "input.json"
+  ],
+  "env": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  },
+  "cwd": "/tmp/zaraban-run-dx6gx9q1",
+  "input": {
+    "method": "file",
+    "name": "input.json",
+    "size": 2,
+    "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+  },
+  "exit_code": 2,
+  "signal": null,
+  "timed_out": false,
+  "limit_hit": null,
+  "duration_s": 0.0038,
+  "stdout": {
+    "path": "runs/driver_unknown_mode/base-release/1.stdout",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "truncated": false
+  },
+  "stderr": {
+    "path": "runs/driver_unknown_mode/base-release/1.stderr",
+    "bytes": 126,
+    "sha256": "31ee12e69b0dbafc814bbe8ddcc004c97680a847e731c691ec7c1b2b6950ed41",
+    "truncated": false
+  },
+  "analysis": {
+    "outcome": "NORMAL",
+    "detection": null,
+    "error_type": null,
+    "summary": null,
+    "frames": [],
+    "signature": null
+  },
+  "oracle": {
+    "checked": true,
+    "passed": true,
+    "reasons": []
+  }
+}

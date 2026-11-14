@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "test": "boundary_progressive",
+  "kind": "boundary",
+  "build": "patch-release",
+  "repeat": 1,
+  "cmd": [
+    "/tmp/run_matrix/jhead/incomplete/jhead/20261114-093448-279059a3/builds/patch-release/bin/jhead",
+    "input.jpg"
+  ],
+  "env": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  },
+  "cwd": "/tmp/zaraban-run-9qaff8of",
+  "input": {
+    "method": "file",
+    "name": "input.jpg",
+    "size": 3272,
+    "sha256": "6ca3c1a34d10f9f10a867bbf6f92af60a379babcb7bb7c9fda7d5dfe2b6bbdc7"
+  },
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "limit_hit": null,
+  "duration_s": 0.0031,
+  "stdout": {
+    "path": "runs/boundary_progressive/patch-release/1.stdout",
+    "bytes": 157,
+    "sha256": "fd8866b65ce540ccae9573012414816a0c29505b0dbca0b52bc1d7cd012fc7e8",
+    "truncated": false
+  },
+  "stderr": {
+    "path": "runs/boundary_progressive/patch-release/1.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "truncated": false
+  },
+  "analysis": {
+    "outcome": "NORMAL",
+    "detection": null,
+    "error_type": null,
+    "summary": null,
+    "frames": [],
+    "signature": null
+  },
+  "oracle": {
+    "checked": true,
+    "passed": true,
+    "reasons": []
+  }
+}

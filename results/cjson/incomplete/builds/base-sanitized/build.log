@@ -1,0 +1,4 @@
+$ make clean
+rm -f cjson_driver *.profraw *.profdata
+$ make sanitized
+clang -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -Isrc -o cjson_driver src/cJSON.c src/main.c -lm

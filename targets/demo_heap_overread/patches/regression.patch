@@ -1,0 +1,19 @@
+diff --git a/src/main.c b/src/main.c
+index db9d21c..1bf8aaa 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -24,8 +24,12 @@ int main(int argc, char **argv)
+     memcpy(payload, raw + off, plen);
+ 
+     long sum = 0;
+-    /* BUG: trusts k without checking it against plen. */
+-    for (long j = 0; j < k; j++) sum += (unsigned char)payload[j];
++    if (k < 0 || (size_t)k > plen) {          /* over-read is fixed ... */
++        fprintf(stderr, "count out of range\n");
++        free(payload);
++        return 1;
++    }
++    for (long j = 0; j < k; j++) sum += (unsigned char)payload[j] + 1;  /* ... but the sum is wrong */
+ 
+     printf("sum=%ld\n", sum);
+     free(payload);

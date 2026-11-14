@@ -109,7 +109,9 @@ def link_with_traces(ctx: RunContext, hunks: list) -> None:
         )
     except OSError as exc:  # e.g. the source tree could not be copied for the coverage build
         ctx.add_warnings([Issue(WarningCode.TRACE_UNAVAILABLE.value,
-                                f"no execution trace could be made: {exc}", {"error": str(exc)})])
+                                f"no execution trace could be made ({exc}), so a functional "
+                                "regression is linked to the patch by its changed lines only",
+                                {"error": str(exc)})])
         return
     ctx.add_warnings(warnings)
     if traces:
@@ -171,8 +173,8 @@ def base_not_reproduced(tests: list[TestCase], results: Results) -> list[str]:
 
 
 def finish(ctx: RunContext) -> int:
-    """Decide the status, write ``report.json`` and ``summary.txt``, delete
-    ``work/`` unless ``--keep-work``; return the exit code."""
+    """Decide the status, write ``report.json`` and ``summary.txt``, print
+    the summary, delete ``work/`` unless ``--keep-work``; return the exit code."""
     st = status.compute_status(findings=ctx.findings, checks=ctx.checks, errors=ctx.errors,
                                base_not_reproduced=ctx.base_not_reproduced)
     config_copy = ctx.out_dir / CONFIG_COPY
@@ -195,7 +197,8 @@ def finish(ctx: RunContext) -> int:
         warnings=ctx.warnings,
         errors=ctx.errors,
     )
-    report.write(rep, ctx.out_dir, bundles=ctx.bundles)
+    _, summary_path = report.write(rep, ctx.out_dir, bundles=ctx.bundles)
+    print(summary_path.read_text(encoding="utf-8"), end="", flush=True)
     if not getattr(ctx.args, "keep_work", False):
         shutil.rmtree(ctx.work_dir, ignore_errors=True)
     return int(st.exit_code)

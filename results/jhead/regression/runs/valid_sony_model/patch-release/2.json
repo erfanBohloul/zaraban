@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "test": "valid_sony_model",
+  "kind": "valid",
+  "build": "patch-release",
+  "repeat": 2,
+  "cmd": [
+    "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/builds/patch-release/bin/jhead",
+    "input.jpg"
+  ],
+  "env": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  },
+  "cwd": "/tmp/zaraban-run-arpw_t3l",
+  "input": {
+    "method": "file",
+    "name": "input.jpg",
+    "size": 9381,
+    "sha256": "a2464242c37ebef0d67103db810d64080689b753638d03aa91b8f52e03749be0"
+  },
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "limit_hit": null,
+  "duration_s": 0.0047,
+  "stdout": {
+    "path": "runs/valid_sony_model/patch-release/2.stdout",
+    "bytes": 413,
+    "sha256": "f25faa6051cb31458108945860fd7d3a240b25c5d82f94f454ea7c05c77b2778",
+    "truncated": false
+  },
+  "stderr": {
+    "path": "runs/valid_sony_model/patch-release/2.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "truncated": false
+  },
+  "analysis": {
+    "outcome": "NORMAL",
+    "detection": null,
+    "error_type": null,
+    "summary": null,
+    "frames": [],
+    "signature": null
+  },
+  "oracle": {
+    "checked": true,
+    "passed": true,
+    "reasons": []
+  }
+}

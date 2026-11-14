@@ -91,7 +91,7 @@ def test_4_5_duplicate_names(tmp_path):
     dup = GOOD.replace("name: exploit_primary", "name: valid_ping")
     with pytest.raises(ZarabanError) as e:
         Target.load(write(tmp_path, dup))
-    assert any("valid_ping" in p and "2 times" in p for p in e.value.details["problems"])
+    assert any("valid_ping" in p and "used by 2 tests" in p for p in e.value.details["problems"])
 
 
 def test_4_5_all_problems_reported_together(tmp_path):
@@ -125,7 +125,7 @@ def test_4_5_both_inputs_is_an_error(tmp_path):
     (tmp_path / "x.bin").write_bytes(b"x")
     with pytest.raises(ZarabanError) as e:
         Target.load(write(tmp_path, cfg))
-    assert any("both input_file and input_data" in p for p in e.value.details["problems"])
+    assert any("either input_file or input_data, not both" in p for p in e.value.details["problems"])
 
 
 def test_4_5_warn_when_no_invalid_tests(tmp_path):
@@ -199,7 +199,7 @@ def test_4_5_bad_target_name(tmp_path):
 
 def test_4_5_file_method_needs_input(tmp_path):
     problems = problems_of(tmp_path, MINIMAL + "input_method: file\n")
-    assert any("v1" in p and "gives no input" in p for p in problems)
+    assert any("test v1:" in p and "needs input_file or input_data" in p for p in problems)
 
 
 def test_5_3_args_input_with_nul_is_an_error(tmp_path):
@@ -212,7 +212,7 @@ def test_5_3_args_input_with_nul_is_an_error(tmp_path):
 def test_5_2_input_file_over_1mb_is_an_error(tmp_path):
     (tmp_path / "big.bin").write_bytes(b"A" * ((1 << 20) + 1))
     cfg = MINIMAL.replace("  - name: s1\n", "  - name: s1\n    input_file: big.bin\n")
-    assert any("larger than 1 MB" in p for p in problems_of(tmp_path, cfg))
+    assert any("the limit is 1 MB" in p for p in problems_of(tmp_path, cfg))
 
 
 def test_5_2_input_file_that_is_a_directory_is_an_error(tmp_path):
@@ -251,3 +251,48 @@ def test_4_delivered_sample_config_loads():
     target, _ = Target.load(root / "targets" / "target1_sample" / "zaraban.yaml")
     assert target.name == "token_parser"
     assert target.base_dir == (root / "targets" / "target1_sample").resolve()
+
+
+# --- Messages a first-time user can act on -----------------------------------
+
+
+def test_4_5_unknown_key_suggests_the_closest_known_key(tmp_path):
+    cfg = GOOD.replace("  timeout_seconds: 2.0", "  timeout: 2.0")
+    assert "limits: unknown key 'timeout'; did you mean 'timeout_seconds'?" in \
+        problems_of(tmp_path, cfg)
+
+
+def test_4_5_problem_in_a_test_names_the_test_and_the_bad_value(tmp_path):
+    cfg = GOOD.replace("    expected_exit_code: 1", "    expected_exit_code: one")
+    problems = problems_of(tmp_path, cfg)
+    assert any(p.startswith("invalid_tests[0] (invalid_unknown).expected_exit_code: must be")
+               and "(got 'one')" in p for p in problems), problems
+
+
+def test_4_5_missing_key_and_empty_test_list_are_plain_words(tmp_path):
+    cfg = MINIMAL.replace("  binary_path: prog\n", "").replace(
+        "security_tests:\n  - name: s1\n", "security_tests: []\n")
+    problems = problems_of(tmp_path, cfg)
+    assert "build.binary_path: required key is missing" in problems
+    assert "security_tests: must list at least one test" in problems
+
+
+def test_4_5_empty_config_is_one_clear_problem(tmp_path):
+    problems = problems_of(tmp_path, "")
+    assert len(problems) == 1 and "empty or is not a YAML mapping" in problems[0]
+
+
+def test_4_5_missing_config_file_says_how_to_give_it(tmp_path):
+    with pytest.raises(ZarabanError) as e:
+        Target.load(tmp_path / "nope.yaml")
+    assert e.value.code is ErrorCode.CONFIG_INVALID
+    assert "does not exist" in e.value.details["problems"][0]
+    assert "-c/--config" in e.value.details["problems"][0]
+
+
+def test_4_5_messages_do_not_refer_to_the_design_documents(tmp_path):
+    cfg = GOOD[: GOOD.index("invalid_tests:")] + GOOD[GOOD.index("security_tests:"):]
+    _, warnings = Target.load(write(tmp_path, cfg.replace("name: token_parser",
+                                                          "name: token_parser\nrepeats: 1")))
+    for w in warnings:
+        assert "spec" not in w.message.lower() and "§" not in w.message

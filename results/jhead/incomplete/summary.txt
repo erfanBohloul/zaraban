@@ -1,0 +1,20 @@
+ZARABAN 0.2.0  jhead  run 20261114-093448-279059a3
+base:  /workspace/targets/jhead (directory)
+patch: /workspace/targets/jhead/patches/incomplete.patch (diff, -p1)
+
+BUILDS     base-release ok · base-sanitized ok · patch-release ok · patch-sanitized ok
+HARDENING  NX on→on · PIE on→on · RELRO full→full · canary on→on   (no changes)
+TESTS      34 tests × 4 builds × 3 repeats   flaky: 0
+
+FINDINGS
+  F-001 INCOMPLETE_FIX  HEAP_BUFFER_OVERFLOW @ ProcessExifDir < process_EXIF < ReadJpegSections
+        tests:     exploit_datetime_original blocked · exploit_datetime reaches
+        release:   NORMAL exit 0 → NORMAL exit 0
+        sanitized: ASAN/SIGABRT → CRASH ASAN SIGABRT (exploit_datetime); NORMAL exit 0 (exploit_datetime_original)
+        link:      IN_CHANGED_HUNK  src/exif.c:648 ProcessExifDir (patch side)
+        bundle:    reproducers/F-001  4636 → 43 bytes, replay 3/3
+        regression: regression/reg-exploit_datetime-95bef140.yaml
+        notes:     HEAP_BUFFER_OVERFLOW @ ProcessExifDir (src/exif.c) still occurs on patch with exploit_datetime; the patch blocks exploit_datetime_original.
+
+RESULT     exit 10  VULN_REMAINS
+report:    /tmp/run_matrix/jhead/incomplete/jhead/20261114-093448-279059a3/report.json

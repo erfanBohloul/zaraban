@@ -22,15 +22,15 @@ docker compose build
 
 # Validate a patch given as a diff file
 docker compose run --rm zaraban \
-  python -m zaraban.cli -c targets/<target>/zaraban.yaml \
+  python3 -m zaraban.cli -c targets/<target>/zaraban.yaml \
   --patch targets/<target>/patches/incomplete.patch
 
 # Only check a config file, without building anything
 docker compose run --rm zaraban \
-  python -m zaraban.cli -c targets/<target>/zaraban.yaml --check-config
+  python3 -m zaraban.cli -c targets/<target>/zaraban.yaml --check-config
 
 # Run every delivered scenario and compare with the expected results
-docker compose run --rm zaraban python scripts/run_matrix.py
+docker compose run --rm zaraban python3 scripts/run_matrix.py
 ```
 
 Outputs go to `out/<target>/<run id>/`: `summary.txt`, `report.json`, raw
@@ -57,17 +57,17 @@ Run the validation engine on a target by providing its configuration file and a 
 ```bash
 # Validate the correct patch (Expected: Exit 0 / PASS)
 docker compose run --rm zaraban \
-  python -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
+  python3 -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
   --patch targets/target1_sample/patches/correct.patch
 
 # Validate an incomplete patch (Expected: Exit 10 / VULN_REMAINS)
 docker compose run --rm zaraban \
-  python -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
+  python3 -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
   --patch targets/target1_sample/patches/incomplete.patch
 
 # Validate a behavior-breaking patch (Expected: Exit 20 / FUNC_REGRESSION)
 docker compose run --rm zaraban \
-  python -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
+  python3 -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
   --patch targets/target1_sample/patches/regression.patch
 ```
 
@@ -145,6 +145,112 @@ config + base + patch (dir or diff)
      regression test                                    SPEC §10
   -> summary.txt + report.json + exit code              SPEC §12, §13
 ```
+
+## Demo targets (try the tool yourself)
+
+`targets/demo_*` are four tiny, self-contained targets meant for learning and
+hands-on testing. Each is a ~25-line C program with one easy-to-read bug, and
+each comes with three patches so you can watch the tool produce every verdict.
+They are independent of the delivered targets: nothing in CI or the test suite
+uses them, so you can change or delete them freely.
+
+| Target | Bug class | `correct` | `incomplete` | `regression` |
+|---|---|---|---|---|
+| `demo_stack_overflow` | stack buffer overflow (write) | exit 0 | exit 10 | exit 20 |
+| `demo_heap_overread` | heap out-of-bounds read | exit 0 | exit 10 | exit 20 |
+| `demo_divzero` | division by zero | exit 0 | exit 10 | exit 20 |
+| `demo_null_deref` | NULL pointer dereference | exit 0 | exit 10 | exit 20 |
+
+In every target the three patches are the same idea: `correct` fixes the bug,
+`incomplete` adds a check that misses the bug (a wrong bound or the wrong
+variable), and `regression` fixes the bug but quietly breaks a valid input.
+Open `targets/demo_stack_overflow/src/main.c` and its three `patches/*.patch`
+to see exactly what changed.
+
+### Prerequisite
+
+On a Linux host, set the ASan randomization bits once per boot, or the
+sanitized builds crash at start-up at random (Issue #002):
+
+```bash
+sudo sysctl vm.mmap_rnd_bits=28
+```
+
+### Testing a demo target by hand
+
+Run the tool on one patch at a time and read the exit code it returns. Using
+`demo_stack_overflow` as the example:
+
+```bash
+# correct fix -> the bug is gone, nothing else breaks -> exit 0 (PASS)
+docker compose run --rm zaraban \
+  python3 -m zaraban.cli -c targets/demo_stack_overflow/zaraban.yaml \
+  --patch targets/demo_stack_overflow/patches/correct.patch
+echo "exit code: $?"
+```
+
+```bash
+# incomplete fix -> the exploit still crashes -> exit 10 (VULN_REMAINS)
+docker compose run --rm zaraban \
+  python3 -m zaraban.cli -c targets/demo_stack_overflow/zaraban.yaml \
+  --patch targets/demo_stack_overflow/patches/incomplete.patch
+echo "exit code: $?"
+```
+
+```bash
+# regression -> the bug is fixed but a valid test now fails -> exit 20 (FUNC_REGRESSION)
+docker compose run --rm zaraban \
+  python3 -m zaraban.cli -c targets/demo_stack_overflow/zaraban.yaml \
+  --patch targets/demo_stack_overflow/patches/regression.patch
+echo "exit code: $?"
+```
+
+The other three targets work the same way; just change the directory name.
+
+**Reading the result.** The run prints a `summary.txt` and writes everything
+to `out/<target>/<run id>/` (see [Inspecting outputs](#inspecting-outputs)).
+In the summary, look at:
+
+- the final `RESULT` line, which is the exit code and its name;
+- the `FINDINGS` block: `FIXED` means the bug was reproduced on base and is
+  gone on patch; `INCOMPLETE_FIX` means it still crashes on patch;
+  `FUNCTIONAL_REGRESSION` means a valid test changed its output;
+- for a security finding, the `reproducers/<finding id>/` bundle holds the
+  minimized input and a `reproduce.sh` you can run on its own.
+
+Each run also prints `warning NO_INVALID_TESTS`. That is expected: these
+demos have no `invalid_tests`, and the tool reminds you that a real target
+should. It is only a warning and never changes the exit code.
+
+### Testing all demos automatically
+
+`scripts/run_matrix.py` runs every scenario of a target (listed in its
+`scenarios.yaml`) and checks both the exit code and the findings against what
+the scenario expects. Give it one or more target names, or none for all:
+
+```bash
+# one target, all three of its scenarios
+docker compose run --rm zaraban python3 scripts/run_matrix.py demo_stack_overflow
+
+# all four demo targets at once
+docker compose run --rm zaraban python3 scripts/run_matrix.py \
+  demo_stack_overflow demo_heap_overread demo_divzero demo_null_deref
+```
+
+Each scenario prints one line ending in `PASS` or `FAIL`, and the script exits
+non-zero if any scenario did not match, so it works as a check in CI. A passing
+run looks like:
+
+```
+demo_stack_overflow/correct    exit 0  (expected 0 )  findings ok   PASS
+demo_stack_overflow/incomplete exit 10 (expected 10)  findings ok   PASS
+demo_stack_overflow/regression exit 20 (expected 20)  findings ok   PASS
+...
+12/12 scenarios matched
+```
+
+Add `--save` to copy each run's report, summary and bundles into
+`results/<target>/<scenario>/`.
 
 ## Targets
 
@@ -319,17 +425,22 @@ with the findings of SPEC §8.9, through `run_matrix.py`.
 
 ### Phase 3: Real targets
 
+**Status: done.** `targets/cjson` (17 valid, 10 boundary, 10 invalid, 3
+security tests) and `targets/jhead` (12, 10, 10, 2) are complete, all six
+scenarios pass through `run_matrix.py`, and their outputs are saved in
+`results/`.
+
 For each target, the pair prepares:
 
-- [ ] `src/` at the vulnerable upstream version, with a minimal `Makefile`.
-- [ ] Correct patch = the upstream fix commit.
-- [ ] Incomplete patch: blocks the public PoC only. Write a second exploit
+- [x] `src/` at the vulnerable upstream version, with a minimal `Makefile`.
+- [x] Correct patch = the upstream fix commit.
+- [x] Incomplete patch: blocks the public PoC only. Write a second exploit
       input that still reaches the bug, and add it to `security_tests`.
-- [ ] Regression patch: removes the crash but rejects or breaks some valid
+- [x] Regression patch: removes the crash but rejects or breaks some valid
       inputs, with no other security bug.
-- [ ] Tests: about 10 to 20 valid, 10 boundary (around every threshold the
+- [x] Tests: about 10 to 20 valid, 10 boundary (around every threshold the
       patches touch) and 10 invalid, each with its source in `ORACLE.md`.
-- [ ] `scenarios.yaml` with the expected exit and findings for each patch.
+- [x] `scenarios.yaml` with the expected exit and findings for each patch.
 
 **Gate:** `run_matrix.py` passes for all scenarios of both targets. Results are
 saved to `results/` with `--save`.
@@ -357,7 +468,7 @@ Phase 1  A builds | B runner | C findings | D repro+report     (parallel)
            |
 Phase 2  A wires pipeline -> token_parser scenarios pass
            |
-Phase 3  cJSON pair (A+B)  |  md4c pair (C+D)                  (parallel)
+Phase 3  cJSON pair (A+B)  |  jhead pair (C+D)                 (parallel)
            |
 Phase 4  CI + docs + unseen-patch drill
 ```

@@ -34,7 +34,7 @@ import yaml
 from pydantic import ValidationError
 
 from . import __version__
-from .config import MAX_INPUT_BYTES, Name, _format_errors, _read_yaml, _Strict
+from .config import MAX_INPUT_BYTES, Name, _count, _format_errors, _read_yaml, _Strict
 from .models import (
     BuildName,
     Bundle,
@@ -129,38 +129,45 @@ def read_tests(regression_dir: str | Path, input_method: InputMethod,
         try:
             raw = _read_yaml(path)
         except ZarabanError as exc:
-            problems.extend(exc.details.get("problems", [exc.message]))
+            problems.extend(f"{where}: {p}" for p in exc.details.get("problems", [exc.message]))
+            continue
+        if not isinstance(raw, dict):
+            problems.append(f"{where}: the file is empty or is not a YAML mapping")
             continue
         try:
             spec = _RegressionSpec.model_validate(raw)
         except ValidationError as exc:
-            problems.extend(f"{where}: {p}" for p in _format_errors(exc))
+            problems.extend(f"{where}: {p}" for p in _format_errors(exc, _RegressionSpec, raw))
             continue
 
         if spec.name in by_name:
-            problems.append(f"{where}: test name {spec.name!r} is already used by "
-                            f"{'another regression test' if by_name[spec.name].kind is TestKind.REGRESSION else 'a config test'}")
+            other = ("another regression test" if by_name[spec.name].kind is TestKind.REGRESSION
+                     else "a test in the config")
+            problems.append(f"{where}: test name {spec.name!r} is already used by {other}")
             continue
 
         fpath = (regression_dir / spec.input_file).resolve()
         if root not in fpath.parents:
-            problems.append(f"{where}: input_file must be inside {regression_dir.name}/: "
-                            f"{spec.input_file}")
+            problems.append(f"{where}: input_file {spec.input_file!r} points outside "
+                            f"{regression_dir.name}/; it must name a file next to the .yaml")
             continue
         if not fpath.is_file():
-            problems.append(f"{where}: input_file does not exist: {spec.input_file}")
+            problems.append(f"{where}: input_file {spec.input_file!r} does not exist in "
+                            f"{regression_dir.name}/")
             continue
         try:
             data = fpath.read_bytes()
         except OSError as exc:
-            problems.append(f"{where}: input_file cannot be read: {spec.input_file} "
+            problems.append(f"{where}: input_file {spec.input_file!r} cannot be read "
                             f"({exc.strerror or exc})")
             continue
         if len(data) > MAX_INPUT_BYTES:
-            problems.append(f"{where}: input_file is larger than 1 MB")
+            problems.append(f"{where}: input_file {spec.input_file!r} is {len(data)} bytes; "
+                            f"the limit is 1 MB ({MAX_INPUT_BYTES} bytes)")
             continue
         if input_method is InputMethod.ARGS and b"\x00" in data:
-            problems.append(f"{where}: input_method is 'args' but the input contains a NUL byte")
+            problems.append(f"{where}: input_method is 'args', so the input is passed as a "
+                            "command-line argument and cannot contain a NUL byte")
             continue
 
         source = by_name.get(spec.created_by.source_test)
@@ -181,7 +188,9 @@ def read_tests(regression_dir: str | Path, input_method: InputMethod,
 
     if problems:
         raise ZarabanError(ErrorCode.CONFIG_INVALID,
-                           f"{len(problems)} problem(s) in the regression tests of {regression_dir}",
+                           f"the regression tests in {regression_dir} have "
+                           f"{_count(len(problems), 'problem')} (fix or delete the files named "
+                           "below)",
                            {"problems": problems})
     return tests
 
@@ -204,8 +213,9 @@ def base_clean_warnings(tests: list[TestCase], results: Results) -> list[Issue]:
             continue
         warnings.append(Issue(
             WarningCode.REGRESSION_BASE_CLEAN.value,
-            f"{t.name} no longer crashes on base-sanitized ({r.outcome.value}); "
-            f"base may already contain an earlier fix",
+            f"regression test {t.name} was saved from a crash, but it does not crash on "
+            f"base-sanitized any more ({r.outcome.value}); the base probably already "
+            "contains an earlier fix",
             {"test": t.name, "expected_signature": t.expected_signature,
              "outcome": r.outcome.value}))
     return warnings

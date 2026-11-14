@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "test": "boundary_bigendian_model",
+  "kind": "boundary",
+  "build": "patch-release",
+  "repeat": 3,
+  "cmd": [
+    "/tmp/run_matrix/jhead/incomplete/jhead/20261114-093448-279059a3/builds/patch-release/bin/jhead",
+    "input.jpg"
+  ],
+  "env": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  },
+  "cwd": "/tmp/zaraban-run-iok4fk22",
+  "input": {
+    "method": "file",
+    "name": "input.jpg",
+    "size": 29654,
+    "sha256": "c6f720d64bd1ebe8d6ace250448f36a3ce827c8666f4255b4a9874a3b14d1b19"
+  },
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "limit_hit": null,
+  "duration_s": 0.0026,
+  "stdout": {
+    "path": "runs/boundary_bigendian_model/patch-release/3.stdout",
+    "bytes": 418,
+    "sha256": "23b69844f7516c4d91f51453adaeef88d2028440e7cffd5e431173558281817e",
+    "truncated": false
+  },
+  "stderr": {
+    "path": "runs/boundary_bigendian_model/patch-release/3.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "truncated": false
+  },
+  "analysis": {
+    "outcome": "NORMAL",
+    "detection": null,
+    "error_type": null,
+    "summary": null,
+    "frames": [],
+    "signature": null
+  },
+  "oracle": {
+    "checked": true,
+    "passed": true,
+    "reasons": []
+  }
+}

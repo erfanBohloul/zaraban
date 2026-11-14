@@ -1,0 +1,17 @@
+# Demo scenarios. Run them with:  scripts/run_matrix.py demo_heap_overread
+- name: correct
+  patch: patches/correct.patch
+  expect_exit: 0
+  expect_findings:
+    - {category: FIXED, tests: [exploit_overread]}
+- name: incomplete
+  patch: patches/incomplete.patch
+  expect_exit: 10
+  expect_findings:
+    - {category: INCOMPLETE_FIX, tests: [exploit_overread]}
+- name: regression
+  patch: patches/regression.patch
+  expect_exit: 20
+  expect_findings:
+    - {category: FUNCTIONAL_REGRESSION, tests: [valid_small]}
+    - {category: FIXED, tests: [exploit_overread]}

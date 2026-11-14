@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "test": "minify_spaces",
+  "kind": "valid",
+  "build": "base-release",
+  "repeat": 3,
+  "cmd": [
+    "/tmp/run_matrix/cjson/correct/cjson/20261114-093410-61fcf2ba/builds/base-release/bin/cjson_driver",
+    "minify",
+    "input.json"
+  ],
+  "env": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  },
+  "cwd": "/tmp/zaraban-run-db44_so7",
+  "input": {
+    "method": "file",
+    "name": "input.json",
+    "size": 20,
+    "sha256": "2f248e4cd3da4c23044bf6c58c6dea448a035dc907fa15db56a0dcc361c3ea7f"
+  },
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "limit_hit": null,
+  "duration_s": 0.003,
+  "stdout": {
+    "path": "runs/minify_spaces/base-release/3.stdout",
+    "bytes": 13,
+    "sha256": "aa5350ecb03ec9d468736f25aa26b95b5ac0cdc0ca6df717ce9343ccd4b43613",
+    "truncated": false
+  },
+  "stderr": {
+    "path": "runs/minify_spaces/base-release/3.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "truncated": false
+  },
+  "analysis": {
+    "outcome": "NORMAL",
+    "detection": null,
+    "error_type": null,
+    "summary": null,
+    "frames": [],
+    "signature": null
+  },
+  "oracle": {
+    "checked": true,
+    "passed": true,
+    "reasons": []
+  }
+}
