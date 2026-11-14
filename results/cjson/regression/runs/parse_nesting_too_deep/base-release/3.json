@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "test": "parse_nesting_too_deep",
+  "kind": "invalid",
+  "build": "base-release",
+  "repeat": 3,
+  "cmd": [
+    "/tmp/run_matrix/cjson/regression/cjson/20261114-093427-f42ffd37/builds/base-release/bin/cjson_driver",
+    "parse",
+    "input.json"
+  ],
+  "env": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  },
+  "cwd": "/tmp/zaraban-run-iwpvwl18",
+  "input": {
+    "method": "file",
+    "name": "input.json",
+    "size": 2002,
+    "sha256": "0738a0a61977fce796e41f0aeb5e06528476ee0cdd95cdb2ca4ae76a36a86e71"
+  },
+  "exit_code": 1,
+  "signal": null,
+  "timed_out": false,
+  "limit_hit": null,
+  "duration_s": 0.0053,
+  "stdout": {
+    "path": "runs/parse_nesting_too_deep/base-release/3.stdout",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "truncated": false
+  },
+  "stderr": {
+    "path": "runs/parse_nesting_too_deep/base-release/3.stderr",
+    "bytes": 12,
+    "sha256": "dfb4345e697b448fa48007974649db109c28047c40a43b4eed35ba68e345e02a",
+    "truncated": false
+  },
+  "analysis": {
+    "outcome": "NORMAL",
+    "detection": null,
+    "error_type": null,
+    "summary": null,
+    "frames": [],
+    "signature": null
+  },
+  "oracle": {
+    "checked": true,
+    "passed": true,
+    "reasons": []
+  }
+}

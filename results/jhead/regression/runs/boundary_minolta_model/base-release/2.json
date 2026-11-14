@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "test": "boundary_minolta_model",
+  "kind": "boundary",
+  "build": "base-release",
+  "repeat": 2,
+  "cmd": [
+    "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/builds/base-release/bin/jhead",
+    "input.jpg"
+  ],
+  "env": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  },
+  "cwd": "/tmp/zaraban-run-txn2dvp3",
+  "input": {
+    "method": "file",
+    "name": "input.jpg",
+    "size": 16802,
+    "sha256": "4a3ef4d93216ff5c06405fefc5ad1619277993c4680ab97a95e8420e7c24fc4c"
+  },
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "limit_hit": null,
+  "duration_s": 0.0037,
+  "stdout": {
+    "path": "runs/boundary_minolta_model/base-release/2.stdout",
+    "bytes": 376,
+    "sha256": "71c44ec09fa6c68430895d05f692a9ec59df3c029caa731239b92387f367751d",
+    "truncated": false
+  },
+  "stderr": {
+    "path": "runs/boundary_minolta_model/base-release/2.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "truncated": false
+  },
+  "analysis": {
+    "outcome": "NORMAL",
+    "detection": null,
+    "error_type": null,
+    "summary": null,
+    "frames": [],
+    "signature": null
+  },
+  "oracle": {
+    "checked": true,
+    "passed": true,
+    "reasons": []
+  }
+}

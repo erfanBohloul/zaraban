@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "build": "base-sanitized",
+  "status": "ok",
+  "cmd": "make sanitized",
+  "env": {
+    "PATH": "/usr/local/bin:/usr/bin:/bin",
+    "HOME": "/tmp",
+    "LANG": "C"
+  },
+  "cwd": "/tmp/run_matrix/cjson/regression/cjson/20261114-093427-f42ffd37/work/base-sanitized",
+  "exit_code": 0,
+  "duration_s": 1.1248,
+  "log": "builds/base-sanitized/build.log",
+  "binary": {
+    "path": "builds/base-sanitized/bin/cjson_driver",
+    "size": 1671080,
+    "sha256": "89093fcfa4b47826e1feaa98239bfb3f4472cdcaef142170be158d9e4174f010"
+  },
+  "sanitizers_verified": true,
+  "has_debug_info": true
+}

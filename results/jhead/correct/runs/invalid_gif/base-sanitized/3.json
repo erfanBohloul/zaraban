@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "test": "invalid_gif",
+  "kind": "invalid",
+  "build": "base-sanitized",
+  "repeat": 3,
+  "cmd": [
+    "/tmp/run_matrix/jhead/correct/jhead/20261114-093436-3f9def97/builds/base-sanitized/bin/jhead",
+    "input.gif"
+  ],
+  "env": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "ASAN_OPTIONS": "abort_on_error=1:detect_leaks=0:symbolize=1:disable_coredump=1:max_allocation_size_mb=256",
+    "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1",
+    "ASAN_SYMBOLIZER_PATH": "/usr/bin/llvm-symbolizer"
+  },
+  "cwd": "/tmp/zaraban-run-ucwza_1t",
+  "input": {
+    "method": "file",
+    "name": "input.gif",
+    "size": 848,
+    "sha256": "dc1ed9da79aaa6b4576658fad561aae5b180ef7e6c1be02e9cbc82a0cd1cee09"
+  },
+  "exit_code": 1,
+  "signal": null,
+  "timed_out": false,
+  "limit_hit": null,
+  "duration_s": 0.006,
+  "stdout": {
+    "path": "runs/invalid_gif/base-sanitized/3.stdout",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "truncated": false
+  },
+  "stderr": {
+    "path": "runs/invalid_gif/base-sanitized/3.stderr",
+    "bytes": 20,
+    "sha256": "98ecac8d2d36d8a27156f918fc0c0099a1a6460cca94f831ba175378293c41d6",
+    "truncated": false
+  },
+  "analysis": {
+    "outcome": "NORMAL",
+    "detection": null,
+    "error_type": null,
+    "summary": null,
+    "frames": [],
+    "signature": null
+  },
+  "oracle": {
+    "checked": true,
+    "passed": true,
+    "reasons": []
+  }
+}

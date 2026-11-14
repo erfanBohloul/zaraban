@@ -1,0 +1,7 @@
+$ make clean
+rm -f jhead *.profraw *.profdata
+$ make sanitized
+cd src && clang -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -o ../jhead exif.c gpsinfo.c iptc.c jhead.c jpgfile.c jpgqguess.c makernote.c paths.c -lm
+/usr/bin/ld: /usr/bin/ld: DWARF error: invalid or unhandled FORM value: 0x22
+/tmp/jhead-1e29af.o: in function `DoCommand':
+jhead.c:(.text+0x8758): warning: the use of `mktemp' is dangerous, better use `mkstemp' or `mkdtemp'

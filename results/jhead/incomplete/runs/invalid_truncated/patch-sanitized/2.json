@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "test": "invalid_truncated",
+  "kind": "invalid",
+  "build": "patch-sanitized",
+  "repeat": 2,
+  "cmd": [
+    "/tmp/run_matrix/jhead/incomplete/jhead/20261114-093448-279059a3/builds/patch-sanitized/bin/jhead",
+    "input.jpg"
+  ],
+  "env": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "ASAN_OPTIONS": "abort_on_error=1:detect_leaks=0:symbolize=1:disable_coredump=1:max_allocation_size_mb=256",
+    "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1",
+    "ASAN_SYMBOLIZER_PATH": "/usr/bin/llvm-symbolizer"
+  },
+  "cwd": "/tmp/zaraban-run-tv3pwocs",
+  "input": {
+    "method": "file",
+    "name": "input.jpg",
+    "size": 120,
+    "sha256": "bc6a74195bcca3ed519dd330f94f2f2301c1ee05bde8567a3b0efd3184d6bc31"
+  },
+  "exit_code": 1,
+  "signal": null,
+  "timed_out": false,
+  "limit_hit": null,
+  "duration_s": 0.0069,
+  "stdout": {
+    "path": "runs/invalid_truncated/patch-sanitized/2.stdout",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "truncated": false
+  },
+  "stderr": {
+    "path": "runs/invalid_truncated/patch-sanitized/2.stderr",
+    "bytes": 52,
+    "sha256": "cb4e147b5abe9e2784678fbaf9d2a50b33a955e24046a37b47a5d3c29908c393",
+    "truncated": false
+  },
+  "analysis": {
+    "outcome": "NORMAL",
+    "detection": null,
+    "error_type": null,
+    "summary": null,
+    "frames": [],
+    "signature": null
+  },
+  "oracle": {
+    "checked": true,
+    "passed": true,
+    "reasons": []
+  }
+}

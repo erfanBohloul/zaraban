@@ -1,0 +1,4 @@
+$ make clean
+rm -f cjson_driver *.profraw *.profdata
+$ make release
+gcc -O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -Isrc -o cjson_driver src/cJSON.c src/main.c -pie -Wl,-z,relro,-z,now -lm

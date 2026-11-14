@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "build": "base-sanitized",
+  "status": "ok",
+  "cmd": "make sanitized",
+  "env": {
+    "PATH": "/usr/local/bin:/usr/bin:/bin",
+    "HOME": "/tmp",
+    "LANG": "C"
+  },
+  "cwd": "/tmp/run_matrix/jhead/incomplete/jhead/20261114-093448-279059a3/work/base-sanitized",
+  "exit_code": 0,
+  "duration_s": 2.2273,
+  "log": "builds/base-sanitized/build.log",
+  "binary": {
+    "path": "builds/base-sanitized/bin/jhead",
+    "size": 1898048,
+    "sha256": "81fad7cff041d6a2584c8a7718e9ec415e59f6a24134453b506e6a12ea609ae0"
+  },
+  "sanitizers_verified": true,
+  "has_debug_info": true
+}

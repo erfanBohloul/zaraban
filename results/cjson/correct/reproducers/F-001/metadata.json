@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "finding": "F-001",
+  "category": "FIXED",
+  "source_test": "exploit_comment",
+  "version": "base",
+  "build": "base-sanitized",
+  "git_commit": "20fdf63",
+  "tree_sha256": "7e0f2f0f94fe3f36529bad37f9e827e228d82e8fc78eeb4eaa217f99edcb4575",
+  "diff_sha256": "61fcf2bac31201612641cd89857f7422121377d7fea5a47a97cfe3a84de3879c",
+  "binary": "bin/cjson_driver",
+  "binary_sha256": "e84b72a3ff216c8e0f4c3b719be457e5e91146d433820dc8959b25a92d63e056",
+  "build_settings": {
+    "cmd": "make sanitized",
+    "env": {
+      "PATH": "/usr/local/bin:/usr/bin:/bin",
+      "HOME": "/tmp",
+      "LANG": "C"
+    },
+    "compilers": {
+      "gcc": "gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+      "clang": "Ubuntu clang version 14.0.0-1ubuntu1.1"
+    }
+  },
+  "run_env": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "ASAN_OPTIONS": "abort_on_error=1:detect_leaks=0:symbolize=1:disable_coredump=1:max_allocation_size_mb=256",
+    "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1",
+    "ASAN_SYMBOLIZER_PATH": "/usr/bin/llvm-symbolizer"
+  },
+  "cmd": [
+    "/tmp/run_matrix/cjson/correct/cjson/20261114-093410-61fcf2ba/builds/base-sanitized/bin/cjson_driver",
+    "minify",
+    "input.json"
+  ],
+  "bundle_cmd": [
+    "bin/cjson_driver",
+    "minify",
+    "input.json"
+  ],
+  "input_method": "file",
+  "input_name": "input.json",
+  "input_files": {
+    "orig": "input.orig.json",
+    "min": "input.min.json"
+  },
+  "expected": {
+    "signature": "HEAP_BUFFER_OVERFLOW @ cJSON_Minify < main",
+    "error_type": "HEAP_BUFFER_OVERFLOW",
+    "detection": "ASAN"
+  },
+  "sizes": {
+    "original": 2,
+    "minimized": 2,
+    "minimize_runs": 2
+  },
+  "minimize_limit_hit": false,
+  "replayed_input": "min",
+  "minimized_input_unstable": false,
+  "stable": true
+}

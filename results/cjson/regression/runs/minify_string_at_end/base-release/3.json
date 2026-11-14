@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "test": "minify_string_at_end",
+  "kind": "boundary",
+  "build": "base-release",
+  "repeat": 3,
+  "cmd": [
+    "/tmp/run_matrix/cjson/regression/cjson/20261114-093427-f42ffd37/builds/base-release/bin/cjson_driver",
+    "minify",
+    "input.json"
+  ],
+  "env": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  },
+  "cwd": "/tmp/zaraban-run-bmlgcc7t",
+  "input": {
+    "method": "file",
+    "name": "input.json",
+    "size": 5,
+    "sha256": "6cc43f858fbb763301637b5af970e2a46b46f461f27e5a0f41e009c59b827b25"
+  },
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "limit_hit": null,
+  "duration_s": 0.0029,
+  "stdout": {
+    "path": "runs/minify_string_at_end/base-release/3.stdout",
+    "bytes": 6,
+    "sha256": "a4fb58ab9e76dcf8d9b2638c78dc2ba08b72447170604684d3f1adfb9842f950",
+    "truncated": false
+  },
+  "stderr": {
+    "path": "runs/minify_string_at_end/base-release/3.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "truncated": false
+  },
+  "analysis": {
+    "outcome": "NORMAL",
+    "detection": null,
+    "error_type": null,
+    "summary": null,
+    "frames": [],
+    "signature": null
+  },
+  "oracle": {
+    "checked": true,
+    "passed": true,
+    "reasons": []
+  }
+}
