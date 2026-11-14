@@ -1,4 +1,4 @@
-"""Execution trace via clang source-based coverage (SPEC §9.4, Phase 2 Task 2.2).
+"""Execution trace via clang source-based coverage.
 
 For a finding whose crash stack gives no location evidence, and for every
 ``FUNCTIONAL_REGRESSION`` (which has no crash at all), the linker needs to know
@@ -14,7 +14,7 @@ For a finding whose crash stack gives no location evidence, and for every
 
 If the config has no ``coverage_cmd``, or the coverage build / run / export
 fails, no trace is made: the result is unavailable and carries the warning
-``TRACE_UNAVAILABLE`` (§9.4), and the link falls back to its other evidence.
+``TRACE_UNAVAILABLE``, and the link falls back to its other evidence.
 
 The three heavy steps (build, run, export) are injectable, so the parsing and
 intersection logic is unit-tested without a compiler or LLVM.
@@ -49,7 +49,7 @@ class TraceResult:
 
 @dataclass
 class RunSpec:
-    """Everything the coverage run needs from the target config (§5.3, §7.2)."""
+    """Everything the coverage run needs from the target config."""
 
     binary_rel: str                                  # build.binary_path, relative to the tree
     input_method: InputMethod
@@ -72,7 +72,7 @@ class RunSpec:
 
     def run_settings(self) -> runner.RunSettings:
         """The runner's settings for these values, so the coverage run gets the
-        same environment and limits as the normal runs (§9.4, §7.2, §7.3)."""
+        same environment and limits as the normal runs."""
         return runner.RunSettings(
             input_method=self.input_method, file_arg_placeholder=self.file_arg_placeholder,
             env=dict(self.env), timeout_seconds=float(self.timeout_seconds),
@@ -109,7 +109,7 @@ def trace(
 
     ``changed`` maps a source path (as it appears in the diff, e.g. ``src/main.c``)
     to the set of changed line numbers on the relevant side (added lines on the
-    patch side, removed lines on the base side, §9.4).
+    patch side, removed lines on the base side).
     """
     build = build or build_coverage
     run = run or run_for_profile
@@ -136,7 +136,7 @@ def trace(
     per_file = select_executed(coverage, changed)
     flat = sorted({ln for lines in per_file.values() for ln in lines})
     # A trace that ran but touched no changed line is still "available": the link
-    # simply stays without CHANGED_CODE_EXECUTED. No warning in that case (§9.4).
+    # simply stays without CHANGED_CODE_EXECUTED. No warning in that case.
     return TraceResult(True, executed_changed_lines=flat, per_file=per_file)
 
 
@@ -155,22 +155,22 @@ def run_trace(target, version_tree, test, changed, work_dir, *, label="coverage"
 
 
 # ---------------------------------------------------------------------------
-# Producing the traces for linking (§9.4)
+# Producing the traces for linking
 # ---------------------------------------------------------------------------
 
 
 def execution_traces(
     findings,
     tests_by_name: dict[str, TestCase],
-    changed_by_side: dict,          # {Version: {file: set[int]}}  from diffinfo.changed_lines_by_file
-    version_trees: dict,            # {Version: tree path}         sources.base_tree / .patch_tree
+    changed_by_side: dict[Version, dict[str, set[int]]],  # from diffinfo.changed_lines_by_file
+    version_trees: dict[Version, Path],                   # sources.base_tree / .patch_tree
     target,
     work_dir,
     *,
     trace_fn: Optional[Callable] = None,
 ) -> tuple[dict[str, list[int]], list[Issue]]:
     """Make an execution trace for each finding whose stack gave no location
-    evidence (§9.4), and return the data ``linking.link_findings`` consumes.
+    evidence, and return the data ``linking.link_findings`` consumes.
 
     Run this **after** a first ``link_findings`` pass: a finding needs a trace
     exactly when its link came out ``UNDETERMINED`` but has a side — that covers
@@ -195,7 +195,7 @@ def execution_traces(
         tree = version_trees.get(link.side)
         if test is None or not changed or tree is None:
             continue
-        # work/<version>-coverage/, as §9.4 names it
+        # its own copy work/<version>-coverage/, next to the four builds
         result = trace_fn(target, tree, test, changed, work_dir,
                           label=f"{link.side.value}-coverage")
         if result.available:
@@ -290,7 +290,7 @@ def _unavailable(reason: str) -> Issue:
 
 def build_coverage(version_tree: Path, coverage_cmd: str, dest: Path, binary_rel: str) -> Optional[Path]:
     """Copy the version tree and run the coverage build command, exactly like
-    the builds of §6.2: the same minimal environment, timeout and process-group
+    the four builds: the same minimal environment, timeout and process-group
     kill (``builder._run_step``)."""
     dest = Path(dest)
     if dest.exists():
@@ -311,9 +311,9 @@ def build_coverage(version_tree: Path, coverage_cmd: str, dest: Path, binary_rel
 def run_for_profile(binary: Path, test: TestCase, spec: RunSpec, profraw: Path, run_dir: Path) -> bool:
     """Run the test once on the coverage binary with ``LLVM_PROFILE_FILE`` set.
 
-    The input, environment and limits are those of a normal release run
-    (§9.4): the runner's environment (§7.2) and its timeout, CPU and memory
-    limits, with the whole process group killed at the end (§7.3)."""
+    The input, environment and limits are those of a normal release run:
+    the runner's environment and its timeout, CPU and memory
+    limits, with the whole process group killed at the end."""
     run_dir = Path(run_dir)
     if run_dir.exists():
         shutil.rmtree(run_dir)

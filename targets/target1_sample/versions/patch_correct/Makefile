@@ -11,7 +11,7 @@ RELEASE_LDFLAGS = -Wl,-z,relro,-z,now -pie -fPIE
 SANITIZE_CFLAGS = -fsanitize=address,undefined -fno-omit-frame-pointer -g -O1 -Wall -Wextra
 SANITIZE_LDFLAGS = -fsanitize=address,undefined
 
-# Coverage build: source-based coverage for the execution trace (SPEC §9.4)
+# Coverage build: source-based coverage for the execution trace
 COVERAGE_CFLAGS = -O0 -g -fprofile-instr-generate -fcoverage-mapping -Wall -Wextra
 
 .PHONY: all release sanitized coverage clean

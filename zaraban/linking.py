@@ -1,16 +1,14 @@
-"""Linking findings to the patch (SPEC §9).
+"""Linking findings to the patch.
 
 :func:`link_findings` is the entry point: it sets ``finding.link`` on every
 finding that :func:`zaraban.findings.build_findings` made.
 
 A link is reported only with **location evidence** from an actual execution
-(§9.3) together with **comparative evidence** from running both versions on
-the same input (§9.5). Being close to a changed line is never enough: when the
-evidence is missing, the link is ``UNDETERMINED`` (§9.1).
+together with **comparative evidence** from running both versions on
+the same input. Being close to a changed line is never enough: when the
+evidence is missing, the link is ``UNDETERMINED``.
 
-This module never changes a finding's category or the exit code (§9.6).
-
-Section numbers such as §9.3 refer to docs/SPEC.md.
+This module never changes a finding's category or the exit code.
 """
 
 from __future__ import annotations
@@ -39,7 +37,7 @@ from .models import (
 ChangedFunctions = set[tuple[str, str]]  # (file, function), from diffinfo.changed_functions
 
 # ---------------------------------------------------------------------------
-# Location evidence (§9.3)
+# Location evidence
 # ---------------------------------------------------------------------------
 
 
@@ -48,16 +46,16 @@ def locate(frames: list[Frame], hunks: list[Hunk], changed: ChangedFunctions,
     """The strongest location evidence of one stack trace on one side of the diff.
 
     Every frame that is not a runtime frame is checked, not only the top one,
-    and the strongest level found in any frame is reported (§9.3):
+    and the strongest level found in any frame is reported:
 
     - ``IN_CHANGED_HUNK``: a frame's file and line are inside a hunk's range
-      on ``side`` (context lines included, §9.2);
+      on ``side`` (context lines included);
     - ``IN_CHANGED_FUNCTION``: the crashing frame (the first non-runtime frame
       with a name) is inside a function the patch changed on ``side``;
     - ``CHANGED_FUNCTION_IN_STACK``: a changed function appears lower in the
       stack, as a caller of the crashing code;
     - ``CHANGED_CODE_EXECUTED``: no frame matches, but the execution trace
-      (§9.4) shows that changed lines of ``side`` ran (``executed_lines``);
+      shows that changed lines of ``side`` ran (``executed_lines``);
     - ``UNDETERMINED``: none of these. A crash in a changed file but outside
       every changed hunk and function is only closeness, so it stays here.
 
@@ -110,13 +108,13 @@ def _norm(path: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Which side and which crash a finding is linked through (§9.3, §9.4)
+# Which side and which crash a finding is linked through
 # ---------------------------------------------------------------------------
 
 # FIXED: the error is gone on patch, so its crash is on base, matched against
 # the base side of the diff. INCOMPLETE_FIX and NEW_ISSUE: the crash on patch,
 # against the patch side. FUNCTIONAL_REGRESSION: no crash, only the execution
-# trace on patch (§9.4). INCONCLUSIVE: no side; the link stays UNDETERMINED.
+# trace on patch. INCONCLUSIVE: no side; the link stays UNDETERMINED.
 _SIDE = {
     Category.FIXED: Version.BASE,
     Category.INCOMPLETE_FIX: Version.PATCH,
@@ -131,14 +129,14 @@ def link_side(finding: Finding) -> Optional[Version]:
 
 
 def link_crash(finding: Finding, results: Results) -> Optional[CombinedResult]:
-    """The crash whose stack trace is checked against the diff (§9.3).
+    """The crash whose stack trace is checked against the diff.
 
     ``FIXED``: a crash on ``base-sanitized``; ``INCOMPLETE_FIX`` and
     ``NEW_ISSUE``: a crash on ``patch-sanitized`` of a test that still
     reaches the error. A crash with the finding's own signature is preferred;
-    otherwise (call paths differ, §8.2) the first crash of the same bug.
+    otherwise (the call paths differ) the first crash of the same bug.
     Tests are tried in the finding's order. None for findings without a
-    crash, or whose crash has no stack trace (§8.3).
+    crash, or whose crash has no stack trace.
     """
     side = link_side(finding)
     if side is None or finding.category is Category.FUNCTIONAL_REGRESSION:
@@ -152,7 +150,7 @@ def link_crash(finding: Finding, results: Results) -> Optional[CombinedResult]:
         r = results[t.test].get(build)
         if r is not None and r.stable_crash:
             candidates.append(r)
-    if finding.signature is None:  # §8.3: one test, no stack trace to compare
+    if finding.signature is None:  # one test, no stack trace to compare
         return candidates[0] if candidates else None
     keyed = [r for r in candidates if stable_key(r) is not None]
     for r in keyed:
@@ -162,13 +160,13 @@ def link_crash(finding: Finding, results: Results) -> Optional[CombinedResult]:
 
 
 # ---------------------------------------------------------------------------
-# Comparative evidence (§9.5)
+# Comparative evidence
 # ---------------------------------------------------------------------------
 
 
 def comparative_tests(finding: Finding, results: Results) -> list[str]:
     """The tests that show, by running both versions on the same input, that
-    the versions differ in the way the category claims (§9.5).
+    the versions differ in the way the category claims.
 
     - ``FIXED``: crash on base, no crash on patch (``blocked``).
     - ``INCOMPLETE_FIX``: crash on both versions (``reaches`` and a crash on
@@ -202,17 +200,18 @@ def comparative_tests(finding: Finding, results: Results) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Explanation and the entry point (§9.6)
+# Explanation and the entry point
 # ---------------------------------------------------------------------------
 
 
 def explain(finding: Finding, link: Link, crash: Optional[CombinedResult]) -> str:
-    """One or two sentences built only from the recorded facts (§9.6): where
+    """One or two sentences built only from the recorded facts: where
     the evidence lies in the diff, then what the comparison of the versions
     shows, or why it shows nothing.
 
     ``link`` is the location evidence of :func:`locate` with its comparative
-    tests already set, before :func:`link_findings` applies §9.1.
+    tests already set, before :func:`link_findings` drops a link that has
+    no comparative evidence.
     """
     return f"{_location_sentence(finding, link, crash)} {_comparison_sentence(finding, link)}".strip()
 
@@ -269,7 +268,7 @@ def _comparison_sentence(finding: Finding, link: Link) -> str:
     return ""
 
 
-# What the comparison must show for each category (§9.5), in words.
+# What the comparison must show for each category, in words.
 _NEEDED = {
     Category.FIXED: "crashes on base and not on patch",
     Category.INCOMPLETE_FIX: "reaches this error on both versions or is blocked by the patch",
@@ -309,17 +308,17 @@ def _verb(names: list[str], one: str, many: str) -> str:
 def link_findings(findings: list[Finding], results: Results, hunks: list[Hunk],
                   base_tree: str | Path, patch_tree: str | Path,
                   traces: Optional[dict[str, list[int]]] = None) -> list[Finding]:
-    """Set ``finding.link`` on every finding (§9.6) and return the findings.
+    """Set ``finding.link`` on every finding and return the findings.
 
     ``hunks`` come from :func:`zaraban.diffinfo.load_hunks`; the trees are the
-    clean base and patch source copies, for the changed functions (§9.2).
+    clean base and patch source copies, for the changed functions.
     ``traces`` maps a finding id to the changed lines its test executed on the
-    finding's side (§9.4); a finding without an entry had no trace made.
+    finding's side; a finding without an entry had no trace made.
     Changed functions are computed once per side, and only when a stack trace
     needs them.
 
-    A link needs both kinds of evidence (§9.1): when no test gives
-    comparative evidence (§9.5), the level is ``UNDETERMINED`` even if a frame
+    A link needs both kinds of evidence: when no test gives
+    comparative evidence, the level is ``UNDETERMINED`` even if a frame
     matched the diff. This happens, for example, when the only test of a
     ``FIXED`` finding crashes earlier on patch with another error, which may
     only hide the base error.
@@ -339,7 +338,7 @@ def link_findings(findings: list[Finding], results: Results, hunks: list[Hunk],
                           (traces or {}).get(f.id))
         link.comparative_tests = comparative_tests(f, results)
         link.explanation = explain(f, link, crash)
-        # §9.1: location evidence counts only together with comparative
+        # By agreement, location evidence counts only together with comparative
         # evidence. Without it the link is UNDETERMINED; the matched frame and
         # hunk stay recorded as facts, and the explanation says what is missing.
         if not link.comparative_tests:

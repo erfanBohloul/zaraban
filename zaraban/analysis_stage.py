@@ -1,19 +1,19 @@
-"""Stage 2 of the pipeline: analyze and report (SPEC §2 steps 6–11).
+"""Stage 2 of the pipeline: analyze and report.
 
 :func:`analyze` reads the filled :class:`~zaraban.pipeline_state.RunContext`
 and runs, in order:
 
-6. the diff hunks (``diffinfo.sources_hunks``);
-7. the findings and their links to the patch (``findings``, ``linking``);
-8. a reproducer bundle per finding that gets one (``reproducer``, §10.1–§10.5);
-9. a regression test per stable bundle (``regression``, §10.6);
+1. the diff hunks (``diffinfo.sources_hunks``);
+2. the findings and their links to the patch (``findings``, ``linking``);
+3. a reproducer bundle per finding that gets one (``reproducer``);
+4. a regression test per stable bundle (``regression``);
    then ``REGRESSION_BASE_CLEAN`` for regression tests of earlier runs that no
-   longer crash on base (§8.6), the completeness check (§8.7) and the
+   longer crash on base, the completeness check and the
    analyze-side checks.
 
 :func:`finish` decides the status and writes ``report.json`` and
-``summary.txt`` (steps 10–11). It works with whatever the context holds, so
-the pipeline also calls it after a failure, for the partial report (§13.4).
+``summary.txt``. It works with whatever the context holds, so
+the pipeline also calls it after a failure, for the partial report.
 Each step stores its result in the context as soon as it has it.
 """
 
@@ -39,31 +39,31 @@ RunInputFn = Callable[[RunContext, TestCase, BuildName, bytes], RunOutcome]
 
 
 def analyze_and_report(ctx: RunContext, *, run_input: Optional[RunInputFn] = None) -> int:
-    """Run steps 6–11 and return the exit code."""
+    """Analyze, decide the status, write the report, and return the exit code."""
     analyze(ctx, run_input=run_input)
     return finish(ctx)
 
 
 # ---------------------------------------------------------------------------
-# Steps 6–9
+# Analysis
 # ---------------------------------------------------------------------------
 
 
 def analyze(ctx: RunContext, *, run_input: Optional[RunInputFn] = None) -> None:
-    """Findings, links, bundles and regression tests (steps 6–9), stored in ``ctx``.
+    """Findings, links, bundles and regression tests, stored in ``ctx``.
 
-    Does nothing when the execution did not happen (a build failure, §6.2).
+    Does nothing when the execution did not happen (a build failed).
     """
     if ctx.results is None:
         return
     run_input = run_input or run_once_with_input
 
-    # 6–7. Findings in run order, then their links to the patch (§8, §9).
+    # 6–7. Findings in run order, then their links to the patch.
     hunks = diffinfo.sources_hunks(ctx.sources)
     ctx.findings = findings.build_findings(ctx.results, [t.name for t in ctx.tests])
     linking.link_findings(ctx.findings, ctx.results, hunks,
                           ctx.sources.base_tree, ctx.sources.patch_tree)
-    #      A link still UNDETERMINED gets an execution trace and a second pass (§9.4).
+    #      A link still UNDETERMINED gets an execution trace and a second pass.
     link_with_traces(ctx, hunks)
 
     # 8–9. A bundle for each finding that gets one, and its regression test.
@@ -74,11 +74,11 @@ def analyze(ctx: RunContext, *, run_input: Optional[RunInputFn] = None) -> None:
             continue
         make_bundle(ctx, f, tests[test_name], build, run_input)
 
-    # §8.6: a regression test of an earlier run that no longer crashes on base
-    # is a warning, not a finding (Task 2.3).
+    # A regression test of an earlier run that no longer crashes on base
+    # is a warning, not a finding.
     ctx.add_warnings(regression.base_clean_warnings(ctx.tests, ctx.results))
 
-    # §8.7: every abnormal result is in a finding (Task 2.4).
+    # Every abnormal result must be in a finding; anything else is a tool bug.
     completeness.check(ctx.results, ctx.findings)
 
     ctx.base_not_reproduced = base_not_reproduced(ctx.tests, ctx.results)
@@ -87,7 +87,7 @@ def analyze(ctx: RunContext, *, run_input: Optional[RunInputFn] = None) -> None:
 
 
 def link_with_traces(ctx: RunContext, hunks: list) -> None:
-    """Second linking pass with execution traces (§9.4, Task 2.2).
+    """Second linking pass with execution traces.
 
     The first pass has set every ``finding.link``. A finding whose link is
     ``UNDETERMINED`` but has a side (a crash whose frames match no changed code,
@@ -96,7 +96,7 @@ def link_with_traces(ctx: RunContext, hunks: list) -> None:
     lines it executed upgrade the link to ``CHANGED_CODE_EXECUTED``. A trace that
     cannot be made (no ``coverage_cmd``, or the coverage build, run or export
     fails) adds ``TRACE_UNAVAILABLE`` and keeps the first-pass link. The trace
-    never changes a category or the exit code (§9.6).
+    never changes a category or the exit code.
     """
     try:
         traces, warnings = coverage.execution_traces(
@@ -119,7 +119,7 @@ def link_with_traces(ctx: RunContext, hunks: list) -> None:
 
 def make_bundle(ctx: RunContext, f: Finding, test: TestCase, build: BuildName,
                 run_input: RunInputFn) -> None:
-    """The reproducer bundle of one finding (§10.3) and its regression test (§10.6)."""
+    """The reproducer bundle of one finding and its regression test."""
     source = ctx.results[test.name][build].first
     input_bytes = test.input_bytes or b""
     bundle, issues = reproducer.reproduce(
@@ -149,7 +149,7 @@ def make_bundle(ctx: RunContext, f: Finding, test: TestCase, build: BuildName,
 def run_once_with_input(ctx: RunContext, test: TestCase, build: BuildName,
                         data: bytes) -> RunOutcome:
     """Run ``test`` once on ``build`` with ``data`` as its input, exactly as the
-    matrix runs it (same command, environment and limits, §10.2), through the
+    matrix runs it (same command, environment and limits), through the
     runner's ``run_once``. Its run files go to a temporary directory: they
     are minimization candidates, not results of the run."""
     with tempfile.TemporaryDirectory(prefix="zaraban-candidate-") as tmp:
@@ -160,7 +160,7 @@ def run_once_with_input(ctx: RunContext, test: TestCase, build: BuildName,
 
 
 def base_not_reproduced(tests: list[TestCase], results: Results) -> list[str]:
-    """The security tests that do not crash on ``base-sanitized`` (§13.2)."""
+    """The security tests that do not crash on ``base-sanitized``."""
     return [t.name for t in tests if t.kind is TestKind.SECURITY
             and results[t.name][BuildName.BASE_SANITIZED].outcome is not Outcome.CRASH]
 
@@ -172,7 +172,7 @@ def base_not_reproduced(tests: list[TestCase], results: Results) -> list[str]:
 
 def finish(ctx: RunContext) -> int:
     """Decide the status, write ``report.json`` and ``summary.txt``, delete
-    ``work/`` unless ``--keep-work``; return the exit code (§12, §13)."""
+    ``work/`` unless ``--keep-work``; return the exit code."""
     st = status.compute_status(findings=ctx.findings, checks=ctx.checks, errors=ctx.errors,
                                base_not_reproduced=ctx.base_not_reproduced)
     config_copy = ctx.out_dir / CONFIG_COPY
@@ -202,14 +202,14 @@ def finish(ctx: RunContext) -> int:
 
 
 def versions(ctx: RunContext) -> dict[str, Any]:
-    """``report.versions`` (§12.4); empty when the sources could not be prepared."""
+    """``report.versions``; empty when the sources could not be prepared."""
     if ctx.sources is None:
         return {}
     return {"base": ctx.sources.base, "patch": ctx.sources.patch, "diff": ctx.sources.diff}
 
 
 def execution_logs(results: Results) -> dict[BuildName, dict[str, dict[str, Any]]]:
-    """``report.execution_logs`` (§12.4): per build, per test, the combined
+    """``report.execution_logs``: per build, per test, the combined
     result of its repeats."""
     logs: dict[BuildName, dict[str, dict[str, Any]]] = {b: {} for b in BUILD_ORDER}
     for test_name, by_build in results.items():

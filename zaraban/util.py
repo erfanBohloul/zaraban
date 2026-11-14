@@ -15,7 +15,7 @@ def unique(items: Iterable[T]) -> list[T]:
 
 
 def kill_group(pgid: int) -> None:
-    """SIGKILL every process left in a process group (§6.2, §7.3).
+    """SIGKILL every process left in a process group.
 
     Builds and runs start their command in its own session, so killing the
     group also stops anything the command started (``make``, the compiler, a
