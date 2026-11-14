@@ -95,7 +95,7 @@ This document logs all key design choices, architectural decisions, and trade-of
 * **Context:**
   Section 4 requires two target programs, each with 4 specific versions (Base, Correct, Incomplete, Regression).
 * **Decision:**
-  Created `targets/target1_sample` (`token_parser`):
+  Created `targets/test_token_parser` (`token_parser`):
   - Base: Stack buffer overflow via unchecked `strcpy` into a 64-byte buffer.
   - Correct Patch: Bounds check with `sizeof(value)`.
   - Incomplete Patch: Naive 100-byte filter (blocked by 120-byte exploit, but secondary 80-byte exploit still crashes).

@@ -111,10 +111,10 @@ def test_3_2_non_applying_diff_raises_patch_apply_failed(tmp_path):
 def test_3_2_diff_file_with_timestamps_lists_stripped_paths(tmp_path):
     """The delivered token_parser patches are `diff -u` output: a tab plus a
     timestamp after each file name, and different old and new paths
-    (``targets/target1_sample/src/main.c`` and
-    ``targets/target1_sample/versions/patch_correct/src/main.c``). git apply
+    (``targets/test_token_parser/src/main.c`` and
+    ``targets/test_token_parser/versions/patch_correct/src/main.c``). git apply
     takes the new path, which becomes ``src/main.c`` only at -p4."""
-    target = Path(__file__).resolve().parent.parent / "targets" / "target1_sample"
+    target = Path(__file__).resolve().parent.parent / "targets" / "test_token_parser"
     s = prepare(target, target / "patches" / "correct.patch", tmp_path / "work")
     assert s.patch.strip_level == 4
     assert "CORRECT PATCH" in (s.patch_tree / "src" / "main.c").read_text()

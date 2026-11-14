@@ -1236,7 +1236,7 @@ is listed in the FIXED finding anyway.)
 ### Task 2.5: `scenarios.yaml` and `run_matrix.py` for `token_parser` (A)
 
 ```yaml
-# targets/target1_sample/scenarios.yaml
+# targets/test_token_parser/scenarios.yaml
 - name: correct
   patch: patches/correct.patch
   version_dir: versions/patch_correct
@@ -1261,9 +1261,9 @@ is listed in the FIXED finding anyway.)
 Sample `run_matrix.py` output:
 
 ```text
-target1_sample/correct      exit 0  (expected 0)   findings ok   PASS
-target1_sample/incomplete   exit 10 (expected 10)  findings ok   PASS
-target1_sample/regression   exit 20 (expected 20)  findings ok   PASS
+test_token_parser/correct      exit 0  (expected 0)   findings ok   PASS
+test_token_parser/incomplete   exit 10 (expected 10)  findings ok   PASS
+test_token_parser/regression   exit 20 (expected 20)  findings ok   PASS
 3/3 scenarios matched
 ```
 

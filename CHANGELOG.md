@@ -30,7 +30,7 @@ All notable changes to the Zaraban security patch validation engine are document
   - Tests for clean `PASS` (exit 0), `VULN_REMAINS` (exit 10), `FUNC_REGRESSION` (exit 20), `BUILD_OR_CONFIG_ERROR` (exit 30), and `INCONCLUSIVE` (exit 40).
   - Validation of check evaluation, flakiness handling, execution log formatting, and work directory retention.
 - **End-to-End Test Suite (`tests/test_e2e.py`)**:
-  - Full-pipeline verification on `targets/target1_sample` (token_parser).
+  - Full-pipeline verification on `targets/test_token_parser` (token_parser).
   - Verifies correct patch -> exit 0 (`PASS`), incomplete patch -> exit 10 (`VULN_REMAINS`), regression patch -> exit 20 (`FUNC_REGRESSION`), and invalid config -> exit 30 (`BUILD_OR_CONFIG_ERROR`).
   - Verifies presence and schema conformance of `report.json` (all required keys from SPEC §12.4) and `summary.txt`.
 - **Continuous Integration (`.github/workflows/ci.yml`)**:
@@ -52,4 +52,4 @@ All notable changes to the Zaraban security patch validation engine are document
 - Execution traces with clang source-based coverage (`zaraban.coverage`, §9.4): a finding still `UNDETERMINED` after the stack check gets a second linking pass with the changed lines its test ran (`CHANGED_CODE_EXECUTED`), or the warning `TRACE_UNAVAILABLE`. The coverage run uses the same environment and limits as the normal runs.
 - Regression tests of earlier runs are loaded from `regression_dir` and run last (`regression.load_tests`, §10.6); one that no longer crashes on base gives `REGRESSION_BASE_CLEAN` (§8.6).
 - Completeness check (`zaraban.completeness`, §8.7): a lost abnormal result is `TOOL_INTERNAL` (exit 30).
-- `targets/target1_sample/scenarios.yaml`, the three `versions/patch_*` trees and `scripts/run_matrix.py` (§14.3).
+- `targets/test_token_parser/scenarios.yaml`, the three `versions/patch_*` trees and `scripts/run_matrix.py` (§14.3).
