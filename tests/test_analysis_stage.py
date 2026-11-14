@@ -1,4 +1,4 @@
-"""Unit tests for Phase 2 Person 2: analyze_and_report stage."""
+"""Unit tests for the analyze & report stage (analysis_stage.analyze_and_report)."""
 
 import json
 from pathlib import Path
@@ -471,7 +471,7 @@ def test_10_2_candidates_run_through_run_once_with_the_new_input(tmp_path, monke
     assert ctx.out_dir not in seen["out_dir"].parents and not seen["out_dir"].exists()
 
 
-# -- Task 2.3: regression tests from earlier runs ----------------------------
+# -- regression tests from earlier runs (§10.6) ------------------------------
 
 def _regression_results(name: str, crashes_on: tuple[BuildName, ...]) -> dict[BuildName, CombinedResult]:
     return {b: CombinedResult(test=name, kind=TestKind.REGRESSION, build=b, flaky=False,
