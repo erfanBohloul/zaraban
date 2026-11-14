@@ -1,4 +1,4 @@
-"""End-to-end tests for Zaraban on targets/target1_sample (SPEC §2, §8.9, §12, §13).
+"""End-to-end tests for Zaraban on targets/test_token_parser (SPEC §2, §8.9, §12, §13).
 
 Each test runs the real tool through ``cli.main``: four real builds, real
 runs, real findings. Expected results on token_parser (§8.9):
@@ -22,9 +22,9 @@ import pytest
 
 from zaraban import cli
 
-TARGET1_DIR = Path("targets/target1_sample")
-TARGET1_CONFIG = TARGET1_DIR / "zaraban.yaml"
-PATCHES = {name: TARGET1_DIR / f"patches/{name}.patch"
+TEST_TARGET_DIR = Path("targets/test_token_parser")
+TEST_TARGET_CONFIG = TEST_TARGET_DIR / "zaraban.yaml"
+PATCHES = {name: TEST_TARGET_DIR / f"patches/{name}.patch"
            for name in ("correct", "incomplete", "regression")}
 RUN_ID = re.compile(r"^\d{8}-\d{6}-[0-9a-f]{8}$")
 
@@ -45,7 +45,7 @@ EXPECTED = {
 def run_tool(tmp_path: Path, patch: Path) -> tuple[int, Path]:
     """Run the CLI into ``tmp_path/out``; return the exit code and the run dir."""
     out = tmp_path / "out"
-    rc = cli.main(["-c", str(TARGET1_CONFIG), "--patch", str(patch), "--out", str(out),
+    rc = cli.main(["-c", str(TEST_TARGET_CONFIG), "--patch", str(patch), "--out", str(out),
                    "--no-promote"])
     runs = list((out / "token_parser").iterdir())
     assert len(runs) == 1, runs
@@ -66,7 +66,7 @@ def test_e2e_bad_config_missing_file(tmp_path):
 
 
 def test_e2e_bad_config_missing_patch(tmp_path):
-    assert cli.main(["-c", str(TARGET1_CONFIG)]) == 30
+    assert cli.main(["-c", str(TEST_TARGET_CONFIG)]) == 30
 
 
 def test_e2e_bad_config_invalid_schema(tmp_path):
@@ -113,7 +113,7 @@ def test_e2e_run_directory_layout(tmp_path):
 
     assert RUN_ID.match(run_dir.name) and rep["run_id"] == run_dir.name
     assert run_dir.name.endswith(rep["versions"]["diff"]["sha256"][:8])
-    assert (run_dir / "inputs/config.yaml").read_bytes() == TARGET1_CONFIG.read_bytes()
+    assert (run_dir / "inputs/config.yaml").read_bytes() == TEST_TARGET_CONFIG.read_bytes()
     assert (run_dir / "inputs/patch.diff").read_bytes() == PATCHES["incomplete"].read_bytes()
     assert rep["target"]["config"] == "inputs/config.yaml"
     assert rep["versions"]["diff"]["path"] == "inputs/patch.diff"
@@ -162,7 +162,7 @@ def test_e2e_report_json_schema(tmp_path):
 def test_e2e_two_runs_keep_both_reports(tmp_path):
     out = tmp_path / "out"
     for _ in range(2):
-        cli.main(["-c", str(TARGET1_CONFIG), "--patch", str(PATCHES["correct"]),
+        cli.main(["-c", str(TEST_TARGET_CONFIG), "--patch", str(PATCHES["correct"]),
                   "--out", str(out), "--no-promote"])
     runs = sorted((out / "token_parser").iterdir())
     assert len(runs) == 2

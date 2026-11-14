@@ -11,7 +11,7 @@ from zaraban.diffinfo import (changed_functions, changed_positions, function_ran
 from zaraban.models import DiffInfo, ErrorCode, Hunk, Version, VersionInfo, ZarabanError
 from zaraban.sources import Sources, prepare
 
-TARGET = Path(__file__).resolve().parent.parent / "targets" / "target1_sample"
+TARGET = Path(__file__).resolve().parent.parent / "targets" / "test_token_parser"
 
 # A git diff with two files: one hunk that replaces a line and adds one, and a
 # second file with two hunks.
@@ -147,7 +147,7 @@ def test_9_2_text_that_is_not_a_diff_is_an_error():
 def test_9_2_token_parser_incomplete_patch(tmp_path):
     """The stored incomplete patch: the strcpy is unchanged context below the
     new check, and still inside the hunk on both sides (§9.2, §9.6)."""
-    # Its new name is targets/target1_sample/versions/patch_incomplete/src/main.c;
+    # Its new name is targets/test_token_parser/versions/patch_incomplete/src/main.c;
     # like git apply, the new name is used, so -p4 gives src/main.c.
     hunks = load_hunks(TARGET / "patches" / "incomplete.patch", 4)
     [h] = hunks

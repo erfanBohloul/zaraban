@@ -57,18 +57,18 @@ Run the validation engine on a target by providing its configuration file and a 
 ```bash
 # Validate the correct patch (Expected: Exit 0 / PASS)
 docker compose run --rm zaraban \
-  python3 -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
-  --patch targets/target1_sample/patches/correct.patch
+  python3 -m zaraban.cli -c targets/test_token_parser/zaraban.yaml \
+  --patch targets/test_token_parser/patches/correct.patch
 
 # Validate an incomplete patch (Expected: Exit 10 / VULN_REMAINS)
 docker compose run --rm zaraban \
-  python3 -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
-  --patch targets/target1_sample/patches/incomplete.patch
+  python3 -m zaraban.cli -c targets/test_token_parser/zaraban.yaml \
+  --patch targets/test_token_parser/patches/incomplete.patch
 
 # Validate a behavior-breaking patch (Expected: Exit 20 / FUNC_REGRESSION)
 docker compose run --rm zaraban \
-  python3 -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
-  --patch targets/target1_sample/patches/regression.patch
+  python3 -m zaraban.cli -c targets/test_token_parser/zaraban.yaml \
+  --patch targets/test_token_parser/patches/regression.patch
 ```
 
 ### CLI options
