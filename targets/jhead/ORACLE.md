@@ -109,7 +109,13 @@ The `*_datetime` tests are what the Regression version breaks (the time is
 dropped). The `*_model` tests stay stable, confirming the regression is
 limited to the DateTime handling.
 
-### Boundary (5)
+### Boundary (10)
+
+The first five are around the EXIF values the patches touch. The last five
+are JPEGs with no EXIF DateTime, around the edges of the file and image
+parsing (scan type, channel count, image size, an extra marker); none reaches
+the DateTime path, so each behaves the same on every version. Their expected
+output is the image size, which is a property of the file as it was built.
 
 | Test | Expected | Source |
 |---|---|---|
@@ -118,8 +124,13 @@ limited to the DateTime handling.
 | `boundary_minolta_model` | `DiMAGE E223` (file has unusual DateTime punctuation) | E |
 | `boundary_no_exif` | `987 x 518` — a JPEG with no EXIF; jhead prints its own fields, exit 0 | E, C |
 | `boundary_corrupt_exif` | exit 0, no crash (malformed EXIF subdirectory handled) | C |
+| `boundary_progressive` | `640 x 480` — a progressive-scan JPEG | C |
+| `boundary_grayscale` | `320 x 200` — a single-channel JPEG | C |
+| `boundary_tiny_1x1` | `1 x 1` — the smallest image, the lower bound of size parsing | C |
+| `boundary_with_comment` | `200 x 120` — a JPEG with a COM comment segment | C |
+| `boundary_large_baseline` | `1024 x 768` — a larger high-quality baseline JPEG | C |
 
-### Invalid (5)
+### Invalid (10)
 
 The program must reject these without crashing.
 
@@ -130,6 +141,11 @@ The program must reject these without crashing.
 | `invalid_truncated` | a JPEG cut mid-stream | exit 1 | C |
 | `invalid_truncated_header` | only the first 3 bytes of a JPEG | exit 1 | C |
 | `invalid_empty` | an empty file | exit 1 | C |
+| `invalid_png` | a real PNG image (wrong format) | exit 1 | C |
+| `invalid_gif` | a real GIF image (wrong format) | exit 1 | C |
+| `invalid_bmp` | a real BMP image (wrong format) | exit 1 | C |
+| `invalid_random_bytes` | random bytes with a `.jpg` name, no JPEG marker | exit 1 | C |
+| `invalid_soi_then_garbage` | a valid start-of-image marker then garbage | exit 1 | C |
 
 ### Security (2)
 
