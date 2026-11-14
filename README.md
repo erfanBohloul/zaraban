@@ -335,12 +335,26 @@ Every target directory must contain `zaraban.yaml`, `ORACLE.md`,
 
 No tool code changes are needed (SPEC §4.1):
 
-1. Copy `targets/_template/` to `targets/<name>/`.
-2. Put the base sources in `src/` and write a `Makefile` with `release` and
-   `sanitized` rules.
-3. Write the tests and their expected behavior in `zaraban.yaml`, and the
-   source of each expectation in `ORACLE.md`.
-4. Run `--check-config`, then run the tool on each patch.
+1. Copy the template: `cp -r targets/_template targets/<name>`. It holds a
+   `zaraban.yaml` that lists every key the tool accepts, a `Makefile` with
+   the `release`, `sanitized`, `coverage` and `clean` rules, skeletons of
+   `ORACLE.md` and `scenarios.yaml`, and the test directories with one
+   placeholder input each.
+2. Put the base sources in `src/`, and set `SRC` and `BIN` in the `Makefile`
+   (`BIN` must match `build.binary_path`).
+3. Replace every `REPLACE` in `zaraban.yaml` with the real tests and their
+   expected behavior, and write the source of each expectation in
+   `ORACLE.md`. Delete the placeholder `example.txt` inputs.
+4. Check the config:
+   `python3 -m zaraban.cli -c targets/<name>/zaraban.yaml --check-config`.
+5. Run the tool on a patch:
+   `python3 -m zaraban.cli -c targets/<name>/zaraban.yaml --patch <file>.patch`.
+6. For a delivered target only: add the three `versions/patch_*/` trees and
+   `patches/*.patch` (`ORACLE.md` shows how to make a diff from a tree), and
+   run `python3 scripts/run_matrix.py <name>`.
+
+`scripts/run_matrix.py` skips directories whose name starts with `_`, so the
+template itself is never run as a target.
 
 ## Repository layout
 
@@ -484,8 +498,8 @@ saved to `results/` with `--save`.
 - [ ] **Unseen-patch drill**: each pair writes two surprise patches for the
       other pair's target, gives only the diff, and records the tool's verdict.
       Fix anything it gets wrong.
-- [ ] Optional: the bounded variant step for security inputs (SPEC §9.4 and
-      the security-test notes in §5).
+- [ ] Optional: the bounded variant step for security inputs
+      (`docs/PHASES.md`, Task 4.4; not in the SPEC yet).
 
 **Gate:** CI is green on `main`, the drill verdicts are correct, and the README
 run guide works on a fresh clone.
