@@ -31,6 +31,13 @@ services:
       - .:/workspace
     working_dir: /workspace
 
+    # A real init process (tini) as PID 1. Without it, PID 1 is the command
+    # itself (pytest or run_matrix.py), which never reaps orphaned grandchildren
+    # of the programs under test. Their zombies pile up until pids_limit is
+    # reached, and a long matrix run then fails with "can't start new thread"
+    # or a build whose fork fails.
+    init: true
+
     # Isolation: the programs under test are crashing, possibly exploitable
     # binaries, so the test container has no network and bounded resources.
     network_mode: none
