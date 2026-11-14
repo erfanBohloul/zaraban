@@ -1,0 +1,19 @@
+# Demo scenarios. Run them with:  scripts/run_matrix.py demo_stack_overflow
+# Each entry is one patched version: the patch, the exit code the tool should
+# return, and the findings it should report (category + the tests involved).
+- name: correct
+  patch: patches/correct.patch
+  expect_exit: 0
+  expect_findings:
+    - {category: FIXED, tests: [exploit_overflow]}
+- name: incomplete
+  patch: patches/incomplete.patch
+  expect_exit: 10
+  expect_findings:
+    - {category: INCOMPLETE_FIX, tests: [exploit_overflow]}
+- name: regression
+  patch: patches/regression.patch
+  expect_exit: 20
+  expect_findings:
+    - {category: FUNCTIONAL_REGRESSION, tests: [valid_hello]}
+    - {category: FIXED, tests: [exploit_overflow]}

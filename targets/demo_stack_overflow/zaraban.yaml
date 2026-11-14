@@ -1,0 +1,32 @@
+name: "demo_stack_overflow"
+input_method: "file"
+
+build:
+  binary_path: "demo_stack_overflow"
+  release_cmd: "make release"
+  sanitized_cmd: "make sanitized"
+  coverage_cmd: "make coverage"
+  clean_cmd: "make clean"
+
+limits:
+  timeout_seconds: 2.0
+  memory_limit_mb: 128
+
+valid_tests:
+  - name: "valid_hello"
+    args: ["{input_file}"]
+    input_file: "tests/valid/hello.txt"
+    expected_exit_code: 0
+    expected_output: "copied: hello"
+
+boundary_tests:
+  - name: "boundary_max_safe"
+    args: ["{input_file}"]
+    input_file: "tests/boundary/max_safe.txt"
+    expected_exit_code: 0
+
+security_tests:
+  - name: "exploit_overflow"
+    args: ["{input_file}"]
+    input_file: "tests/exploits/overflow.txt"
+    description: "A line longer than the 32-byte buffer overflows it (stack-buffer-overflow, write)."

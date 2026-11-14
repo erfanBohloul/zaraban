@@ -1,0 +1,16 @@
+diff --git a/src/main.c b/src/main.c
+index f91000d..bd2b679 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -24,7 +24,10 @@ int main(int argc, char **argv)
+     fclose(f);
+ 
+     const char *role = role_of(name);
+-    /* BUG: role may be NULL for an unknown user. */
++    if (role == NULL) {                  /* FIX: handle the unknown user */
++        fprintf(stderr, "unknown user\n");
++        return 1;
++    }
+     printf("role=%s (%zu chars)\n", role, strlen(role));
+     return 0;
+ }

@@ -1,0 +1,32 @@
+name: "demo_heap_overread"
+input_method: "file"
+
+build:
+  binary_path: "demo_heap_overread"
+  release_cmd: "make release"
+  sanitized_cmd: "make sanitized"
+  coverage_cmd: "make coverage"
+  clean_cmd: "make clean"
+
+limits:
+  timeout_seconds: 2.0
+  memory_limit_mb: 128
+
+valid_tests:
+  - name: "valid_small"
+    args: ["{input_file}"]
+    input_file: "tests/valid/small.txt"
+    expected_exit_code: 0
+    expected_output: "sum=294"
+
+boundary_tests:
+  - name: "boundary_exact"
+    args: ["{input_file}"]
+    input_file: "tests/boundary/exact.txt"
+    expected_exit_code: 0
+
+security_tests:
+  - name: "exploit_overread"
+    args: ["{input_file}"]
+    input_file: "tests/exploits/overread.txt"
+    description: "A count K larger than the payload makes the loop read past the heap allocation (heap-buffer-overflow, read)."

@@ -1,0 +1,17 @@
+diff --git a/src/main.c b/src/main.c
+index 278bd86..fc7e31b 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -15,7 +15,11 @@ int main(int argc, char **argv)
+     while (n > 0 && (line[n - 1] == '\n' || line[n - 1] == '\r')) n--;
+ 
+     char name[32];
+-    /* BUG: no check that the line fits in name[32]. */
++    if (n >= sizeof name) {              /* overflow is fixed ... */
++        fprintf(stderr, "input too long\n");
++        return 1;
++    }
++    if (n > 4) n = 4;                    /* ... but valid input is truncated */
+     memcpy(name, line, n);
+     name[n] = '\0';
+ 
