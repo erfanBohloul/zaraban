@@ -1,23 +1,22 @@
-"""The four isolated builds and their profile checks (SPEC §6).
+"""The four isolated builds and their profile checks.
 
-Every run makes exactly four builds, in a fixed order (§6.1):
+Every run makes exactly four builds, in a fixed order:
 ``base-release``, ``base-sanitized``, ``patch-release``, ``patch-sanitized``.
 Each is made in its own fresh copy of its source tree, under the work
 directory, so nothing is ever built inside the repository and no ``clean`` step
-is needed between builds (§3.3, §6.2). Base and patch are built with the same
+is needed between builds. Base and patch are built with the same
 commands and the same minimal environment, so the only difference is the
 source tree.
 
-After building, each binary is kept, hashed, and checked (§6.3): the sanitized
+After building, each binary is kept, hashed, and checked: the sanitized
 builds must contain both sanitizers, the release builds must not contain
 AddressSanitizer, and two profile warnings may be raised.
 
-A build or profile failure is an exit-30 condition (§6.2, §13.2). This module
+A build or profile failure is an exit-30 condition. This module
 does not raise it; it records the failed :class:`~zaraban.models.BuildRecord`,
 stops (remaining builds are skipped), and returns the failure as an
 :class:`~zaraban.models.Issue` in :class:`BuildSet`, so the caller can still
-write the report before exiting (§6.2: "records the failure ... writes the
-report, and exits with code 30").
+write the report before exiting with code 30.
 """
 
 from __future__ import annotations
@@ -47,13 +46,14 @@ from .models import (
     WarningCode,
 )
 
-# Minimal, identical build environment for all four builds (§6.2 step 3).
+# Minimal, identical build environment for all four builds, so base and patch
+# cannot differ because of the caller's shell.
 MIN_ENV: dict[str, str] = {
     "PATH": "/usr/local/bin:/usr/bin:/bin",
     "HOME": "/tmp",
     "LANG": "C",
 }
-BUILD_TIMEOUT_S = 300  # a step (clean or build) longer than this is stopped and fails (§6.2)
+BUILD_TIMEOUT_S = 300  # a step (clean or build) longer than this is stopped and fails
 
 
 @dataclass
@@ -76,7 +76,7 @@ def build_all(
     work_dir: str | Path,
     out_dir: str | Path,
 ) -> BuildSet:
-    """Build the four builds in order, stopping at the first failure (§6.2)."""
+    """Build the four builds in order, stopping at the first failure."""
     trees = {Version.BASE: Path(base_tree), Version.PATCH: Path(patch_tree)}
     work = Path(work_dir)
     out = Path(out_dir)
@@ -88,7 +88,7 @@ def build_all(
         result.warnings.extend(warnings)
         if error is not None:
             result.error = error
-            break  # remaining builds are skipped (§6.2)
+            break  # remaining builds are skipped
     return result
 
 
@@ -135,7 +135,7 @@ def _build_one(
     elf = ElfView.load(binary_path) if binary_path.exists() else None
 
     # Build failure: the clean or build command failed or timed out, the
-    # binary is missing, or it is not an x86-64 ELF executable (§6.2 step 4).
+    # binary is missing, or it is not an x86-64 ELF executable.
     if failure is None and exit_code != 0:
         failure = _step_failure("build command", exit_code)
     elif failure is None and (elf is None or not elf.is_x86_64_exec):
@@ -148,7 +148,7 @@ def _build_one(
                               f"{name.value}: {reason}",
                               {"build": name.value, "log": log_rel, "reason": reason})
 
-    # Keep and hash the binary that will actually be run (§6.2 step 5).
+    # Keep and hash the binary that will actually be run.
     bin_dir = build_dir / "bin"
     bin_dir.mkdir(parents=True, exist_ok=True)
     kept = bin_dir / binary_path.name
@@ -160,7 +160,7 @@ def _build_one(
         sha256=hashlib.sha256(data).hexdigest(),
     )
 
-    # Profile verification (§6.3) on the kept binary.
+    # Profile verification on the kept binary.
     error, warnings = _verify_profile(name, elf)
     sanitized = name.profile is Profile.SANITIZED
     rec = record("ok", binary,
@@ -171,7 +171,7 @@ def _build_one(
 
 
 def _verify_profile(name: BuildName, elf: ElfView) -> tuple[Optional[Issue], list[Issue]]:
-    """Check a built binary against its profile (§6.3)."""
+    """Check a built binary against its profile."""
     warnings: list[Issue] = []
     if name.profile is Profile.SANITIZED:
         if not (elf.has_asan and elf.has_ubsan):

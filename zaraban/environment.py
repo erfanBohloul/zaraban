@@ -1,4 +1,4 @@
-"""Record the environment the run happened in (SPEC §12.4).
+"""Record the environment the run happened in.
 
 The report pins what produced its results: the OS and kernel, the architecture,
 the Docker image (when the run sets ``ZARABAN_DOCKER_IMAGE``), the versions
@@ -26,11 +26,11 @@ _VERSION_TIMEOUT_S = 5
 
 
 def gather(symbolizer: Optional[str] = None) -> EnvironmentInfo:
-    """Collect the environment facts for ``report.environment`` (§12.4).
+    """Collect the environment facts for ``report.environment``.
 
     ``symbolizer`` is the path of the ``llvm-symbolizer`` the runner found
-    (``RunSettings.symbolizer``), or ``None``; §12.4 records the path, since
-    that is what the runs actually use.
+    (``RunSettings.symbolizer``), or ``None``. The report records that path,
+    since it is what the runs actually use.
     """
     return EnvironmentInfo(
         os=_os_name(),
