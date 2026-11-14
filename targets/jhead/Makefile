@@ -2,7 +2,7 @@
 # jhead has its own CLI (jhead FILE), so there is no driver.
 #
 # Release and sanitized flags live here, not in zaraban.yaml, so a patch that
-# weakens the release flags is caught by the hardening check (SPEC §4.3).
+# weakens the release flags is caught by the hardening check.
 
 SRC = exif.c gpsinfo.c iptc.c jhead.c jpgfile.c jpgqguess.c makernote.c paths.c
 BIN = jhead

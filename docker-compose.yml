@@ -1,4 +1,4 @@
-# Zaraban containers (SPEC §14.5)
+# Zaraban containers
 #
 #   docker compose build                      build the image
 #   docker compose run --rm zaraban           interactive shell, no network
@@ -50,7 +50,7 @@ services:
     command: /bin/bash
 
   # Same image and limits, with network. Use it only to fetch upstream sources
-  # in Phase 0 (for example: git clone cJSON); never to run the tool.
+  # (for example: git clone cJSON); never to run the tool.
   zaraban-online:
     extends:
       service: zaraban
