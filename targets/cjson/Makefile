@@ -1,7 +1,7 @@
 # cJSON target (DaveGamble/cJSON) with the cjson_driver front end.
 #
 # The release and sanitized flags live here, not in zaraban.yaml, so a patch
-# that weakens the release flags is caught by the hardening check (SPEC §4.3).
+# that weakens the release flags is caught by the hardening check.
 
 SRC = src/cJSON.c src/main.c
 BIN = cjson_driver

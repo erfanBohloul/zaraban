@@ -1,4 +1,4 @@
-# Zaraban: isolated Linux x86_64 test environment (course spec §2, §5; SPEC §14.5)
+# Zaraban: isolated Linux x86_64 test environment
 FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -10,7 +10,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Toolchains and analysis tools
 #   gcc/g++            release builds (project's own hardening flags)
 #   clang, llvm, lld   sanitized builds, llvm-symbolizer, llvm-cov/llvm-profdata (execution trace)
-#   universal-ctags    function ranges for linking findings to the diff (SPEC §9.2)
+#   universal-ctags    function ranges for linking findings to the diff
 #   gdb, valgrind      manual debugging only; the tool does not depend on them
 #   checksec, file     manual cross-check of the tool's hardening and ELF checks
 # Network fallback: every download is tried DIRECTLY first. Only if that
@@ -73,7 +73,7 @@ RUN gcc --version >/dev/null \
     && git --version >/dev/null \
     && python3 -c "import yaml, pydantic, elftools, unidiff, rich, pytest"
 
-# Run as a non-root user (SPEC §14.5). On Linux hosts, pass your own ids so
+# Run as a non-root user. On Linux hosts, pass your own ids so
 # files written to the bind mount belong to you:
 #   UID=$(id -u) GID=$(id -g) docker compose build
 ARG USER_UID=1000
@@ -83,7 +83,7 @@ RUN groupadd -o -g "${USER_GID}" zaraban \
 
 # Sanitizer defaults for MANUAL runs inside the container (for example when
 # reproducing a CVE by hand). The tool itself never inherits these: it builds
-# a clean environment for every run and sets its own options (SPEC §7.2).
+# a clean environment for every run and sets its own options.
 ENV ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer \
     ASAN_OPTIONS=abort_on_error=1:detect_leaks=0:symbolize=1:disable_coredump=1 \
     UBSAN_OPTIONS=halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1 \

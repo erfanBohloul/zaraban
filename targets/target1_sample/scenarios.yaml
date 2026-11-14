@@ -1,7 +1,7 @@
-# Delivered scenarios of token_parser (SPEC §8.9, §14.3). Read only by
-# scripts/run_matrix.py. Paths are relative to this directory. Findings are
-# listed in finding id order (§8.8): valid_set runs before the exploits, so in
-# the regression scenario its finding comes first.
+# Delivered scenarios of token_parser. Read only by scripts/run_matrix.py.
+# Paths are relative to this directory. Findings are listed in finding id
+# order: valid_set runs before the exploits, so in the regression scenario its
+# finding comes first.
 - name: correct
   patch: patches/correct.patch
   version_dir: versions/patch_correct
