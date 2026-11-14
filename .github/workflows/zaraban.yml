@@ -1,0 +1,66 @@
+# Zaraban CI (SPEC §14.4): on every push and pull request,
+#   1. build the Docker image,
+#   2. run the tool's unit and end-to-end tests inside it,
+#   3. run every delivered scenario with scripts/run_matrix.py inside it,
+#   4. upload out/ so every report and reproducer bundle can be downloaded.
+# Any failing step fails the job, so the tool's exit codes decide the result.
+
+name: zaraban
+
+on:
+  push:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: zaraban-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Tests and scenario matrix (Docker)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # ASan needs fewer ASLR bits than recent kernels use, or sanitized
+      # binaries crash at start-up at random (docs/Issues/002).
+      - name: Configure ASan kernel parameter
+        run: sudo sysctl -w vm.mmap_rnd_bits=28
+
+      # Build with the runner's own ids, so the container user can write
+      # out/ in the checked-out workspace (the bind mount).
+      - name: Build Docker image
+        run: UID=$(id -u) GID=$(id -g) docker compose build
+
+      - name: Unit tests
+        run: docker compose run --rm -T zaraban python3 -m pytest -q --ignore=tests/test_e2e.py
+
+      - name: End-to-end tests
+        run: docker compose run --rm -T zaraban python3 -m pytest -q tests/test_e2e.py
+
+      # One container per target keeps each matrix run short and independent.
+      - name: Scenarios — token_parser
+        if: success() || failure()
+        run: docker compose run --rm -T zaraban python3 scripts/run_matrix.py test_token_parser --out out/run_matrix
+
+      - name: Scenarios — cjson
+        if: success() || failure()
+        run: docker compose run --rm -T zaraban python3 scripts/run_matrix.py cjson --out out/run_matrix
+
+      - name: Scenarios — jhead
+        if: success() || failure()
+        run: docker compose run --rm -T zaraban python3 scripts/run_matrix.py jhead --out out/run_matrix
+
+      - name: Upload run outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zaraban-out
+          path: out/
+          if-no-files-found: warn
+          retention-days: 14
