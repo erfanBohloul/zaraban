@@ -31,8 +31,12 @@ jobs:
 
       - name: Run unit test suite
         run: |
-          docker compose run --rm zaraban pytest -v
+          docker compose run --rm -T zaraban pytest -v --ignore=tests/test_e2e.py
 
       - name: Run end-to-end tests
         run: |
-          docker compose run --rm zaraban pytest -v tests/test_e2e.py
+          docker compose run --rm -T zaraban pytest -v tests/test_e2e.py
+
+      - name: Run the token_parser scenarios (Phase 2 gate, §14.3)
+        run: |
+          docker compose run --rm -T zaraban python3 scripts/run_matrix.py target1_sample --out /tmp/run_matrix

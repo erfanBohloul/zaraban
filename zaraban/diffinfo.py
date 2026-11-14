@@ -193,6 +193,7 @@ def changed_functions(tree: str | Path, hunks: list[Hunk], side: Version) -> set
                     changed.add((rel_path, name))
     return changed
 
+
 def changed_lines_by_file(hunks: list[Hunk], side: Version) -> dict[str, set[int]]:
     """The changed line numbers of ``side``, per file (§9.4): added lines on the
     patch side, removed lines on the base side. Insertions that leave nothing on

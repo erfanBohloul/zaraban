@@ -35,4 +35,9 @@ All notable changes to the Zaraban security patch validation engine are document
 - A patch that does not apply, any `ZarabanError` in a stage, and any tool bug now still end in a report with exit 30; a tool bug adds `TOOL_INTERNAL` and `errors.log` (§13.4).
 - Build errors and warnings are reported once, not twice; `NO_SYMBOLIZER` and `OUTPUT_TRUNCATED` reach the report; `settings.sanitizer_options` and the symbolizer path are recorded (§12.4).
 - The execution matrix uses the runner's `run_test`, and reproducer candidates use its `run_once`; the duplicate `execution.py` and the copied run code in `analysis_stage.py` are removed.
-- Places for Task 2.3 (`regression.load_tests`) and Task 2.4 (`completeness.check`) in the run; both are placeholders.
+
+### Added (Tasks 2.2–2.5)
+- Execution traces with clang source-based coverage (`zaraban.coverage`, §9.4): a finding still `UNDETERMINED` after the stack check gets a second linking pass with the changed lines its test ran (`CHANGED_CODE_EXECUTED`), or the warning `TRACE_UNAVAILABLE`. The coverage run uses the same environment and limits as the normal runs.
+- Regression tests of earlier runs are loaded from `regression_dir` and run last (`regression.load_tests`, §10.6); one that no longer crashes on base gives `REGRESSION_BASE_CLEAN` (§8.6).
+- Completeness check (`zaraban.completeness`, §8.7): a lost abnormal result is `TOOL_INTERNAL` (exit 30).
+- `targets/target1_sample/scenarios.yaml`, the three `versions/patch_*` trees and `scripts/run_matrix.py` (§14.3).
