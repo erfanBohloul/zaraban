@@ -43,12 +43,34 @@ run logs, builds, reproducer bundles and new regression tests (SPEC §12).
 Zaraban executes targets in an isolated Linux environment (Ubuntu 22.04 with GCC, Clang, ASan, and Universal Ctags):
 
 ```bash
-# 1. On Linux hosts, set kernel address randomization bits for ASan (Issue #002)
-sudo sysctl vm.mmap_rnd_bits=28
+# 1. Linux hosts only: lower the address randomization bits for ASan, or the
+#    sanitized builds crash at start-up at random and results look flaky
+#    (docs/Issues/002). This is reset at every reboot; to keep it:
+#      echo 'vm.mmap_rnd_bits=28' | sudo tee /etc/sysctl.d/99-asan.conf
+sudo sysctl -w vm.mmap_rnd_bits=28
 
-# 2. Build the Docker image
-docker compose build
+# 2. Build the Docker image with your own user ids, so files in out/ are yours
+UID=$(id -u) GID=$(id -g) docker compose build
 ```
+
+### Run guide on a fresh clone
+
+These are exactly the steps CI runs. From a new clone, they need nothing else:
+
+```bash
+git clone <repo url> zaraban && cd zaraban
+sudo sysctl -w vm.mmap_rnd_bits=28                       # Linux, once per boot
+UID=$(id -u) GID=$(id -g) docker compose build
+docker compose run --rm zaraban python3 -m pytest -q     # all unit and e2e tests
+docker compose run --rm zaraban python3 scripts/run_matrix.py cjson jhead test_token_parser
+```
+
+The last command prints one line per scenario and ends with
+`9/9 scenarios matched`; it exits non-zero otherwise. Outputs are under
+`out/run_matrix/<target>/<scenario>/`.
+
+If many unrelated tests suddenly become `INCONCLUSIVE` (flaky), check
+`vm.mmap_rnd_bits` first: it is reset after a reboot.
 
 ### Validating a patch
 
@@ -101,10 +123,10 @@ run id is the UTC start time and the first 8 hex digits of the diff's SHA-256
 
 ```bash
 # Run unit and integration test suite inside Docker
-docker compose run --rm zaraban pytest -v
+docker compose run --rm zaraban python3 -m pytest -v
 
 # Run the end-to-end test suite
-docker compose run --rm zaraban pytest -v tests/test_e2e.py
+docker compose run --rm zaraban python3 -m pytest -v tests/test_e2e.py
 ```
 
 If sanitized binaries crash at start-up with `SIGSEGV` and you cannot change
@@ -115,6 +137,15 @@ container instead:
 docker run --rm --network none --security-opt seccomp=unconfined -v "$PWD":/work -w /work \
   zaraban:latest setarch x86_64 -R python3 -m pytest tests/ -q
 ```
+
+## Continuous integration
+
+`.github/workflows/zaraban.yml` runs on every push and on pull requests to
+`main`. Inside the Docker image it runs the unit tests, the end-to-end tests
+and the scenarios of `test_token_parser`, `cjson` and `jhead`, and uploads
+`out/` as the `zaraban-out` artifact (reports, summaries and reproducer
+bundles), also when a step fails. A failing step fails the job, so the tool's
+exit codes decide the result.
 
 ## Exit codes
 
@@ -151,8 +182,8 @@ config + base + patch (dir or diff)
 `targets/demo_*` are four tiny, self-contained targets meant for learning and
 hands-on testing. Each is a ~25-line C program with one easy-to-read bug, and
 each comes with three patches so you can watch the tool produce every verdict.
-They are independent of the delivered targets: nothing in CI or the test suite
-uses them, so you can change or delete them freely.
+They are independent of the delivered targets: CI does not run them, so you
+can change or delete them freely.
 
 | Target | Bug class | `correct` | `incomplete` | `regression` |
 |---|---|---|---|---|
@@ -290,10 +321,10 @@ How we chose them:
 - Takes input from a file or stdin, so no network or GUI is involved.
 - The PoC crashes under ASan in a few milliseconds.
 - Both current CVEs are heap out-of-bounds reads, reached in different code
-  (a minifier vs. a Markdown line analyser) and through different input paths
-  (a driver vs. the official `md2html` CLI). If a second error class is wanted
-  for the classifier, one of the backups below (a NULL dereference, or a
-  heap-overflow write) can replace a target.
+  (a JSON minifier vs. an EXIF directory parser) and through different input
+  paths (a small driver vs. jhead's own CLI). If a second error class is
+  wanted for the classifier, one of the backups above (a NULL dereference, or
+  a heap-overflow write) can replace a target.
 
 Every target directory must contain `zaraban.yaml`, `ORACLE.md`,
 `scenarios.yaml`, a `Makefile` with `release` and `sanitized` rules, `src/`,
@@ -338,8 +369,8 @@ small live change. Each member also co-owns one target.
 |---|---|---|---|---|
 | A: _name_ | **Orchestrator, builds, hardening, CI**: CLI, config validation, source preparation and diff derivation, the four builds and profile checks, hardening checker, Docker image, CI workflow, `run_matrix.py` | §3, §4, §6, §11, §14 | CI/JSON/exit codes (10), hardening (5), docs and modularity (5) | cJSON |
 | B: _name_ | **Runner and crash analysis**: input delivery, run environment and limits, repeats, outcome and error-type rules, stack-trace parsing, signatures, oracle matching | §5, §7 | Dynamic testing and classification (25) | cJSON |
-| C: _name_ | **Findings and patch linking**: findings from results, diff parsing, changed functions, location and comparative evidence, execution trace | §8, §9 | Patch validation and diff linking (25) | md4c |
-| D: _name_ | **Reproducibility and reporting**: minimization, reproducer bundles, replays, regression tests, `report.json`, `summary.txt`, status and exit code | §10, §12, §13 | Reproducibility and regression tests (15) | md4c |
+| C: _name_ | **Findings and patch linking**: findings from results, diff parsing, changed functions, location and comparative evidence, execution trace | §8, §9 | Patch validation and diff linking (25) | jhead |
+| D: _name_ | **Reproducibility and reporting**: minimization, reproducer bundles, replays, regression tests, `report.json`, `summary.txt`, status and exit code | §10, §12, §13 | Reproducibility and regression tests (15) | jhead |
 
 The 15 points for the scenarios on two programs and the unseen patches are
 shared. Each target pair owns its four versions, its tests and its
@@ -447,7 +478,7 @@ saved to `results/` with `--save`.
 
 ### Phase 4: CI, docs, and unseen-patch drill
 
-- [ ] **A**: `.github/workflows/zaraban.yml`: build the image, run pytest, run
+- [x] **A**: `.github/workflows/zaraban.yml`: build the image, run pytest, run
       the matrix, upload `out/`.
 - [ ] Everyone: document your module in `docs/` (design, rules, limitations).
 - [ ] **Unseen-patch drill**: each pair writes two surprise patches for the
