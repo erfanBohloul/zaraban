@@ -132,8 +132,9 @@ def human_summary(report: Report, bundles: Optional[list[Bundle]] = None,
                   report_path: str | Path = REPORT_FILE) -> str:
     """The human-readable summary, in the agreed order: target and run id;
     base and patch; the four builds; the hardening comparison; tests, builds,
-    repeats and flaky results; one block per finding; the exit code and name;
-    the path of ``report.json``. Tests without findings are only counted."""
+    repeats and flaky results; one block per finding; warnings and errors
+    (each error with its listed problems); the exit code and name; the path
+    of ``report.json``. Tests without findings are only counted."""
     by_finding = {b.finding: b for b in bundles or []}
     lines = [
         f"{report.tool['name'].upper()} {report.tool['version']}  "
@@ -160,6 +161,7 @@ def human_summary(report: Report, bundles: Optional[list[Bundle]] = None,
             lines.append("")
         for e in report.errors:
             lines.append(_label("ERROR") + f"{e.code}: {e.message}")
+            lines.extend(f"{'':<{_W}}  - {p}" for p in (e.details or {}).get("problems", []))
 
     st: Status = report.status
     lines += [

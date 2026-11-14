@@ -298,6 +298,12 @@ def test_pass_correct_scenario(tmp_path):
     assert data["findings"][0]["category"] == "FIXED"
 
 
+def test_12_5_summary_is_printed_at_the_end_of_the_run(tmp_path, capsys):
+    ctx = _make_context(tmp_path, scenario="correct")
+    analyze_and_report(ctx)
+    assert capsys.readouterr().out == (ctx.out_dir / "summary.txt").read_text()
+
+
 def test_vuln_remains_incomplete_scenario(tmp_path):
     ctx = _make_context(tmp_path, scenario="incomplete")
     rc = analyze_and_report(ctx)

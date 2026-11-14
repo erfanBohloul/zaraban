@@ -241,6 +241,15 @@ def test_12_5_summary_with_no_findings_warnings_and_errors():
     assert "RESULT     exit 30  BUILD_OR_CONFIG_ERROR" in text
 
 
+def test_12_5_summary_lists_the_problems_of_an_error():
+    err = Issue(ErrorCode.PATCH_APPLY_FAILED.value, "the patch does not apply",
+                {"problems": ["-p0: no such file", "-p1: patch failed: src/main.c:12"]})
+    text = report_mod.human_summary(_assemble(findings=[], errors=[err]))
+    assert ("ERROR      PATCH_APPLY_FAILED: the patch does not apply\n"
+            "             - -p0: no such file\n"
+            "             - -p1: patch failed: src/main.c:12\n") in text
+
+
 def test_12_5_summary_marks_an_unstable_bundle():
     b = _bundle()
     b.stable = False

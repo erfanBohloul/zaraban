@@ -171,8 +171,8 @@ def base_not_reproduced(tests: list[TestCase], results: Results) -> list[str]:
 
 
 def finish(ctx: RunContext) -> int:
-    """Decide the status, write ``report.json`` and ``summary.txt``, delete
-    ``work/`` unless ``--keep-work``; return the exit code."""
+    """Decide the status, write ``report.json`` and ``summary.txt``, print
+    the summary, delete ``work/`` unless ``--keep-work``; return the exit code."""
     st = status.compute_status(findings=ctx.findings, checks=ctx.checks, errors=ctx.errors,
                                base_not_reproduced=ctx.base_not_reproduced)
     config_copy = ctx.out_dir / CONFIG_COPY
@@ -195,7 +195,8 @@ def finish(ctx: RunContext) -> int:
         warnings=ctx.warnings,
         errors=ctx.errors,
     )
-    report.write(rep, ctx.out_dir, bundles=ctx.bundles)
+    _, summary_path = report.write(rep, ctx.out_dir, bundles=ctx.bundles)
+    print(summary_path.read_text(encoding="utf-8"), end="", flush=True)
     if not getattr(ctx.args, "keep_work", False):
         shutil.rmtree(ctx.work_dir, ignore_errors=True)
     return int(st.exit_code)
