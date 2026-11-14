@@ -1,0 +1,25 @@
+# The delivered scenarios and their expected results (SPEC §14.3). The tool
+# never reads this file; scripts/run_matrix.py runs each scenario and checks
+# its exit code and findings. Directories whose name starts with "_", like
+# this template, are skipped by run_matrix.py.
+#
+# Run them with:  python3 scripts/run_matrix.py <name>
+- name: correct
+  patch: patches/correct.patch
+  version_dir: versions/patch_correct
+  expect_exit: 0
+  expect_findings:
+    - {category: FIXED, tests: [exploit_example]}
+- name: incomplete
+  patch: patches/incomplete.patch
+  version_dir: versions/patch_incomplete
+  expect_exit: 10
+  expect_findings:
+    - {category: INCOMPLETE_FIX, tests: [exploit_example]}
+- name: regression
+  patch: patches/regression.patch
+  version_dir: versions/patch_regression
+  expect_exit: 20
+  expect_findings:
+    - {category: FUNCTIONAL_REGRESSION, tests: [valid_example]}
+    - {category: FIXED, tests: [exploit_example]}
