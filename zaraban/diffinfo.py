@@ -1,4 +1,4 @@
-"""Reading the diff for linking findings to the patch (SPEC §9.2).
+"""Reading the diff for linking findings to the patch.
 
 The diff is parsed with ``unidiff`` into one :class:`Hunk` per hunk. For each
 hunk the tool knows:
@@ -9,15 +9,15 @@ hunk the tool knows:
   numbers.
 
 A hunk's line range includes its unchanged context lines, so a crash on a
-context line is still "inside the changed hunk" (§9.2).
+context line is still "inside the changed hunk".
 
 File paths are given after removing the strip level that was used to apply the
-diff (§3.2), so they match the paths in stack traces (``src/main.c``). As in
+diff, so they match the paths in stack traces (``src/main.c``). As in
 ``git apply``, a changed or added file is named by its new path and a deleted
 file by its old path.
 
 **Changed functions** come from the source code, not from hunk headers
-(§9.2): ``universal-ctags`` gives the start and end line of every function in
+: ``universal-ctags`` gives the start and end line of every function in
 the base or patch tree, and a function is changed on a side when a changed
 line of that side falls inside it. On the base side the changed lines are the
 removed lines, on the patch side the added lines. A change can also be an
@@ -25,9 +25,7 @@ insertion with nothing removed, for example a new length check: the base side
 has no changed line for it, only a position between two base lines. A
 function also counts as changed on a side when such a position lies inside
 it. Otherwise a check added to a caller would not mark the caller as changed
-on base, and the evidence of §9.3 for a ``FIXED`` finding would be lost.
-
-Section numbers such as §9.2 refer to docs/SPEC.md.
+on base, and the location evidence for a ``FIXED`` finding would be lost.
 """
 
 from __future__ import annotations
@@ -47,7 +45,7 @@ def parse_hunks(diff_text: str, strip: int) -> list[Hunk]:
     """Every hunk of a unified diff, in file order, with paths stripped.
 
     ``strip`` is the number of leading path components to remove, the same
-    level ``git apply -p<strip>`` used (§3.2). Binary files have no hunks and
+    level ``git apply -p<strip>`` used. Binary files have no hunks and
     are skipped. Raises :class:`ZarabanError` if the text is not a diff.
     """
     try:
@@ -84,7 +82,7 @@ def load_hunks(diff_path: str | Path, strip: int) -> list[Hunk]:
 
 
 def sources_hunks(sources: Sources) -> list[Hunk]:
-    """The hunks of a run's diff, as prepared by sources.py (§3.2).
+    """The hunks of a run's diff, as prepared by sources.py.
 
     A diff file is read at the strip level that applied it; the diff that
     sources.py writes for a patch directory is rooted at ``a/`` ``b/``.
@@ -95,7 +93,7 @@ def sources_hunks(sources: Sources) -> list[Hunk]:
 
 
 # ---------------------------------------------------------------------------
-# Changed functions (§9.2)
+# Changed functions
 # ---------------------------------------------------------------------------
 
 # Function definitions only; prototypes and macros are not code that runs.
@@ -116,7 +114,7 @@ def function_ranges(tree: str | Path, rel_path: str) -> list[tuple[str, int, int
                                 capture_output=True, text=True)
     except FileNotFoundError:
         raise ZarabanError(ErrorCode.TOOL_INTERNAL,
-                           "universal-ctags is not installed (needed by §9.2)")
+                           "universal-ctags is not installed (needed to find changed functions)")
     if result.returncode != 0:
         raise ZarabanError(ErrorCode.TOOL_INTERNAL,
                            f"ctags failed on {rel_path}",
@@ -195,7 +193,7 @@ def changed_functions(tree: str | Path, hunks: list[Hunk], side: Version) -> set
 
 
 def changed_lines_by_file(hunks: list[Hunk], side: Version) -> dict[str, set[int]]:
-    """The changed line numbers of ``side``, per file (§9.4): added lines on the
+    """The changed line numbers of ``side``, per file: added lines on the
     patch side, removed lines on the base side. Insertions that leave nothing on
     ``side`` have no line there and are omitted."""
     out: dict[str, set[int]] = {}

@@ -1,13 +1,13 @@
-"""Completeness check: nothing is lost between the results and the report (SPEC §8.7).
+"""Completeness check: nothing is lost between the results and the report.
 
 Grouping results into findings only changes how they are presented; it must
-never drop one. At the end of every run (Task 2.4) this module checks that:
+never drop one. At the end of every run this module checks that:
 
 1. every **abnormal result** (a crash, an oracle mismatch, a timeout, a
    resource limit, or a flaky result, on any build) belongs to a test that is
    referenced by at least one finding or status condition;
 2. every **stable crash with a signature** on a sanitized build is in
-   **exactly one** crash finding (§8.2).
+   **exactly one** crash finding.
 
 A failure is a bug in the tool, never in the target: it raises
 ``TOOL_INTERNAL`` (exit 30, details in ``errors.log``) listing every problem
@@ -17,12 +17,12 @@ What is abnormal but needs no finding of its own (``expected``):
 
 - a ``security`` or ``regression`` test that ends on a base build without a
   crash but not normally (timeout, resource limit, oracle mismatch). Base is
-  not judged for these kinds by the finding rules (§8.4). For ``security``
-  tests this is the status condition ``base_not_reproduced`` (§8.6, §13.2,
-  exit 40); for ``regression`` tests the warning ``REGRESSION_BASE_CLEAN``.
+  not judged for these kinds by the finding rules. For ``security`` tests
+  this is the status condition ``base_not_reproduced`` (exit 40); for
+  ``regression`` tests the warning ``REGRESSION_BASE_CLEAN``.
 
 A crash is never expected: on any build and for any kind of test, it is in a
-crash finding (§8.2), a finding of §8.3, or a flaky finding (§8.5).
+crash finding, an unsigned-crash finding, or a flaky finding.
 """
 
 from __future__ import annotations
@@ -45,20 +45,20 @@ from .models import (
 
 _SANITIZED = (BuildName.BASE_SANITIZED, BuildName.PATCH_SANITIZED)
 _BASE_NOT_JUDGED = (TestKind.SECURITY, TestKind.REGRESSION)
-# Crash categories of §8.2 -> (key seen on base, key seen on patch).
+# Crash finding categories -> (key seen on base, key seen on patch).
 _CRASH_CATEGORIES = {Category.FIXED: (True, False), Category.NEW_ISSUE: (False, True),
                      Category.INCOMPLETE_FIX: (True, True)}
 
 
 def check(results: Optional[Results], findings: list[Finding]) -> None:
-    """Raise ``TOOL_INTERNAL`` if a result is lost (§8.7); return None if not."""
+    """Raise ``TOOL_INTERNAL`` if a result is lost; return None if not."""
     if not results:
         return
     problems = unreferenced(results, findings) + crash_counts(results, findings)
     if problems:
         raise ZarabanError(
             ErrorCode.TOOL_INTERNAL,
-            f"completeness check failed (§8.7): {len(problems)} result(s) are not reported "
+            f"completeness check failed: {len(problems)} result(s) are not reported "
             f"correctly; this is a bug in the tool",
             {"problems": problems},
         )
@@ -70,7 +70,7 @@ def check(results: Optional[Results], findings: list[Finding]) -> None:
 
 
 def is_abnormal(r: CombinedResult) -> bool:
-    """A crash, an oracle mismatch, a timeout, a resource limit, or flaky (§8.7)."""
+    """A crash, an oracle mismatch, a timeout, a resource limit, or flaky."""
     return r.flaky or r.outcome is not Outcome.NORMAL or r.oracle_passed is False
 
 
@@ -101,14 +101,14 @@ def unreferenced(results: Results, findings: list[Finding]) -> list[str]:
 
 
 def finding_key(f: Finding, results: Results) -> Optional[BugKey]:
-    """The bug key of a crash finding (§8.2), or None for any other finding.
+    """The bug key of a crash finding, or None for any other finding.
 
     The key is rebuilt from the finding's tests, not from its ``signature``
     text: two different bug keys can share a signature (same functions, a
     different file), so the text alone cannot tell them apart. The key is the
     one that every test of the finding has on a sanitized build and that fits
     the category: ``FIXED`` only on base, ``NEW_ISSUE`` only on patch,
-    ``INCOMPLETE_FIX`` on both (§8.2).
+    ``INCOMPLETE_FIX`` on both.
     """
     if f.signature is None or f.category not in _CRASH_CATEGORIES:
         return None
@@ -150,7 +150,7 @@ def crash_counts(results: Results, findings: list[Finding]) -> list[str]:
             if r is None or not r.stable_crash:
                 continue
             key = bug_key(r.first.analysis)
-            if key is None:  # no signature: §8.3, checked by rule 1
+            if key is None:  # no signature: an unsigned crash, checked by rule 1
                 continue
             ids = [f.id for f, k in keyed if k == key and test in f.test_names]
             if len(ids) != 1:
