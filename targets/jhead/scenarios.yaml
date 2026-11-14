@@ -1,6 +1,6 @@
-# Delivered scenarios of the jhead target (SPEC §14.3). The tool never reads
+# Delivered scenarios of the jhead target. The tool never reads
 # this file; scripts/run_matrix.py runs each scenario and checks the exit code
-# and findings, in finding id order (SPEC §8.8). Rationale: ORACLE.md.
+# and findings, in finding id order. Rationale: ORACLE.md.
 
 - name: correct
   patch: patches/correct.patch
@@ -20,7 +20,7 @@
   patch: patches/regression.patch
   version_dir: versions/patch_regression
   expect_exit: 20
-  expect_findings:          # one per DateTime test, in finding id order (SPEC §8.8)
+  expect_findings:          # one per DateTime test, in finding id order
     - {category: FUNCTIONAL_REGRESSION, tests: [valid_s100_datetime]}
     - {category: FUNCTIONAL_REGRESSION, tests: [valid_kodak_datetime]}
     - {category: FUNCTIONAL_REGRESSION, tests: [valid_pro1_datetime]}

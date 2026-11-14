@@ -112,13 +112,12 @@ def test_full_run_calls_injected_pipeline(tmp_path):
     assert seen == {"name": "token_parser", "patch": "p.diff"}
 
 
-def test_full_run_without_pipeline_reports_not_ready(tmp_path, capsys, monkeypatch):
-    # Until Phase 2 adds pipeline.py, main must fail cleanly, not crash. The
-    # module is hidden explicitly, so this test keeps working after Phase 2.
+def test_pipeline_import_error_is_tool_internal_30(tmp_path, capsys, monkeypatch):
+    # A pipeline that cannot be imported is a bug in the tool, not a crash.
     monkeypatch.setitem(sys.modules, "zaraban.pipeline", None)
     rc = main(["-c", cfg(tmp_path), "--patch", "p.diff"])
     assert rc == 30
-    assert "Phase 2" in capsys.readouterr().err
+    assert "TOOL_INTERNAL" in capsys.readouterr().err
 
 
 def test_13_pipeline_error_exits_30_with_its_code(tmp_path, capsys):

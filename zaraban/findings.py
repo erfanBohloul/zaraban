@@ -1,14 +1,12 @@
-"""Findings: comparing how the tests behave on base and on patch (SPEC §8).
+"""Findings: comparing how the tests behave on base and on patch.
 
-Input is the combined results of §7.5, one per test per build
-(``results[test][build]``, made by the runner). Output is a list of
+Input is the combined results of the runner, one per test per build
+(``results[test][build]``). Output is a list of
 :class:`Finding`. This module never runs anything.
-
-:func:`build_findings` is the entry point. It applies every rule (§8.2 to
-§8.5) and numbers the findings in the order they are first observed in the
-run order (§8.8). The link to the patch is added later by linking.py (§9).
-
-Section numbers such as §8.2 refer to docs/SPEC.md.
+:func:`build_findings` is the entry point. It applies every rule (crash,
+unsigned crash, release-only crash, functional and flaky findings) and
+numbers the findings in the order they are first observed in the run order.
+The link to the patch is added later by linking.py.
 """
 
 from __future__ import annotations
@@ -39,15 +37,15 @@ from .models import (
 )
 
 # ---------------------------------------------------------------------------
-# Bug key (§1, §8.2)
+# Bug key
 # ---------------------------------------------------------------------------
 
 
 class BugKey(NamedTuple):
-    """Error type plus the function and file of the crashing frame (§1).
+    """Error type plus the function and file of the crashing frame.
 
     Two crashes with the same bug key are the same bug, even when they were
-    reached through different callers (§8.2).
+    reached through different callers.
     """
 
     error_type: ErrorType
@@ -62,7 +60,7 @@ class BugKey(NamedTuple):
 def crash_frame(analysis: Analysis) -> Optional[Frame]:
     """The crashing location: the first non-runtime frame with a function name.
 
-    Frames without a name are skipped, exactly as for the signature (§7.4), so
+    Frames without a name are skipped, exactly as for the signature, so
     a crash has a bug key if and only if it has a signature.
     """
     for f in analysis.app_frames:
@@ -73,7 +71,7 @@ def crash_frame(analysis: Analysis) -> Optional[Frame]:
 
 def bug_key(analysis: Analysis) -> Optional[BugKey]:
     """The bug key of a crash, or None for a non-crash or a crash without
-    a signature (§8.3)."""
+    a signature."""
     if not analysis.is_crash or analysis.error_type is None:
         return None
     frame = crash_frame(analysis)
@@ -83,7 +81,7 @@ def bug_key(analysis: Analysis) -> Optional[BugKey]:
 
 
 # ---------------------------------------------------------------------------
-# What one test did on each build (§8.8, §12.4)
+# What one test did on each build
 # ---------------------------------------------------------------------------
 
 
@@ -105,7 +103,7 @@ def build_summary(result: CombinedResult) -> BuildSummary:
 
 def finding_test(per_build: dict[BuildName, CombinedResult],
                  on_patch: Optional[OnPatch] = None) -> FindingTest:
-    """One test of a finding, with its result on every build (§8.2: all four
+    """One test of a finding, with its result on every build (all four
     builds, the release ones included)."""
     first = next(per_build[b] for b in BUILD_ORDER if b in per_build)
     return FindingTest(
@@ -134,7 +132,7 @@ def describe_run(run: RunRecord) -> str:
 
 def describe(result: CombinedResult) -> str:
     """:func:`describe_run` of the first repeat, with ``(flaky)`` added when
-    the repeats differ (§7.5)."""
+    the repeats differ."""
     text = describe_run(result.first)
     return text + " (flaky)" if result.flaky else text
 
@@ -162,7 +160,7 @@ def build_text(results: list[CombinedResult]) -> str:
 
 def profile_summary(per_test: list[dict[BuildName, CombinedResult]],
                     profile: Profile) -> dict[str, str]:
-    """``{"base": ..., "patch": ...}`` for one profile (§8.8): the finding's
+    """``{"base": ..., "patch": ...}`` for one profile: the finding's
     ``release`` or ``sanitized`` field. The two profiles are never merged."""
     out: dict[str, str] = {}
     for version in (Version.BASE, Version.PATCH):
@@ -174,7 +172,7 @@ def profile_summary(per_test: list[dict[BuildName, CombinedResult]],
 
 
 # ---------------------------------------------------------------------------
-# Run order (§7.1, §8.8)
+# Run order
 # ---------------------------------------------------------------------------
 
 # Where a finding is first observed: (index of the test in the run order,
@@ -184,7 +182,7 @@ Found = list[tuple[Seen, Finding]]
 
 
 def _order(results: Results, tests: Optional[list[str]]) -> list[str]:
-    """The run order of §7.1: ``tests`` if given, else the order of ``results``."""
+    """The run order: ``tests`` if given, else the order of ``results``."""
     return list(tests) if tests is not None else list(results)
 
 
@@ -197,7 +195,7 @@ def _strip(found: Found) -> list[Finding]:
 
 
 # ---------------------------------------------------------------------------
-# Crash findings (§8.2)
+# Crash findings
 # ---------------------------------------------------------------------------
 
 _BS = BuildName.BASE_SANITIZED
@@ -208,8 +206,7 @@ def stable_key(result: Optional[CombinedResult]) -> Optional[BugKey]:
     """The bug key of a stable crash, or None.
 
     Flaky results are never used to build crash findings, because a
-    signature that appears only in some repeats could be grouped wrongly
-    (§8.5).
+    signature that appears only in some repeats could be grouped wrongly.
     """
     if result is None or not result.stable_crash:
         return None
@@ -217,11 +214,11 @@ def stable_key(result: Optional[CombinedResult]) -> Optional[BugKey]:
 
 
 def crash_findings(results: Results, tests: Optional[list[str]] = None) -> list[Finding]:
-    """One finding per bug key seen in a stable sanitized crash (§8.2).
+    """One finding per bug key seen in a stable sanitized crash.
 
-    ``tests`` is the run order of §7.1 (default: the order of ``results``).
+    ``tests`` is the run order (default: the order of ``results``).
     Findings come out in the order their bug key is first seen in that order;
-    their ``id`` is left empty and given when all findings are known (§8.8).
+    their ``id`` is left empty and given when all findings are known.
 
     For each bug key K, B is the tests whose ``base-sanitized`` result is a
     stable crash with key K, and P the same on ``patch-sanitized``:
@@ -276,12 +273,13 @@ def _crash(results: Results, order: list[str]) -> Found:
 
 
 def _on_patch(per_build: dict[BuildName, CombinedResult], key: BugKey) -> Optional[OnPatch]:
-    """What a test of the finding for ``key`` does on patch (§12.4).
+    """What a test of the finding for ``key`` does on patch.
 
     ``reaches``: still a stable crash with this bug key. ``other_error``: a
     crash with another key, or without one (reported elsewhere). ``blocked``:
     no crash. None when the patch result is flaky, because then it is not
-    known (the test has its own ``INCONCLUSIVE`` finding, §8.5).
+    known (the test has its own ``INCONCLUSIVE`` finding from
+    :func:`flaky_findings`).
     """
     r = per_build.get(_PS)
     if r is None or r.flaky:
@@ -315,18 +313,19 @@ def _names(tests: list[str]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Crashes without a signature, and release-only crashes (§8.3)
+# Crashes without a signature, and release-only crashes
 # ---------------------------------------------------------------------------
 
-# A stop the runner could not classify is not evidence of a security error
-# (course spec §3.5, code 40).
+# A stop the runner could not classify is not evidence of a security error,
+# so it is INCONCLUSIVE (exit 40), not NEW_ISSUE.
 _UNCLASSIFIED = (ErrorType.ABORT, ErrorType.UNKNOWN)
 
 
 def unsigned_crash_findings(results: Results, tests: Optional[list[str]] = None) -> list[Finding]:
-    """One finding per test for sanitized crashes that cannot be grouped (§8.3).
+    """One finding per test for sanitized crashes that cannot be grouped.
 
-    Only stable results are used; a flaky test is handled by §8.5.
+    Only stable results are used; a flaky test is handled by
+    :func:`flaky_findings`.
 
     | base-sanitized          | patch-sanitized                        | finding        |
     |-------------------------|----------------------------------------|----------------|
@@ -336,8 +335,8 @@ def unsigned_crash_findings(results: Results, tests: Optional[list[str]] = None)
     | crash, no signature     | crash (with or without signature)      | INCONCLUSIVE   |
     | crash with a signature  | crash, no signature                    | INCONCLUSIVE   |
 
-    The last row is not in the table of §8.3: the base crash is in a crash
-    finding of §8.2 (marked ``other_error`` on patch), but nothing would say
+    The last row needs care: the base crash is in a crash finding of
+    :func:`crash_findings` (marked ``other_error`` on patch), but nothing would say
     that the patch still crashes. As in the row above it, there is no way to
     tell whether it is the same error, so it is ``INCONCLUSIVE``.
     """
@@ -396,11 +395,12 @@ def _unsigned(results: Results, order: list[str]) -> Found:
 
 def release_only_findings(results: Results, tests: Optional[list[str]] = None) -> list[Finding]:
     """``INCONCLUSIVE`` for a test whose release build crashes while the
-    sanitized build of the same version does not (§8.3).
+    sanitized build of the same version does not.
 
     The release build is the real program, so the crash must be reported, but
     without a sanitizer report it cannot be classified. One finding per test,
-    naming every version where this happens. Flaky results are left to §8.5.
+    naming every version where this happens. Flaky results are left to
+    :func:`flaky_findings`.
     """
     return _strip(_release_only(results, _order(results, tests)))
 
@@ -438,7 +438,7 @@ def _etype(result: CombinedResult) -> ErrorType:
 def _test_finding(category: Category, per_build: dict[BuildName, CombinedResult],
                   error_type: Optional[ErrorType], on_patch: Optional[OnPatch],
                   notes: str) -> Finding:
-    """A finding about one test, with no signature (§8.1: one finding per test)."""
+    """A finding about one test, with no signature (so one finding per test)."""
     ft = finding_test(per_build, on_patch)
     per_test = [per_build]
     return Finding(
@@ -455,7 +455,7 @@ def _test_finding(category: Category, per_build: dict[BuildName, CombinedResult]
 
 
 # ---------------------------------------------------------------------------
-# Functional findings (§8.4)
+# Functional findings
 # ---------------------------------------------------------------------------
 
 _FUNCTIONAL_KINDS = (TestKind.VALID, TestKind.BOUNDARY, TestKind.INVALID)
@@ -464,18 +464,18 @@ _PATCH_BUILDS = (BuildName.PATCH_RELEASE, BuildName.PATCH_SANITIZED)
 
 
 def matches_oracle(result: CombinedResult) -> bool:
-    """§5.4: the run ended normally and every oracle field that is given
-    holds. A ``TIMEOUT`` or ``RESOURCE_LIMIT`` never matches (§8.4); a test
+    """The run ended normally and every oracle field that is given
+    holds. A ``TIMEOUT`` or ``RESOURCE_LIMIT`` never matches; a test
     without oracle fields matches whenever it ends normally."""
     return result.outcome is Outcome.NORMAL and result.oracle_passed is not False
 
 
 def functional_findings(results: Results, tests: Optional[list[str]] = None) -> list[Finding]:
-    """Findings from the oracle results of runs that did not crash (§8.4).
+    """Findings from the oracle results of runs that did not crash.
 
-    Crashes are always handled by §8.2 and §8.3, so a crashed build is left
+    Crashes are always handled by the crash rules, so a crashed build is left
     out here: a crash on a valid input is a security finding, never a
-    functional one. Flaky results are left to §8.5.
+    functional one. Flaky results are left to :func:`flaky_findings`.
 
     - ``valid``, ``boundary``, ``invalid``: does not match the oracle on a
       base build -> ``INCONCLUSIVE`` (the test or its oracle is wrong);
@@ -483,7 +483,7 @@ def functional_findings(results: Results, tests: Optional[list[str]] = None) -> 
     - ``security``, ``regression``: does not crash on a patch build but does
       not match the oracle there, or stops with ``TIMEOUT`` or
       ``RESOURCE_LIMIT`` -> ``INCONCLUSIVE``. Base is not judged: these
-      tests are expected to crash there (§5.5).
+      tests are expected to crash there.
     """
     return _strip(_functional(results, _order(results, tests)))
 
@@ -524,10 +524,10 @@ def oracle_mismatches(per_build: dict[BuildName, CombinedResult],
                       version: Version) -> list[CombinedResult]:
     """Results on the two builds of ``version`` that do not match the oracle.
 
-    Only stable results that did not crash are judged (§8.4); crashes are
-    left to §8.2/§8.3 and flaky results to §8.5. Used by the functional
-    findings and by their comparative evidence (§9.5), so both judge the
-    same builds.
+    Only stable results that did not crash are judged; crashes are left to
+    the crash rules and flaky results to :func:`flaky_findings`. Used by the
+    functional findings and by their comparative evidence, so both judge
+    the same builds.
     """
     builds = _BASE_BUILDS if version is Version.BASE else _PATCH_BUILDS
     out = []
@@ -553,13 +553,13 @@ def _reasons(results: list[CombinedResult]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Flaky results (§8.5)
+# Flaky results
 # ---------------------------------------------------------------------------
 
 
 def flaky_findings(results: Results, tests: Optional[list[str]] = None) -> list[Finding]:
-    """One ``INCONCLUSIVE`` finding per test with a flaky result on any build
-    (§8.5), listing the flaky builds and how their repeats differ.
+    """One ``INCONCLUSIVE`` finding per test with a flaky result on any build,
+    listing the flaky builds and how their repeats differ.
 
     The other finding rules leave flaky results out, so this is the only
     finding that reports them.
@@ -588,7 +588,7 @@ def repeats_text(result: CombinedResult) -> str:
     ``CRASH ASAN SIGABRT, STACK_BUFFER_OVERFLOW @ f < main in repeat 1;
     NORMAL exit 1, oracle passed in repeats 2, 3``.
 
-    Each group shows the three values that decide stability (§7.5): the
+    Each group shows the three values that decide stability: the
     outcome, the signature and the oracle result.
     """
     groups: dict[str, list[int]] = {}
@@ -605,7 +605,7 @@ def repeats_text(result: CombinedResult) -> str:
 
 
 # ---------------------------------------------------------------------------
-# All findings of a run (§8.8)
+# All findings of a run
 # ---------------------------------------------------------------------------
 
 # Rule order; it only decides between two findings first seen in the same run.
@@ -613,13 +613,13 @@ _RULES = (_crash, _unsigned, _release_only, _functional, _flaky)
 
 
 def build_findings(results: Results, tests: Optional[list[str]] = None) -> list[Finding]:
-    """Every finding of a run, numbered ``F-001``, ``F-002``, ... (§8.8).
+    """Every finding of a run, numbered ``F-001``, ``F-002``, ....
 
-    ``tests`` is the run order of §7.1: tests in config order (valid,
+    ``tests`` is the run order: tests in config order (valid,
     boundary, invalid, security, regression). Findings are numbered in the
     order they are first observed in that order, test by test and, within a
-    test, build by build (§6.1). ``tests`` must name exactly the tests in
-    ``results``, so that no result is left out (§8.7).
+    test, build by build. ``tests`` must name exactly the tests in
+    ``results``, so that no result is left out.
     """
     order = _order(results, tests)
     if len(order) != len(set(order)) or set(order) != set(results):

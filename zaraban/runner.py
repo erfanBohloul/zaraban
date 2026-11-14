@@ -1,24 +1,24 @@
-"""Running a test on a build (SPEC §5.3, §7.1–§7.3, §7.5).
+"""Running a test on a build.
 
 One run (:func:`run_once`):
 
 * happens in a **fresh, empty working directory** that holds only the input
-  file when ``input_method`` is ``file`` (§7.2). It is deleted afterwards;
-* uses the command of §5.3: the build's binary, the test's ``args``, and the
+  file when ``input_method`` is ``file``. It is deleted afterwards;
+* uses the agreed command: the build's binary, the test's ``args``, and the
   input as a file (``input<ext>``, or in place of the placeholder), on standard
   input, or as one extra argument, byte for byte;
 * gets only ``PATH``, the config's ``env`` and, for sanitized builds, the
-  sanitizer options of §7.2;
-* is limited as in §7.3: wall-clock timeout (the whole process group is
+  sanitizer options set in :class:`RunSettings`;
+* is limited: wall-clock timeout (the whole process group is
   killed), ``RLIMIT_CPU``, ``RLIMIT_DATA`` on release builds,
   ``max_allocation_size_mb`` on sanitized builds, no core dumps, and at most
   1 MB of each output stream kept;
-* is analysed (:mod:`zaraban.analysis`, §7.4) and judged against its oracle
-  (:mod:`zaraban.oracle`, §5.4), and written to
-  ``runs/<test>/<build>/<n>.json``, ``<n>.stdout`` and ``<n>.stderr`` (§12.1).
+* is analysed (:mod:`zaraban.analysis`) and judged against its oracle
+  (:mod:`zaraban.oracle`), and written to
+  ``runs/<test>/<build>/<n>.json``, ``<n>.stdout`` and ``<n>.stderr``.
 
 :func:`run_test` runs the repeats of one test on one build and combines them
-(:func:`combine`, §7.5).
+(:func:`combine`).
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ from .models import (
 )
 from .util import kill_group
 
-MAX_OUTPUT_BYTES = 1 << 20  # 1 MB per stream (§7.3)
+MAX_OUTPUT_BYTES = 1 << 20  # 1 MB per stream
 
 def _find_symbolizer() -> Optional[str]:
     found = shutil.which("llvm-symbolizer")
@@ -71,7 +71,7 @@ def _find_symbolizer() -> Optional[str]:
 
 @dataclass
 class RunSettings:
-    """The run settings of a target (§4.2, §4.3, §7.2), in one place.
+    """The run settings of a target, in one place.
 
     Build it from a loaded config with :meth:`from_target`, so the config's
     ``env`` and ``limits`` are always the ones used.
@@ -99,11 +99,11 @@ class RunSettings:
 
     @property
     def cpu_seconds(self) -> int:
-        """``RLIMIT_CPU``: the timeout rounded up, plus 1 second (§7.3)."""
+        """``RLIMIT_CPU``: the timeout rounded up, plus 1 second."""
         return int(-(-self.timeout_seconds // 1)) + 1
 
     def env_for(self, sanitized: bool) -> dict[str, str]:
-        """The run environment (§7.2): ``PATH``, the config's ``env`` and, for
+        """The run environment: ``PATH``, the config's ``env`` and, for
         sanitized builds, the tool's sanitizer options, appended after any the
         config sets so that the tool's values win."""
         env = {"PATH": self.path, **self.env}
@@ -120,7 +120,7 @@ class RunSettings:
         return env
 
     def warnings(self) -> list[Issue]:
-        """``NO_SYMBOLIZER`` when ``llvm-symbolizer`` was not found (§7.2)."""
+        """``NO_SYMBOLIZER`` when ``llvm-symbolizer`` was not found."""
         if self.symbolizer:
             return []
         return [Issue(WarningCode.NO_SYMBOLIZER.value,
@@ -129,7 +129,7 @@ class RunSettings:
 
 
 # ---------------------------------------------------------------------------
-# One run (§5.3, §7.2, §7.3)
+# One run
 # ---------------------------------------------------------------------------
 
 
@@ -143,8 +143,8 @@ def run_once(
     source_root: str = "",
 ) -> RunRecord:
     """Run ``test`` once on ``build`` and write its files under ``out_dir``
-    (the run's output directory, §12.1). ``source_root`` is the build's source
-    tree; frame paths under it are made relative (§7.4)."""
+    (the run's output directory). ``source_root`` is the build's source
+    tree; frame paths under it are made relative."""
     out_dir = Path(out_dir)
     rel_dir = f"runs/{test.name}/{build.value}"
     record_dir = out_dir / rel_dir
@@ -237,14 +237,14 @@ def run_test(
     source_root: str = "",
 ) -> CombinedResult:
     """Run the repeats 1 … ``repeats`` of one test on one build, one at a time,
-    and combine them (§7.1, §7.5)."""
+    and combine them."""
     runs = [run_once(binary, test, settings, build, n, out_dir, source_root)
             for n in range(1, repeats + 1)]
     return combine(runs)
 
 
 def combine(runs: list[RunRecord]) -> CombinedResult:
-    """Combine the repeats of one test on one build (§7.5). The result is flaky
+    """Combine the repeats of one test on one build. The result is flaky
     when the repeats differ in outcome, signature or oracle result."""
     if not runs:
         raise ValueError("cannot combine an empty list of runs")
@@ -255,7 +255,7 @@ def combine(runs: list[RunRecord]) -> CombinedResult:
 
 
 def output_warnings(records: list[RunRecord]) -> list[Issue]:
-    """``OUTPUT_TRUNCATED`` for each run whose output was cut at 1 MB (§7.3)."""
+    """``OUTPUT_TRUNCATED`` for each run whose output was cut at 1 MB."""
     out = []
     for r in records:
         for stream in (r.stdout, r.stderr):
@@ -284,7 +284,7 @@ class _Result:
 
 
 class _Capture(threading.Thread):
-    """Reads a pipe to its end, keeping the first ``limit`` bytes (§7.3). The
+    """Reads a pipe to its end, keeping the first ``limit`` bytes. The
     rest is read and discarded, so the program never blocks on a full pipe and
     the tool never holds more than 1 MB."""
 
@@ -324,7 +324,7 @@ def _feed(pipe: Any, data: bytes) -> None:
         pass
     finally:
         try:
-            pipe.close()  # the program sees end-of-file (§5.3)
+            pipe.close()  # the program sees end-of-file
         except OSError:
             pass
 
@@ -335,7 +335,7 @@ def _limits(cpu_s: int, data_bytes: Optional[int]) -> Any:
         # (With soft == hard the kernel sends SIGKILL straight away.)
         resource.setrlimit(resource.RLIMIT_CPU, (cpu_s, cpu_s + 1))
         resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-        if data_bytes is not None:  # release builds only (§7.3)
+        if data_bytes is not None:  # release builds only
             resource.setrlimit(resource.RLIMIT_DATA, (data_bytes, data_bytes))
     return apply
 
@@ -365,7 +365,7 @@ def _execute(cmd: list[str], cwd: str, env: dict[str, str], stdin_bytes: bytes,
         kill_group(p.pid)
         p.wait()
     duration = time.monotonic() - t0
-    kill_group(p.pid)  # children left in the process group die with the program (§7.3)
+    kill_group(p.pid)  # children left in the process group die with the program
     for t in (out, err, feeder):
         t.join(timeout=5)
     for pipe in (p.stdout, p.stderr):

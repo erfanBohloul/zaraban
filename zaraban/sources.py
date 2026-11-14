@@ -1,24 +1,24 @@
 """Source preparation: make the base and patch trees, and derive the diff.
 
-This runs before anything is built (SPEC §2 step 2, §3.2, §3.3). It:
+This runs before anything is built. It:
 
 - resolves ``--base`` (a directory) and ``--patch`` (a diff file or a
-  directory), as §3.2 defines;
+  directory);
 - produces two clean source trees under the work directory, so nothing is
-  ever built inside the repository (§3.3, §6.2);
+  ever built inside the repository;
 - obtains the unified diff between them:
     * a diff file is used as given, applied to the base copy with ``git apply``
-      at the strip level ``-p0``..``-p4`` that applies cleanly (§3.2); if two
+      at the strip level ``-p0``..``-p4`` that applies cleanly; if two
       levels would patch different existing files, the run stops instead of
       guessing;
     * two directories are compared with ``git diff --no-index`` between the
-      clean trees, before any build (§3.3), and the result is written with
+      clean trees, before any build, and the result is written with
       the usual ``a/`` ``b/`` prefixes rooted at the tree (``a/src/main.c``),
       so it reads like any ``-p1`` diff.
 
-It records the version and diff metadata the report needs (§12.4). It does not
+It records the version and diff metadata the report needs. It does not
 build or run anything, and it does not parse the diff into hunks; that is
-``diffinfo.py`` (Member C, §9.2).
+``diffinfo.py``.
 """
 
 from __future__ import annotations
@@ -60,7 +60,7 @@ def prepare(
     """Prepare the base and patch trees and the diff.
 
     ``base_arg`` must be a directory. ``patch_arg`` is a diff file or a
-    directory (§3.2). Raises :class:`ZarabanError` (exit 30) on a missing
+    directory. Raises :class:`ZarabanError` (exit 30) on a missing
     source or a diff that does not apply.
     """
     work = Path(work_dir)
@@ -85,7 +85,7 @@ def prepare(
         patch_commit = None
     elif patch_path.is_dir():
         form = "directory"
-        strip = None  # recorded only for the diff form (§12.4)
+        strip = None  # recorded only for the diff form
         copy_tree(patch_path, patch_tree)
         _diff_trees(base_tree, patch_tree, diff_path)
         patch_commit = _git_commit(patch_path)
@@ -113,7 +113,7 @@ def prepare(
 
 def copy_tree(src: Path, dest: Path) -> None:
     """Replace ``dest`` with a clean copy of ``src`` (no git data or run outputs).
-    Also used by the builder for its per-build copies (§6.2)."""
+    Also used by the builder for its per-build copies."""
     if dest.exists():
         shutil.rmtree(dest)
     shutil.copytree(src, dest, ignore=_ignore_for(Path(src)), symlinks=True)
@@ -132,7 +132,7 @@ def _ignore_for(root: Path) -> Callable[[str, list[str]], set[str]]:
 
 
 def _apply_diff(diff_file: Path, base_tree: Path, patch_tree: Path) -> int:
-    """Copy the base tree and apply the diff; return the strip level used (§3.2).
+    """Copy the base tree and apply the diff; return the strip level used.
 
     Every level ``-p0``..``-p4`` is checked first. Each level that applies is
     "anchored" when it changes or deletes a file that exists in the base. One
@@ -213,7 +213,7 @@ def _first_line(text: str) -> str:
 
 def _diff_trees(base_tree: Path, patch_tree: Path, out: Path) -> None:
     """Write the unified diff between two trees. Build outputs are not present,
-    because the diff is taken from the clean copies before any build (§3.3).
+    because the diff is taken from the clean copies before any build.
 
     Both trees live in the same work directory. git is run there with the two
     tree names, so its paths are ``a/base/src/main.c`` and
@@ -275,12 +275,12 @@ def _tree_sha256(tree: Path) -> str:
 
 
 def _diff_info(diff_path: Path, strip: int) -> DiffInfo:
-    """Changed files and hunk count of the diff, for the report (§12.4).
+    """Changed files and hunk count of the diff, for the report.
 
     File paths are given after removing ``strip`` leading components, so they
-    match the tree (``src/main.c``), as §9.2 uses them. A deleted file is
-    listed by its old path. The per-hunk parsing used for linking is
-    diffinfo.py (Member C, §9.2).
+    match the tree (``src/main.c``), like the paths in stack frames. A deleted
+    file is listed by its old path. The per-hunk parsing used for linking is
+    in diffinfo.py.
     """
     raw = diff_path.read_bytes()
     try:

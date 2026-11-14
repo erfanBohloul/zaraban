@@ -1,4 +1,4 @@
-"""Crash and termination analysis for Zaraban (SPEC §7.4, Phase 1 Member B Task B2).
+"""Crash and termination analysis for Zaraban.
 
 Decides the run outcome, detection mechanism, error type, parses sanitizer
 stack traces, and computes crash signatures.
@@ -25,7 +25,7 @@ RUNTIME_LIBS = ("libasan", "libubsan", "libc.", "libc-", "ld-linux")
 # C library functions that AddressSanitizer intercepts. clang links the ASan
 # runtime into the program, so these interceptors show up in the program's own
 # module, without a source location: "#0 0x… in free (/path/prog+0x…)". They
-# are runtime frames, not application code (§7.4).
+# are runtime frames, not application code.
 LIBC_INTERCEPTED = frozenset({
     "malloc", "calloc", "realloc", "free", "cfree", "reallocarray", "memalign",
     "posix_memalign", "aligned_alloc", "valloc", "pvalloc", "malloc_usable_size",
@@ -54,16 +54,16 @@ ASAN_TYPE_MAP: dict[str, ErrorType] = {
     "stack-overflow": ErrorType.STACK_EXHAUSTION,
 }
 
-ZERO_PAGE = 0x1000  # first page; a SEGV there is a NULL dereference (§7.4)
+ZERO_PAGE = 0x1000  # first page; a SEGV there is a NULL dereference
 
 # AddressSanitizer's report when an allocation exceeds max_allocation_size_mb,
-# the memory limit of sanitized builds (§7.3).
+# the memory limit of sanitized builds.
 ASAN_MEMORY_LIMIT = ("allocation-size-too-big", "exceeds maximum supported size",
                      "allocator is out of memory", "out-of-memory")
 
 
 def is_memory_limit(stderr: str) -> bool:
-    """True when a sanitized run hit its memory limit (§7.3, §7.4 rule 2)."""
+    """True when a sanitized run hit its memory limit (rule 2 of :func:`outcome`)."""
     return "ERROR: AddressSanitizer" in stderr and any(s in stderr for s in ASAN_MEMORY_LIMIT)
 
 ALLOCATOR_CHECK_STRINGS = (
@@ -83,9 +83,9 @@ def outcome(
     timed_out: bool = False,
     limit_hit: Optional[LimitKind] = None,
 ) -> tuple[Outcome, Optional[Detection]]:
-    """Determine the run outcome and detection mechanism in strict SPEC §7.4 order.
+    """Determine the run outcome and detection mechanism.
 
-    Rules are applied in order; first match wins:
+    We agreed on this rule order; the first match wins:
     1. Timed out -> TIMEOUT
     2. SIGXCPU or memory limit hit -> RESOURCE_LIMIT
     3. AddressSanitizer report in stderr -> CRASH, ASAN
@@ -129,7 +129,10 @@ def classify_error_type(
     sig: Optional[str] = None,
     detection: Optional[Detection] = None,
 ) -> Optional[ErrorType]:
-    """Classify the crash error type based on the table in SPEC §7.4."""
+    """Classify the crash error type from the sanitizer or runtime message.
+
+    The mapping is in ``ASAN_TYPE_MAP`` and the branches below; it names the
+    kind of error only and is not a root-cause analysis."""
     if detection is None:
         return None
 
@@ -143,7 +146,7 @@ def classify_error_type(
         if "attempting free on address which was not malloc()-ed" in stderr:
             return ErrorType.INVALID_FREE
         if raw_type == "SEGV":
-            # NULL_DEREF only for an address in the zero page (§7.4): ASan's own
+            # NULL_DEREF only for an address in the zero page: ASan's own
             # hint, or an address below the 4 KiB page size.
             if "address points to the zero page" in stderr:
                 return ErrorType.NULL_DEREF
@@ -193,7 +196,7 @@ def classify_error_type(
 
 
 def frames(stderr: str, source_root: str = "") -> list[Frame]:
-    """Parse stack frames from sanitizer stderr (§7.4).
+    """Parse stack frames from sanitizer stderr.
 
     Only frames up to the first blank line after #0 are parsed,
     preventing 'allocated by' or 'freed by' frames from leaking into the crash.
@@ -254,7 +257,7 @@ def frames(stderr: str, source_root: str = "") -> list[Frame]:
 
 
 def signature(error_type: Optional[ErrorType], frame_list: Sequence[Frame]) -> Optional[str]:
-    """Compute the crash signature: ErrorType @ f1 < f2 < f3 (§7.4)."""
+    """Compute the crash signature: ErrorType @ f1 < f2 < f3."""
     if error_type is None:
         return None
 
@@ -292,7 +295,7 @@ def analyse(
     limit_hit: Optional[LimitKind] = None,
     source_root: str = "",
 ) -> Analysis:
-    """Analyze a single execution run and produce an Analysis model object (§7.4)."""
+    """Analyze a single execution run and produce an Analysis model object."""
     out_outcome, detection = outcome(stderr, sig=sig, timed_out=timed_out, limit_hit=limit_hit)
 
     err_type = None

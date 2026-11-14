@@ -1,8 +1,8 @@
-"""Regression tests from reproducer bundles (SPEC §10.6).
+"""Regression tests from reproducer bundles.
 
-Section 3.3 of the course spec requires the minimized input to be added
-automatically to the project's regression suite. For every bundle with a
-stable replay (§10.4) this module:
+The minimized input of every crash must be added automatically to the
+project's regression suite, so a fixed bug cannot come back unnoticed. For
+every bundle with a stable replay this module:
 
 1. skips it when the input came from a regression test, or when the same bytes
    (SHA-256) are already in ``regression_dir`` (status ``already_present``);
@@ -18,10 +18,10 @@ stable replay (§10.4) this module:
 The program is run through an injected ``run_base`` callable, as in
 :mod:`zaraban.reproducer`, so this module does not depend on the runner.
 
-In later runs (Task 2.3), :func:`load_tests` reads every ``.yaml`` in
+In later runs, :func:`load_tests` reads every ``.yaml`` in
 ``regression_dir`` back as a test of kind ``regression``, validated like the
-config (§4.5), and :func:`base_clean_warnings` records ``REGRESSION_BASE_CLEAN``
-for a test that no longer crashes on base (§8.6).
+config, and :func:`base_clean_warnings` records ``REGRESSION_BASE_CLEAN``
+for a test that no longer crashes on base.
 """
 
 from __future__ import annotations
@@ -66,16 +66,16 @@ _EXPECT_BASE_CRASH = {Category.FIXED: True, Category.INCOMPLETE_FIX: True,
 
 def target_regression_dir(target: "Target") -> Path:
     """The target's ``regression_dir``; config paths are relative to the
-    config file's directory (§4.1)."""
+    config file's directory."""
     return target.config_dir / target.spec.regression_dir
 
 
 def load_tests(target: "Target") -> list[TestCase]:
     """The regression tests in the target's ``regression_dir``, as tests of
-    kind ``regression``, run after all other tests (§7.1, §10.6).
+    kind ``regression``, run after all other tests.
 
     Raises ``CONFIG_INVALID`` (exit 30) listing every problem of every file,
-    like the config itself (§4.5). A missing ``regression_dir`` means no tests,
+    like the config itself. A missing ``regression_dir`` means no tests,
     and so does a target without a config directory (a test double).
     """
     if getattr(target, "config_dir", None) is None or getattr(target, "spec", None) is None:
@@ -84,7 +84,7 @@ def load_tests(target: "Target") -> list[TestCase]:
     return read_tests(target_regression_dir(target), InputMethod(method), target.all_tests())
 
 
-# The YAML schema of a regression test file (§10.6); unknown keys are errors.
+# The YAML schema of a regression test file; unknown keys are errors.
 class _CreatedBy(_Strict):
     tool_version: str
     run_id: str
@@ -113,7 +113,7 @@ def read_tests(regression_dir: str | Path, input_method: InputMethod,
 
     ``input_file`` is relative to ``regression_dir`` and must stay inside it.
     A test takes the ``args`` of its source test when that test is still in
-    the config, so it runs with the same command line (§10.6); otherwise none.
+    the config, so it runs with the same command line; otherwise none.
     Names must be unique across the config tests and the regression tests.
     """
     regression_dir = Path(regression_dir)
@@ -188,12 +188,12 @@ def read_tests(regression_dir: str | Path, input_method: InputMethod,
 
 def base_clean_warnings(tests: list[TestCase], results: Results) -> list[Issue]:
     """``REGRESSION_BASE_CLEAN`` for each regression test that should crash on
-    base but does not crash on ``base-sanitized`` (§8.6).
+    base but does not crash on ``base-sanitized``.
 
     In CI, base is often a commit that already holds an earlier fix, so this is
     a warning, not a finding, and it never changes the exit code. The test still
-    runs on patch, where a crash is judged by the normal rules (§8.2). A flaky
-    base result is left to its INCONCLUSIVE finding (§8.5).
+    runs on patch, where a crash is judged by the normal rules. A flaky
+    base result is left to its INCONCLUSIVE finding.
     """
     warnings: list[Issue] = []
     for t in tests:
@@ -213,7 +213,7 @@ def base_clean_warnings(tests: list[TestCase], results: Results) -> list[Issue]:
 
 def regression_name(source_test: str, input_bytes: bytes) -> str:
     """``reg-exploit_secondary-3f2a91c0``: the source test and the first 8 hex
-    digits of the input's SHA-256 (§10.6)."""
+    digits of the input's SHA-256."""
     return f"reg-{source_test}-{hashlib.sha256(input_bytes).hexdigest()[:8]}"
 
 
@@ -233,7 +233,7 @@ def add_regression(
     regression_dir: str | Path,
     promote: bool = True,
 ) -> tuple[Optional[RegressionTest], list[Issue]]:
-    """Turn one bundle into a regression test (§10.6).
+    """Turn one bundle into a regression test.
 
     ``input_bytes`` is the bundle's replayed input (minimized, or the original
     when the minimized one was unstable); ``signature`` is the bundle's
@@ -307,7 +307,7 @@ def add_regression(
 
 def _find_same_input(regression_dir: Path, sha: str) -> Optional[Path]:
     """The ``.yaml`` of a test in ``regression_dir`` whose input has the same
-    bytes, or ``None`` (§10.6: duplicates are compared by SHA-256)."""
+    bytes, or ``None``. Duplicates are compared by SHA-256 of the input."""
     if not regression_dir.is_dir():
         return None
     for path in sorted(regression_dir.iterdir()):

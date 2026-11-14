@@ -1,6 +1,6 @@
-# The delivered scenarios of the cjson target (SPEC §14.3). The tool never
+# The delivered scenarios of the cjson target. The tool never
 # reads this file; scripts/run_matrix.py runs each scenario and checks the
-# exit code and the findings, in finding id order (SPEC §8.8). Why each result
+# exit code and the findings, in finding id order. Why each result
 # is expected: ORACLE.md, "Expected results of the scenarios".
 
 - name: correct

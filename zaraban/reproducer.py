@@ -1,7 +1,7 @@
 """Reproducer bundles: minimize a crashing input, replay it, and write a
-self-contained bundle (SPEC §10.1–§10.5).
+self-contained bundle.
 
-For each crash finding that gets a bundle (§10.1), this takes the input of the
+For each crash finding that gets a bundle, this takes the input of the
 finding's **source test**, shrinks it with delta debugging (``ddmin``) while
 the *same* crash still happens, replays it three times, and writes
 ``reproducers/<finding id>/``:
@@ -10,20 +10,20 @@ the *same* crash still happens, replays it three times, and writes
 ``input.orig.<ext>``  the source test's input, byte for byte
 ``input.min.<ext>``   the minimized input (only when minimization ran)
 ``bin/<binary>``      a copy of the binary, so the bundle is self-contained
-``metadata.json``     everything needed to reproduce the error (§10.3)
-``replays.json``      the replay results (§10.4)
+``metadata.json``     everything needed to reproduce the error
+``replays.json``      the replay results
 ``minimize.log``      each minimization step: candidate size, accepted or not
-``reproduce.sh``      replays the error from any location (§10.5)
+``reproduce.sh``      replays the error from any location
 ==================  ============================================================
 
 The program is run through an injected ``run`` callable that returns a
-:class:`RunOutcome`. That keeps this module independent of Member B's runner
-(§7): the pipeline runs the input with the same command, environment and
+:class:`RunOutcome`. That keeps this module independent of the runner:
+the pipeline runs the input with the same command, environment and
 limits as the source test and adapts the :class:`RunRecord` with
 :meth:`RunOutcome.from_record`; the tests pass a fake ``run``.
 
 "Same crash" means the same signature as the source test's crash (error type
-and top three functions, §7.4). A crash without a signature (§8.3) cannot be
+and top three functions). A crash without a signature cannot be
 minimized; it is replayed as is, and a replay counts as reproduced when it
 crashes with the same error type and detection.
 """
@@ -57,18 +57,18 @@ from .models import (
     WarningCode,
 )
 
-MAX_RUNS = 500      # §10.2: at most 500 candidate runs ...
+MAX_RUNS = 500       # minimization stops after 500 candidate runs ...
 MAX_SECONDS = 120.0  # ... or 120 seconds
-REPLAYS = 3          # §10.4
+REPLAYS = 3          # a bundle is stable when all replays reproduce the crash
 
-# Which build a bundle is made on (§10.1). Other categories get no bundle.
+# Which build a bundle is made on. Other categories get no bundle.
 _BUNDLE_BUILD: dict[Category, BuildName] = {
     Category.FIXED: BuildName.BASE_SANITIZED,
     Category.INCOMPLETE_FIX: BuildName.PATCH_SANITIZED,
     Category.NEW_ISSUE: BuildName.PATCH_SANITIZED,
 }
 
-# What reproduce.sh looks for in standard error, per error type (§7.4).
+# What reproduce.sh looks for in standard error, per error type.
 # Extended regular expressions for ``grep -E``.
 ERROR_PATTERNS: dict[ErrorType, str] = {
     ErrorType.STACK_BUFFER_OVERFLOW:
@@ -99,7 +99,7 @@ _SIGNALS = {"SIGHUP": 1, "SIGINT": 2, "SIGQUIT": 3, "SIGILL": 4, "SIGTRAP": 5,
 @dataclass
 class RunOutcome:
     """One execution's result, as the reproducer needs it (a slim view of
-    Member B's :class:`RunRecord`)."""
+    the runner's :class:`RunRecord`)."""
 
     crashed: bool
     signature: Optional[str]
@@ -129,7 +129,7 @@ RunFn = Callable[[bytes], RunOutcome]
 
 
 # ---------------------------------------------------------------------------
-# Which findings get a bundle, from which test (§10.1)
+# Which findings get a bundle, from which test
 # ---------------------------------------------------------------------------
 
 
@@ -140,7 +140,7 @@ def bundle_build(category: Category) -> Optional[BuildName]:
 
 def source_test(finding: Finding) -> Optional[str]:
     """The first test of the finding, in config order, that crashes on the
-    bundle's build (§10.1). ``finding.tests`` is in config order (§8.8)."""
+    bundle's build. ``finding.tests`` is in config order."""
     build = bundle_build(finding.category)
     if build is None:
         return None
@@ -171,7 +171,7 @@ def reproduce(
     max_seconds: float = MAX_SECONDS,
     replays: int = REPLAYS,
 ) -> tuple[Bundle, list[Issue]]:
-    """Minimize, replay and write the bundle of one finding (§10.2–§10.5).
+    """Minimize, replay and write the bundle of one finding.
 
     ``source`` is the first repeat of the source test on the bundle's build;
     it gives the expected crash, the command, the environment and the input
@@ -182,7 +182,7 @@ def reproduce(
 
     Returns the :class:`Bundle` and its warnings (``MINIMIZE_LIMIT``). An
     unstable bundle is kept; :func:`apply_bundle` then makes the finding
-    ``INCONCLUSIVE`` (§10.4).
+    ``INCONCLUSIVE``.
     """
     run_dir = Path(run_dir)
     rel_path = f"reproducers/{finding.id}"
@@ -193,7 +193,7 @@ def reproduce(
     a = source.analysis
     expected = _Expected(signature=a.signature, error_type=a.error_type, detection=a.detection)
 
-    # The binary, so the bundle is self-contained (§10.3).
+    # The binary, so the bundle is self-contained.
     if build.binary is None:
         raise ValueError(f"{build.build.value} has no binary to put in the bundle")
     src_bin = Path(build.binary.path)
@@ -205,7 +205,7 @@ def reproduce(
 
     (bundle_dir / f"input.orig{input_ext}").write_bytes(input_bytes)
 
-    # Minimization (§10.2): only when the crash has a signature.
+    # Minimization: only when the crash has a signature.
     steps: list[tuple[int, Optional[bool]]] = [(len(input_bytes), None)]
     minimized: Optional[bytes] = None
     minimize_runs = 0
@@ -223,7 +223,7 @@ def reproduce(
                 {"finding": finding.id, "runs": minimize_runs, "path": rel_path}))
     _write_minimize_log(bundle_dir / "minimize.log", steps, minimized is not None)
 
-    # Replays (§10.4): the minimized input first, the original as fallback.
+    # Replays: the minimized input first, the original as fallback.
     attempts: list[dict[str, Any]] = []
     min_unstable = False
     if minimized is not None:
@@ -269,7 +269,7 @@ def reproduce(
 
 def apply_bundle(finding: Finding, bundle: Bundle) -> None:
     """Record the bundle on its finding. An unstable bundle makes the finding
-    ``INCONCLUSIVE`` and is kept, marked unstable (§10.4)."""
+    ``INCONCLUSIVE`` and is kept, marked unstable."""
     finding.reproducer = bundle.path + "/"
     if not bundle.stable:
         ok = sum(r.reproduced for r in bundle.replays)
@@ -280,7 +280,7 @@ def apply_bundle(finding: Finding, bundle: Bundle) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Delta debugging (§10.2)
+# Delta debugging
 # ---------------------------------------------------------------------------
 
 
@@ -345,7 +345,7 @@ class _Expected:
 
     def matches(self, o: RunOutcome) -> bool:
         """Same error: a crash with the same signature. A non-zero exit code or
-        a different error is not enough (§10.2). Without a signature, the same
+        a different error is not enough. Without a signature, the same
         error type and detection."""
         if not o.crashed:
             return False
@@ -385,7 +385,7 @@ def _write_minimize_log(path: Path, steps: list[tuple[int, Optional[bool]]], ran
     for i, (size, ok) in enumerate(steps[1:], start=2):
         lines.append(f"{i:<5} {size:<5} {'yes' if ok else 'no'}")
     if not ran:
-        lines.append("minimization skipped: the crash has no signature (§10.2)")
+        lines.append("minimization skipped: the crash has no signature")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -436,7 +436,7 @@ def _metadata(finding: Finding, source: RunRecord, build: BuildRecord, versions:
 
 def _bundle_cmd(source: RunRecord, bin_name: str) -> list[str]:
     """The run's command with the binary replaced by the bundle's copy and the
-    run directory removed from the input path (§5.3: the input is always
+    run directory removed from the input path (the input is always
     ``input<ext>`` in the working directory)."""
     args = list(source.cmd[1:])
     if source.input.method is InputMethod.ARGS and args:
@@ -449,7 +449,7 @@ def _bundle_cmd(source: RunRecord, bin_name: str) -> list[str]:
 
 def _write_reproduce_sh(path: Path, source: RunRecord, bin_name: str, input_ext: str,
                         expected: _Expected, default_input: str) -> None:
-    """Generate ``reproduce.sh`` (§10.5). It needs only bash, sha256sum, grep
+    """Generate ``reproduce.sh``. It needs only bash, sha256sum, grep
     and the sanitizer runtime, and works from any location."""
     q = shlex.quote
     method = source.input.method
@@ -477,7 +477,7 @@ def _write_reproduce_sh(path: Path, source: RunRecord, bin_name: str, input_ext:
         functions = [f.strip() for f in expected.signature.split(" @ ", 1)[1].split(" < ")]
 
     script = f"""#!/usr/bin/env bash
-# Replays {source.test} of this finding on {source.build.value} (SPEC §10.5).
+# Replays {source.test} of this finding on {source.build.value}.
 #   ./reproduce.sh        replays the {default_input} input
 #   ./reproduce.sh orig   replays the original input
 #   ./reproduce.sh min    replays the minimized input
