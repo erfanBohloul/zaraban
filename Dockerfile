@@ -75,7 +75,7 @@ RUN gcc --version >/dev/null \
 
 # Run as a non-root user. On Linux hosts, pass your own ids so
 # files written to the bind mount belong to you:
-#   UID=$(id -u) GID=$(id -g) docker compose build
+#   HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose build
 ARG USER_UID=1000
 ARG USER_GID=1000
 RUN groupadd -o -g "${USER_GID}" zaraban \

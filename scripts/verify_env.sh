@@ -40,7 +40,7 @@ python3 -c 'import sys; assert sys.version_info >= (3, 10)' && ok "python >= 3.1
 if python3 -c 'import socket; socket.create_connection(("1.1.1.1", 80), timeout=2)' 2>/dev/null; then
   warn "network is reachable" "expected none for the zaraban service (fine only in zaraban-online)"
 else ok "no network access (isolated)"; fi
-[ -w /workspace ] && ok "/workspace is writable" || bad "/workspace is writable" "rebuild with UID=\$(id -u) GID=\$(id -g) docker compose build"
+[ -w /workspace ] && ok "/workspace is writable" || bad "/workspace is writable" "rebuild with HOST_UID=\$(id -u) HOST_GID=\$(id -g) docker compose build"
 [ "$(ulimit -c)" = "0" ] && ok "core dumps disabled" || warn "core dumps disabled" "ulimit -c is $(ulimit -c)"
 
 section "Tools"
