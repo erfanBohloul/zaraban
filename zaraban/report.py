@@ -144,6 +144,11 @@ def human_summary(report: Report, bundles: Optional[list[Bundle]] = None,
         _label("BUILDS") + _builds_line(report.builds),
         _label("HARDENING") + _hardening_line(report.hardening),
         _label("TESTS") + _tests_line(report),
+    ]
+    variants_line = _variants_line(report.settings.get("variants"))
+    if variants_line:
+        lines.append(_label("VARIANTS") + variants_line)
+    lines += [
         "",
         "FINDINGS",
     ]
@@ -260,6 +265,22 @@ def _tests_line(report: Report) -> str:
     repeats = report.settings.get("repeats", "?")
     return (f"{len(tests)} tests × {len(report.builds)} builds × {repeats} repeats"
             f"   flaky: {flaky}")
+
+
+def _variants_line(v: Optional[dict[str, Any]]) -> str:
+    """What the variant step did; empty when it was off (then no line)."""
+    if not v or not v.get("enabled"):
+        return ""
+    if "screening_runs" not in v:  # on, but the run stopped before it
+        return f"on (seed {v.get('seed')}), not run"
+    kept = [k["test"] for k in v.get("kept", [])]
+    text = (f"seed {v.get('seed')}, {v['screening_runs']} screening runs on patch-sanitized"
+            f", kept {len(kept)}")
+    if kept:
+        text += ": " + ", ".join(kept)
+    if v.get("skipped_tests"):
+        text += f"   (no input to mutate: {', '.join(v['skipped_tests'])})"
+    return text
 
 
 def _finding_block(f: Finding, bundle: Optional[Bundle]) -> list[str]:

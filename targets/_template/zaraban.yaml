@@ -41,6 +41,16 @@ limits:
   timeout_seconds: 2.0             # default 3.0
   memory_limit_mb: 128             # default 256
 
+# Optional variant step: mutated copies of each security input run once on
+# patch-sanitized; one that crashes with a new bug is kept and runs on all
+# four builds like a test. Off by default; --variants / --no-variants turn
+# it on or off for one run whatever this says.
+# variants:
+#   enabled: false
+#   budget_runs: 200                # screening runs in total
+#   seed: 1                         # same seed, same candidates
+#   max_tests: 5                    # kept variants (one per new bug)
+
 # Every test takes these fields:
 #   name                required, unique across all lists
 #   description         what it checks and where the expectation comes from

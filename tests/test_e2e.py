@@ -151,7 +151,8 @@ def test_e2e_report_json_schema(tmp_path):
     assert rep["schema_version"] == 1
     assert rep["tool"]["name"] == "zaraban"
     assert rep["target"]["name"] == "token_parser"
-    assert set(rep["settings"]) == {"repeats", "limits", "sanitizer_options"}
+    assert set(rep["settings"]) == {"repeats", "limits", "sanitizer_options", "variants"}
+    assert rep["settings"]["variants"]["enabled"] is False
     assert set(rep["execution_logs"]) == {"base-release", "base-sanitized",
                                           "patch-release", "patch-sanitized"}
     # Warnings are not duplicated.

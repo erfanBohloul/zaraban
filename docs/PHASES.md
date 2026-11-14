@@ -1556,11 +1556,16 @@ how long it takes to get a first run.
 
 ### Task 4.4: Optional variant step (B or C, if time allows)
 
+**Status: done** (`zaraban/variants.py`, SPEC §7.6). It differs from the plan
+below in two places: there is no `budget_seconds`, because a time budget
+would make the result depend on the machine's speed, and `--variants` /
+`--no-variants` switch it for one run besides the config flag.
+
 A bounded mutation of each security input on `patch-sanitized`, with a fixed
 seed, behind a config flag:
 
 ```yaml
-variants: {enabled: true, budget_runs: 300, budget_seconds: 30, seed: 1}
+variants: {enabled: true, budget_runs: 200, seed: 1, max_tests: 5}
 ```
 
 Mutations: lengths around known buffer sizes, single byte flips, repeating

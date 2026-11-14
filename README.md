@@ -103,9 +103,45 @@ docker compose run --rm zaraban \
 | `--out DIR` | Root of the outputs; each run gets its own `<out>/<target>/<run id>/` (default: `out/`). |
 | `--no-promote` | Do not copy newly generated regression tests to the target's `regression_dir`. |
 | `--keep-work` | Keep the temporary source and build copies in `<run dir>/work/` after the run. |
+| `--variants` | Also run the optional variant step for this run (see below), even if the config leaves it off. |
+| `--no-variants` | Skip the variant step for this run, even if the config turns it on. |
 | `--check-config` | Validate the configuration file and its tests, then exit 0 without running builds. |
 | `-v, --verbose` | Print detailed execution and diagnostic messages. |
 | `--version` | Display the Zaraban engine version. |
+
+### Variant step (optional)
+
+An incomplete patch often blocks the known exploit but not a slightly
+different input. With `--variants` (or `variants: {enabled: true}` in the
+config), after the normal runs the tool mutates each security input with a
+fixed seed, runs each candidate once on `patch-sanitized`, and keeps a
+candidate that crashes with a bug no test showed there (confirmed by a
+second run). Each kept variant then runs on all four builds like any other
+test, so the normal finding, minimization and regression-test rules apply.
+It is off by default, so the delivered scenarios do not depend on it
+(SPEC §7.6).
+
+```bash
+docker compose run --rm zaraban \
+  python3 -m zaraban.cli -c targets/cjson/zaraban.yaml \
+  --patch targets/cjson/patches/incomplete.patch --variants
+```
+
+The config block, with its defaults:
+
+```yaml
+variants:
+  enabled: false
+  budget_runs: 200   # screening runs in total; no time budget, so results do not depend on machine speed
+  seed: 1            # same seed, same candidates
+  max_tests: 5       # kept variants, one per new bug
+```
+
+On cJSON, with the hand-written bypass exploit removed from the config, the
+variant step alone finds an input that still overflows on the incomplete
+patch (exit 10). On jhead it also finds older bugs of jhead itself
+(`process_DQT`, `Get32s`) that the original crash hides on base, so every
+jhead patch then gives exit 10 with `NEW_ISSUE` findings.
 
 ### Inspecting outputs
 
@@ -116,6 +152,7 @@ run id is the UTC start time and the first 8 hex digits of the diff's SHA-256
 - `summary.txt`: Human-readable terminal summary with final verdict, deciding conditions, and findings overview.
 - `reproducers/<finding_id>/`: Standalone reproducer bundle containing minimized inputs (`input.min.*`), original input, binary, replays log, and executable `reproduce.sh`.
 - `regression/`: Newly created regression tests with input files and YAML manifests.
+- `variants/`: only with the variant step: the input of each kept variant.
 - `inputs/`: copies of the config and the diff used; `builds/<build>/`: build log, `build.json` and the binary; `runs/<test>/<build>/`: one `.json`, `.stdout` and `.stderr` per repeat.
 - `errors.log`: only when the tool itself failed (`TOOL_INTERNAL`); the report is still written, with exit code 30.
 
@@ -168,6 +205,7 @@ config + base + patch (dir or diff)
   -> 4 builds: base/patch x release/sanitized           SPEC §6
   -> hardening check on both release builds             SPEC §11
   -> run every test on every build, 3 repeats           SPEC §5, §7
+  -> optional: seeded variants of the security inputs   SPEC §7.6
   -> analyse each run: outcome, detection, error type   SPEC §7.4
   -> findings: FIXED / INCOMPLETE_FIX / NEW_ISSUE /
      FUNCTIONAL_REGRESSION / INCONCLUSIVE               SPEC §8
@@ -498,8 +536,8 @@ saved to `results/` with `--save`.
 - [ ] **Unseen-patch drill**: each pair writes two surprise patches for the
       other pair's target, gives only the diff, and records the tool's verdict.
       Fix anything it gets wrong.
-- [ ] Optional: the bounded variant step for security inputs
-      (`docs/PHASES.md`, Task 4.4; not in the SPEC yet).
+- [x] Optional: the bounded variant step for security inputs
+      (SPEC §7.6), off by default, turned on with `--variants`.
 
 **Gate:** CI is green on `main`, the drill verdicts are correct, and the README
 run guide works on a fresh clone.
