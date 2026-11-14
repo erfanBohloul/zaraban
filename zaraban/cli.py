@@ -1,16 +1,15 @@
-"""Command-line interface for Zaraban (SPEC §3).
+"""Command-line interface for Zaraban.
 
 One invocation validates one patch of one target:
 
     python -m zaraban.cli -c <config> --patch <patch> [options]
 
 The option set is deliberately small: no option can switch off a required
-check, because that could produce a PASS the course spec would not accept
-(SPEC §3.1). Invalid arguments exit with code 30, not argparse's default 2
-(SPEC §3.3).
+check, because then a run could PASS without having checked everything.
+Invalid arguments exit with code 30, not argparse's default 2.
 
 The process never ends with an exit code outside 0/10/20/30/40: an error the
-tool did not expect is reported as ``TOOL_INTERNAL`` with exit 30 (SPEC §13).
+tool did not expect is reported as ``TOOL_INTERNAL`` with exit 30.
 """
 
 from __future__ import annotations
@@ -44,7 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-c", "--config", metavar="FILE",
                    help="path to the target's zaraban.yaml")
     p.add_argument("--patch", metavar="PATCH",
-                   help="the patched version: a diff file or a source directory (§3.2)")
+                   help="the patched version: a diff file or a source directory")
     p.add_argument("--base", metavar="DIR",
                    help="the base version directory (default: base_dir from the config)")
     p.add_argument("--out", default="out", metavar="DIR",
@@ -64,7 +63,7 @@ def parse(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     """Parse arguments. Raises ``SystemExit(30)`` on any argument error.
 
     ``--version`` needs no other argument; every other run needs ``-c``, and
-    ``--patch`` unless ``--check-config`` is given (§3.1).
+    ``--patch`` unless ``--check-config`` is given.
     """
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -77,13 +76,13 @@ def parse(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     return args
 
 
-# A pipeline runner is injected so the CLI is testable before Phase 2 wires the
-# real pipeline. Signature: run(args, target, warnings) -> exit code.
+# The pipeline can be injected, so the CLI is testable without real builds.
+# Signature: run(args, target, warnings) -> exit code.
 RunPipeline = Callable[[argparse.Namespace, Target, list], int]
 
 
 def main(argv: Optional[Sequence[str]] = None, run: Optional[RunPipeline] = None) -> int:
-    """Entry point. Returns the process exit code (SPEC §13.1)."""
+    """Entry point. Returns the process exit code."""
     try:
         args = parse(argv)
     except SystemExit as exc:  # argument error already reported
@@ -93,7 +92,7 @@ def main(argv: Optional[Sequence[str]] = None, run: Optional[RunPipeline] = None
         print(f"{PROG} {VERSION}")
         return int(ExitCode.PASS)
 
-    # The config is loaded and validated for every run (§4.5).
+    # The config is loaded and validated for every run, before anything is built.
     try:
         target, warnings = Target.load(args.config)
     except ZarabanError as exc:
@@ -110,20 +109,15 @@ def main(argv: Optional[Sequence[str]] = None, run: Optional[RunPipeline] = None
               f"({len(target.all_tests())} tests, {len(warnings)} warning(s))")
         return int(ExitCode.PASS)
 
-    # Full run: wired in Phase 2. A runner can be injected for testing now.
+    # Imported here, not at the top, so --version and --check-config do not
+    # load the whole pipeline.
     if run is None:
         try:
-            from .pipeline import run as run  # type: ignore
-        except ModuleNotFoundError as exc:
-            if exc.name != f"{__package__}.pipeline":
-                return _report_internal_error()  # pipeline exists but its imports fail
-            print("ERROR: the validation pipeline is implemented in Phase 2; "
-                  "only --check-config and --version work so far.", file=sys.stderr)
-            return int(ExitCode.BUILD_OR_CONFIG_ERROR)
+            from .pipeline import run
         except Exception:
             return _report_internal_error()
 
-    # The pipeline writes the report itself, also when it fails (§13). This is
+    # The pipeline writes the report itself, also when it fails. This is
     # the last safety net, so that no error ends the process with Python's
     # exit code 1 and a bare traceback.
     try:
