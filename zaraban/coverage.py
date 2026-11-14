@@ -28,11 +28,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
-from .models import InputMethod, Issue, LinkLevel, TestCase, Version, WarningCode
-
-# Minimal, identical build/run environment, as in §3.3 / §6.2.
-MIN_ENV = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": "/tmp", "LANG": "C"}
-BUILD_TIMEOUT_S = 300
+from . import builder, runner
+from .models import InputMethod, Issue, LinkLevel, TestCase, Version, WarningCode, ZarabanError
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +56,7 @@ class RunSpec:
     file_arg_placeholder: str = "{input_file}"
     env: dict[str, str] = field(default_factory=dict)
     timeout_seconds: float = 3.0
+    memory_limit_mb: int = 256
 
     @classmethod
     def from_target(cls, target) -> "RunSpec":
@@ -69,7 +67,16 @@ class RunSpec:
             file_arg_placeholder=s.file_arg_placeholder,
             env=dict(s.env),
             timeout_seconds=s.limits.timeout_seconds,
+            memory_limit_mb=s.limits.memory_limit_mb,
         )
+
+    def run_settings(self) -> runner.RunSettings:
+        """The runner's settings for these values, so the coverage run gets the
+        same environment and limits as the normal runs (§9.4, §7.2, §7.3)."""
+        return runner.RunSettings(
+            input_method=self.input_method, file_arg_placeholder=self.file_arg_placeholder,
+            env=dict(self.env), timeout_seconds=float(self.timeout_seconds),
+            memory_limit_mb=int(self.memory_limit_mb), symbolizer=None)
 
 
 # Injectable steps: (version_tree, coverage_cmd, dest, binary_rel) -> binary | None
@@ -282,7 +289,9 @@ def _unavailable(reason: str) -> Issue:
 
 
 def build_coverage(version_tree: Path, coverage_cmd: str, dest: Path, binary_rel: str) -> Optional[Path]:
-    """Copy the version tree and run the coverage build command (§6.2 style)."""
+    """Copy the version tree and run the coverage build command, exactly like
+    the builds of §6.2: the same minimal environment, timeout and process-group
+    kill (``builder._run_step``)."""
     dest = Path(dest)
     if dest.exists():
         shutil.rmtree(dest)
@@ -290,18 +299,21 @@ def build_coverage(version_tree: Path, coverage_cmd: str, dest: Path, binary_rel
     log = dest / "coverage-build.log"
     try:
         with open(log, "wb") as fh:
-            r = subprocess.run(["sh", "-c", coverage_cmd], cwd=dest, env=MIN_ENV,
-                               stdout=fh, stderr=subprocess.STDOUT, timeout=BUILD_TIMEOUT_S)
-    except (subprocess.TimeoutExpired, OSError):
+            code = builder._run_step(coverage_cmd, dest, fh)
+    except OSError:
         return None
     binary = dest / binary_rel
-    if r.returncode != 0 or not binary.exists():
+    if code != 0 or not binary.exists():
         return None
     return binary
 
 
 def run_for_profile(binary: Path, test: TestCase, spec: RunSpec, profraw: Path, run_dir: Path) -> bool:
-    """Run the test once on the coverage binary with LLVM_PROFILE_FILE set (§5.3)."""
+    """Run the test once on the coverage binary with ``LLVM_PROFILE_FILE`` set.
+
+    The input, environment and limits are those of a normal release run
+    (§9.4): the runner's environment (§7.2) and its timeout, CPU and memory
+    limits, with the whole process group killed at the end (§7.3)."""
     run_dir = Path(run_dir)
     if run_dir.exists():
         shutil.rmtree(run_dir)
@@ -325,16 +337,14 @@ def run_for_profile(binary: Path, test: TestCase, spec: RunSpec, profraw: Path, 
     elif spec.input_method is InputMethod.ARGS and test.input_bytes is not None:
         cmd.append(data.decode("utf-8", "surrogateescape"))
 
-    env = dict(MIN_ENV)
-    env.update(spec.env)
-    env["LLVM_PROFILE_FILE"] = str(profraw)          # the tool's value wins
+    settings = spec.run_settings()
+    env = settings.env_for(False)
+    env["LLVM_PROFILE_FILE"] = str(profraw.resolve())   # the tool's value wins
     try:
-        subprocess.run(cmd, cwd=run_dir, env=env, input=stdin_bytes,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       timeout=spec.timeout_seconds)
-    except subprocess.TimeoutExpired:
-        pass        # a timeout may still have flushed a partial profile
-    except OSError:
+        runner._execute([str(Path(binary).resolve()), *cmd[1:]], str(run_dir), env,
+                        stdin_bytes, settings.timeout_seconds, settings.cpu_seconds,
+                        settings.memory_limit_mb * 1024 * 1024)
+    except (ZarabanError, OSError):  # the binary could not be started
         return False
     return profraw.exists()
 
