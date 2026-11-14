@@ -218,8 +218,9 @@ def reproduce(
         if limit_hit:
             warnings.append(Issue(
                 WarningCode.MINIMIZE_LIMIT.value,
-                f"{finding.id}: minimization stopped at its budget "
-                f"({max_runs} runs or {max_seconds:g} s); the smallest input found is used",
+                f"{finding.id}: input minimization stopped at its limit of {max_runs} "
+                f"runs or {max_seconds:g} s; the bundle uses the smallest crashing input "
+                "found so far",
                 {"finding": finding.id, "runs": minimize_runs, "path": rel_path}))
     _write_minimize_log(bundle_dir / "minimize.log", steps, minimized is not None)
 

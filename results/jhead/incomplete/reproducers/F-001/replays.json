@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "input": "min",
+  "stable": true,
+  "minimized_input_unstable": false,
+  "replays": [
+    {
+      "n": 1,
+      "reproduced": true,
+      "signal": "SIGABRT",
+      "exit_code": null,
+      "error_type": "HEAP_BUFFER_OVERFLOW",
+      "top_functions": [
+        "ProcessExifDir",
+        "process_EXIF",
+        "ReadJpegSections"
+      ],
+      "duration_s": 0.117
+    },
+    {
+      "n": 2,
+      "reproduced": true,
+      "signal": "SIGABRT",
+      "exit_code": null,
+      "error_type": "HEAP_BUFFER_OVERFLOW",
+      "top_functions": [
+        "ProcessExifDir",
+        "process_EXIF",
+        "ReadJpegSections"
+      ],
+      "duration_s": 0.1173
+    },
+    {
+      "n": 3,
+      "reproduced": true,
+      "signal": "SIGABRT",
+      "exit_code": null,
+      "error_type": "HEAP_BUFFER_OVERFLOW",
+      "top_functions": [
+        "ProcessExifDir",
+        "process_EXIF",
+        "ReadJpegSections"
+      ],
+      "duration_s": 0.117
+    }
+  ],
+  "attempts": [
+    {
+      "input": "min",
+      "stable": true,
+      "replays": [
+        {
+          "n": 1,
+          "reproduced": true,
+          "signal": "SIGABRT",
+          "exit_code": null,
+          "error_type": "HEAP_BUFFER_OVERFLOW",
+          "top_functions": [
+            "ProcessExifDir",
+            "process_EXIF",
+            "ReadJpegSections"
+          ],
+          "duration_s": 0.117
+        },
+        {
+          "n": 2,
+          "reproduced": true,
+          "signal": "SIGABRT",
+          "exit_code": null,
+          "error_type": "HEAP_BUFFER_OVERFLOW",
+          "top_functions": [
+            "ProcessExifDir",
+            "process_EXIF",
+            "ReadJpegSections"
+          ],
+          "duration_s": 0.1173
+        },
+        {
+          "n": 3,
+          "reproduced": true,
+          "signal": "SIGABRT",
+          "exit_code": null,
+          "error_type": "HEAP_BUFFER_OVERFLOW",
+          "top_functions": [
+            "ProcessExifDir",
+            "process_EXIF",
+            "ReadJpegSections"
+          ],
+          "duration_s": 0.117
+        }
+      ]
+    }
+  ]
+}

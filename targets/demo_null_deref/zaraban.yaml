@@ -1,0 +1,32 @@
+name: "demo_null_deref"
+input_method: "file"
+
+build:
+  binary_path: "demo_null_deref"
+  release_cmd: "make release"
+  sanitized_cmd: "make sanitized"
+  coverage_cmd: "make coverage"
+  clean_cmd: "make clean"
+
+limits:
+  timeout_seconds: 2.0
+  memory_limit_mb: 128
+
+valid_tests:
+  - name: "valid_alice"
+    args: ["{input_file}"]
+    input_file: "tests/valid/alice.txt"
+    expected_exit_code: 0
+    expected_output: "(13 chars)"
+
+boundary_tests:
+  - name: "boundary_root"
+    args: ["{input_file}"]
+    input_file: "tests/boundary/root.txt"
+    expected_exit_code: 0
+
+security_tests:
+  - name: "exploit_unknown_user"
+    args: ["{input_file}"]
+    input_file: "tests/exploits/unknown.txt"
+    description: "An unknown user name makes role_of return NULL, which is then dereferenced (NULL pointer dereference)."

@@ -145,7 +145,8 @@ def _build_one(
         rec = record("failed", None, None, None)
         models.dump_json(rec, build_dir / "build.json")
         return rec, [], Issue(ErrorCode.BUILD_FAILED.value,
-                              f"{name.value}: {reason}",
+                              f"the {name.value} build failed: {reason}; see {log_rel} in the "
+                              "run directory",
                               {"build": name.value, "log": log_rel, "reason": reason})
 
     # Keep and hash the binary that will actually be run.
@@ -179,23 +180,28 @@ def _verify_profile(name: BuildName, elf: ElfView) -> tuple[Optional[Issue], lis
                 m for m, present in (("AddressSanitizer", elf.has_asan),
                                      ("UndefinedBehaviorSanitizer", elf.has_ubsan)) if not present)
             return Issue(ErrorCode.SANITIZER_MISSING.value,
-                         f"{name.value}: sanitized binary is missing {missing}",
+                         f"the {name.value} binary is built without {missing}; "
+                         "build.sanitized_cmd must compile and link with "
+                         "-fsanitize=address,undefined",
                          {"build": name.value, "missing": missing}), []
         if not elf.has_debug_info:
             warnings.append(Issue(WarningCode.NO_DEBUG_INFO.value,
-                                  f"{name.value}: sanitized binary has no debug information; "
-                                  "stack traces will have no file and line",
+                                  f"the {name.value} binary has no debug information, so "
+                                  "stack traces will have no file and line; add -g to "
+                                  "build.sanitized_cmd",
                                   {"build": name.value}))
         if elf.uses_fortify:
             warnings.append(Issue(WarningCode.FORTIFY_IN_SANITIZED.value,
-                                  f"{name.value}: sanitized binary uses _FORTIFY_SOURCE checks, "
-                                  "which can abort before AddressSanitizer reports the error",
+                                  f"the {name.value} binary uses _FORTIFY_SOURCE checks, "
+                                  "which can stop the program before AddressSanitizer reports "
+                                  "the error; build it with -U_FORTIFY_SOURCE",
                                   {"build": name.value}))
     else:  # release build must not contain AddressSanitizer
         if elf.has_asan:
             return Issue(ErrorCode.PROFILE_MIXED.value,
-                         f"{name.value}: release binary contains AddressSanitizer; "
-                         "it must show the real behavior of the program",
+                         f"the {name.value} binary contains AddressSanitizer; "
+                         "build.release_cmd must build without sanitizers, so that release "
+                         "runs show how the program really behaves",
                          {"build": name.value}), []
     return None, warnings
 
@@ -227,11 +233,12 @@ def _run_step(cmd: str, cwd: Path, log) -> Optional[int]:
 
 def _step_failure(what: str, code: Optional[int]) -> str:
     if code is None:
-        return f"{what} timed out after {BUILD_TIMEOUT_S}s"
-    return f"{what} exited with code {code}"
+        return f"the {what} timed out after {BUILD_TIMEOUT_S}s"
+    return f"the {what} exited with code {code}"
 
 
 def _binary_failure(binary_path: Path, elf: Optional[ElfView]) -> str:
     if elf is None:
-        return f"binary not found: {binary_path.name}"
-    return f"binary is not an x86-64 ELF executable: {binary_path.name}"
+        return (f"the build command succeeded but did not create {binary_path.name} "
+                "(build.binary_path in the config)")
+    return f"{binary_path.name} is not an x86-64 ELF executable"

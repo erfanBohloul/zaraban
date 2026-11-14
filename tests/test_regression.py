@@ -259,7 +259,7 @@ def test_2_3_name_used_by_a_config_test_is_invalid(tmp_path):
     clash = CONFIG_TESTS + [TestCase(NAME, TestKind.VALID, b"x", ".txt")]
     with pytest.raises(ZarabanError) as e:
         read_tests(reg, InputMethod.FILE, clash)
-    assert any("already used by a config test" in p for p in _problems(e))
+    assert any("already used by a test in the config" in p for p in _problems(e))
 
 
 def test_2_3_same_name_in_two_files_is_invalid(tmp_path):
@@ -289,9 +289,9 @@ def test_2_3_every_problem_of_every_file_is_reported(tmp_path):
     problems = _problems(e)
     text = "\n".join(problems)
     assert "a-bad-yaml.yaml" in text and "YAML" in text
-    assert "b-unknown-key.yaml: oops: unknown key" in text
-    assert "c-no-input.yaml: input_file does not exist" in text
-    assert "d-escape.yaml: input_file must be inside" in text
+    assert "b-unknown-key.yaml: unknown key 'oops'" in text
+    assert "c-no-input.yaml: input_file" in text and "does not exist" in text
+    assert "d-escape.yaml: input_file" in text and "points outside" in text
     assert "e-missing-fields.yaml: expect_base_crash" in text
     assert "e-missing-fields.yaml: created_by" in text
     assert "f-bad-name.yaml: name" in text

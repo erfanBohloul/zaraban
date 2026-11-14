@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "input": "min",
+  "stable": true,
+  "minimized_input_unstable": false,
+  "replays": [
+    {
+      "n": 1,
+      "reproduced": true,
+      "signal": "SIGABRT",
+      "exit_code": null,
+      "error_type": "HEAP_BUFFER_OVERFLOW",
+      "top_functions": [
+        "cJSON_Minify",
+        "main"
+      ],
+      "duration_s": 0.0667
+    },
+    {
+      "n": 2,
+      "reproduced": true,
+      "signal": "SIGABRT",
+      "exit_code": null,
+      "error_type": "HEAP_BUFFER_OVERFLOW",
+      "top_functions": [
+        "cJSON_Minify",
+        "main"
+      ],
+      "duration_s": 0.0672
+    },
+    {
+      "n": 3,
+      "reproduced": true,
+      "signal": "SIGABRT",
+      "exit_code": null,
+      "error_type": "HEAP_BUFFER_OVERFLOW",
+      "top_functions": [
+        "cJSON_Minify",
+        "main"
+      ],
+      "duration_s": 0.0672
+    }
+  ],
+  "attempts": [
+    {
+      "input": "min",
+      "stable": true,
+      "replays": [
+        {
+          "n": 1,
+          "reproduced": true,
+          "signal": "SIGABRT",
+          "exit_code": null,
+          "error_type": "HEAP_BUFFER_OVERFLOW",
+          "top_functions": [
+            "cJSON_Minify",
+            "main"
+          ],
+          "duration_s": 0.0667
+        },
+        {
+          "n": 2,
+          "reproduced": true,
+          "signal": "SIGABRT",
+          "exit_code": null,
+          "error_type": "HEAP_BUFFER_OVERFLOW",
+          "top_functions": [
+            "cJSON_Minify",
+            "main"
+          ],
+          "duration_s": 0.0672
+        },
+        {
+          "n": 3,
+          "reproduced": true,
+          "signal": "SIGABRT",
+          "exit_code": null,
+          "error_type": "HEAP_BUFFER_OVERFLOW",
+          "top_functions": [
+            "cJSON_Minify",
+            "main"
+          ],
+          "duration_s": 0.0672
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "test": "minify_multiline_comment",
+  "kind": "valid",
+  "build": "patch-release",
+  "repeat": 1,
+  "cmd": [
+    "/tmp/run_matrix/cjson/correct/cjson/20261114-093410-61fcf2ba/builds/patch-release/bin/cjson_driver",
+    "minify",
+    "input.json"
+  ],
+  "env": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  },
+  "cwd": "/tmp/zaraban-run-193fhj2g",
+  "input": {
+    "method": "file",
+    "name": "input.json",
+    "size": 50,
+    "sha256": "e9e9e0b6cabd40bed790877c70a9d79e3a71ce68fa2ce7e344bffc5eb6b3a87c"
+  },
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "limit_hit": null,
+  "duration_s": 0.0033,
+  "stdout": {
+    "path": "runs/minify_multiline_comment/patch-release/1.stdout",
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "truncated": false
+  },
+  "stderr": {
+    "path": "runs/minify_multiline_comment/patch-release/1.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "truncated": false
+  },
+  "analysis": {
+    "outcome": "NORMAL",
+    "detection": null,
+    "error_type": null,
+    "summary": null,
+    "frames": [],
+    "signature": null
+  },
+  "oracle": {
+    "checked": true,
+    "passed": true,
+    "reasons": []
+  }
+}

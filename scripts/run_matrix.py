@@ -162,7 +162,10 @@ RunTool = Callable[[Path, Path, Path], int]
 def run_tool(config: Path, patch: Path, out_dir: Path) -> int:
     cmd = [sys.executable, "-m", "zaraban.cli", "-c", str(config), "--patch", str(patch),
            "--out", str(out_dir), "--no-promote"]
-    return subprocess.run(cmd, cwd=ROOT, timeout=RUN_TIMEOUT_S).returncode
+    # The tool prints its summary on stdout; it is also in summary.txt, so
+    # only warnings and errors (stderr) are shown here.
+    return subprocess.run(cmd, cwd=ROOT, stdout=subprocess.DEVNULL,
+                          timeout=RUN_TIMEOUT_S).returncode
 
 
 def find_run_dir(out_dir: Path) -> Optional[Path]:

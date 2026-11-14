@@ -1,0 +1,20 @@
+ZARABAN 0.2.0  cjson  run 20261114-093410-61fcf2ba
+base:  /workspace/targets/cjson (directory)
+patch: /workspace/targets/cjson/patches/correct.patch (diff, -p1)
+
+BUILDS     base-release ok · base-sanitized ok · patch-release ok · patch-sanitized ok
+HARDENING  NX on→on · PIE on→on · RELRO full→full · canary on→on   (no changes)
+TESTS      40 tests × 4 builds × 3 repeats   flaky: 0
+
+FINDINGS
+  F-001 FIXED  HEAP_BUFFER_OVERFLOW @ cJSON_Minify < main
+        tests:     exploit_comment blocked · exploit_string blocked · exploit_comment_bypass blocked
+        release:   NORMAL exit 0 → NORMAL exit 0
+        sanitized: ASAN/SIGABRT → NORMAL exit 0
+        link:      IN_CHANGED_HUNK  src/cJSON.c:2642 cJSON_Minify (base side)
+        bundle:    reproducers/F-001  2 → 2 bytes, replay 3/3
+        regression: regression/reg-exploit_comment-766e0153.yaml
+        notes:     HEAP_BUFFER_OVERFLOW @ cJSON_Minify (src/cJSON.c) occurs on base with exploit_comment, exploit_string, exploit_comment_bypass and on patch with none of them.
+
+RESULT     exit 0  PASS
+report:    /tmp/run_matrix/cjson/correct/cjson/20261114-093410-61fcf2ba/report.json

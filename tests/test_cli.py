@@ -91,7 +91,7 @@ def test_check_config_invalid_exits_30(tmp_path, capsys):
     assert main(["-c", cfg(tmp_path, bad), "--check-config"]) == 30
     err = capsys.readouterr().err
     assert "CONFIG_INVALID" in err
-    assert "  - bogus: unknown key" in err  # each problem on its own line
+    assert "  - unknown key 'bogus'" in err  # each problem on its own line
 
 
 def test_check_config_missing_file_exits_30(tmp_path, capsys):

@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "test": "boundary_large_baseline",
+  "kind": "boundary",
+  "build": "patch-sanitized",
+  "repeat": 2,
+  "cmd": [
+    "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/builds/patch-sanitized/bin/jhead",
+    "input.jpg"
+  ],
+  "env": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "ASAN_OPTIONS": "abort_on_error=1:detect_leaks=0:symbolize=1:disable_coredump=1:max_allocation_size_mb=256",
+    "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1",
+    "ASAN_SYMBOLIZER_PATH": "/usr/bin/llvm-symbolizer"
+  },
+  "cwd": "/tmp/zaraban-run-92i8gxwt",
+  "input": {
+    "method": "file",
+    "name": "input.jpg",
+    "size": 12915,
+    "sha256": "c907b3e4d1e4a524da7e94d6b779d62d13f33c82cf819cb82072c0d05a79d6bc"
+  },
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "limit_hit": null,
+  "duration_s": 0.0066,
+  "stdout": {
+    "path": "runs/boundary_large_baseline/patch-sanitized/2.stdout",
+    "bytes": 132,
+    "sha256": "7f0ea4aa44f79bbda61b6c07514cf87f819444746ff2bf07ea5d5b7dd3f446a2",
+    "truncated": false
+  },
+  "stderr": {
+    "path": "runs/boundary_large_baseline/patch-sanitized/2.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "truncated": false
+  },
+  "analysis": {
+    "outcome": "NORMAL",
+    "detection": null,
+    "error_type": null,
+    "summary": null,
+    "frames": [],
+    "signature": null
+  },
+  "oracle": {
+    "checked": true,
+    "passed": true,
+    "reasons": []
+  }
+}

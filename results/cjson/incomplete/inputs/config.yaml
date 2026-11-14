@@ -1,0 +1,494 @@
+# cJSON target (DaveGamble/cJSON v1.7.10), CVE-2019-11834 and CVE-2019-11835.
+# Where every expected behavior comes from: ORACLE.md.
+
+name: cjson
+input_method: file
+build:
+  binary_path: cjson_driver
+  release_cmd: make release
+  sanitized_cmd: make sanitized
+  clean_cmd: make clean
+  coverage_cmd: make coverage
+limits:
+  timeout_seconds: 2.0
+  memory_limit_mb: 256
+valid_tests:
+- name: minify_spaces
+  description: 'cjson_minify_should_remove_spaces: prints {"key":true}. Source: upstream tests/minify_tests.c
+    (v1.7.12)'
+  args:
+  - minify
+  - '{input_file}'
+  input_file: tests/valid/minify_spaces.json
+  expected_exit_code: 0
+  expected_output: |
+    {"key":true}
+  output_match: exact
+- name: minify_line_comment
+  description: 'cjson_minify_should_remove_single_line_comments: prints {}. Source: upstream tests/minify_tests.c
+    (v1.7.12)'
+  args:
+  - minify
+  - '{input_file}'
+  input_file: tests/valid/minify_line_comment.json
+  expected_exit_code: 0
+  expected_output: |
+    {}
+  output_match: exact
+- name: minify_multiline_comment
+  description: 'cjson_minify_should_remove_multiline_comments: prints {}. Source: upstream tests/minify_tests.c
+    (v1.7.12)'
+  args:
+  - minify
+  - '{input_file}'
+  input_file: tests/valid/minify_multiline_comment.json
+  expected_exit_code: 0
+  expected_output: |
+    {}
+  output_match: exact
+- name: minify_keeps_strings
+  description: 'cjson_minify_should_not_modify_strings: a string is printed unchanged. Source: upstream
+    tests/minify_tests.c (v1.7.12)'
+  args:
+  - minify
+  - '{input_file}'
+  input_file: tests/valid/minify_keeps_strings.json
+  expected_exit_code: 0
+  expected_output: |
+    "this is a string \" \t bla"
+  output_match: exact
+- name: minify_glossary
+  description: 'cjson_minify_should_minify_json: whitespace and both comment kinds removed. Source: upstream
+    tests/minify_tests.c (v1.7.12)'
+  args:
+  - minify
+  - '{input_file}'
+  input_file: tests/valid/minify_glossary.json
+  expected_exit_code: 0
+  expected_output: |
+    {"glossary":{"title":"example glossary","GlossDiv":{"title":"S","GlossList":{"GlossEntry":{"ID":"SGML","SortAs":"SGML","Acronym":"SGML","Abbrev":"ISO 8879:1986","GlossDef":{"GlossSeeAlso":["GML","XML"]},"GlossSee":"markup"}}}}}
+  output_match: exact
+- name: minify_comment_marks_in_string
+  description: 'Strings are not modified, so the output equals the input. Source: RFC 8259 §7 (''/'' and
+    ''*'' are ordinary string characters) and cjson_minify_should_not_modify_strings in upstream tests/minify_tests.c
+    (v1.7.12)'
+  args:
+  - minify
+  - '{input_file}'
+  input_file: tests/valid/minify_comment_marks_in_string.json
+  expected_exit_code: 0
+  expected_output: |
+    {"pattern":"/*"}
+  output_match: exact
+- name: minify_glob_in_string
+  description: 'Strings are not modified, so the output equals the input. Source: RFC 8259 §7 (''/'' and
+    ''*'' are ordinary string characters) and cjson_minify_should_not_modify_strings in upstream tests/minify_tests.c
+    (v1.7.12)'
+  args:
+  - minify
+  - '{input_file}'
+  input_file: tests/valid/minify_glob_in_string.json
+  expected_exit_code: 0
+  expected_output: |
+    {"include":"src/*.c","exclude":"*/tmp"}
+  output_match: exact
+- name: parse_test1
+  description: 'Parsed and printed with cJSON_Print, byte for byte as tests/inputs/test1.expected. Source:
+    upstream tests/parse_examples.c (v1.7.10)'
+  args:
+  - parse
+  - '{input_file}'
+  input_file: tests/valid/parse_test1.json
+  expected_exit_code: 0
+  expected_output: "{\n\t\"glossary\":\t{\n\t\t\"title\":\t\"example glossary\",\n\t\t\"GlossDiv\":\t\
+    {\n\t\t\t\"title\":\t\"S\",\n\t\t\t\"GlossList\":\t{\n\t\t\t\t\"GlossEntry\":\t{\n\t\t\t\t\t\"ID\"\
+    :\t\"SGML\",\n\t\t\t\t\t\"SortAs\":\t\"SGML\",\n\t\t\t\t\t\"GlossTerm\":\t\"Standard Generalized Markup\
+    \ Language\",\n\t\t\t\t\t\"Acronym\":\t\"SGML\",\n\t\t\t\t\t\"Abbrev\":\t\"ISO 8879:1986\",\n\t\t\t\
+    \t\t\"GlossDef\":\t{\n\t\t\t\t\t\t\"para\":\t\"A meta-markup language, used to create markup languages\
+    \ such as DocBook.\",\n\t\t\t\t\t\t\"GlossSeeAlso\":\t[\"GML\", \"XML\"]\n\t\t\t\t\t},\n\t\t\t\t\t\
+    \"GlossSee\":\t\"markup\"\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n}"
+  output_match: exact
+- name: parse_test2
+  description: 'Parsed and printed with cJSON_Print, byte for byte as tests/inputs/test2.expected. Source:
+    upstream tests/parse_examples.c (v1.7.10)'
+  args:
+  - parse
+  - '{input_file}'
+  input_file: tests/valid/parse_test2.json
+  expected_exit_code: 0
+  expected_output: "{\n\t\"menu\":\t{\n\t\t\"id\":\t\"file\",\n\t\t\"value\":\t\"File\",\n\t\t\"popup\"\
+    :\t{\n\t\t\t\"menuitem\":\t[{\n\t\t\t\t\t\"value\":\t\"New\",\n\t\t\t\t\t\"onclick\":\t\"CreateNewDoc()\"\
+    \n\t\t\t\t}, {\n\t\t\t\t\t\"value\":\t\"Open\",\n\t\t\t\t\t\"onclick\":\t\"OpenDoc()\"\n\t\t\t\t},\
+    \ {\n\t\t\t\t\t\"value\":\t\"Close\",\n\t\t\t\t\t\"onclick\":\t\"CloseDoc()\"\n\t\t\t\t}]\n\t\t}\n\
+    \t}\n}"
+  output_match: exact
+- name: parse_test3
+  description: 'Parsed and printed with cJSON_Print, byte for byte as tests/inputs/test3.expected. Source:
+    upstream tests/parse_examples.c (v1.7.10)'
+  args:
+  - parse
+  - '{input_file}'
+  input_file: tests/valid/parse_test3.json
+  expected_exit_code: 0
+  expected_output: "{\n\t\"widget\":\t{\n\t\t\"debug\":\t\"on\",\n\t\t\"window\":\t{\n\t\t\t\"title\"\
+    :\t\"Sample Konfabulator Widget\",\n\t\t\t\"name\":\t\"main_window\",\n\t\t\t\"width\":\t500,\n\t\t\
+    \t\"height\":\t500\n\t\t},\n\t\t\"image\":\t{\n\t\t\t\"src\":\t\"Images/Sun.png\",\n\t\t\t\"name\"\
+    :\t\"sun1\",\n\t\t\t\"hOffset\":\t250,\n\t\t\t\"vOffset\":\t250,\n\t\t\t\"alignment\":\t\"center\"\
+    \n\t\t},\n\t\t\"text\":\t{\n\t\t\t\"data\":\t\"Click Here\",\n\t\t\t\"size\":\t36,\n\t\t\t\"style\"\
+    :\t\"bold\",\n\t\t\t\"name\":\t\"text1\",\n\t\t\t\"hOffset\":\t250,\n\t\t\t\"vOffset\":\t100,\n\t\t\
+    \t\"alignment\":\t\"center\",\n\t\t\t\"onMouseUp\":\t\"sun1.opacity = (sun1.opacity / 100) * 90;\"\
+    \n\t\t}\n\t}\n}"
+  output_match: exact
+- name: parse_test4
+  description: 'Parsed and printed with cJSON_Print, byte for byte as tests/inputs/test4.expected. Source:
+    upstream tests/parse_examples.c (v1.7.10)'
+  args:
+  - parse
+  - '{input_file}'
+  input_file: tests/valid/parse_test4.json
+  expected_exit_code: 0
+  expected_output: "{\n\t\"web-app\":\t{\n\t\t\"servlet\":\t[{\n\t\t\t\t\"servlet-name\":\t\"cofaxCDS\"\
+    ,\n\t\t\t\t\"servlet-class\":\t\"org.cofax.cds.CDSServlet\",\n\t\t\t\t\"init-param\":\t{\n\t\t\t\t\
+    \t\"configGlossary:installationAt\":\t\"Philadelphia, PA\",\n\t\t\t\t\t\"configGlossary:adminEmail\"\
+    :\t\"ksm@pobox.com\",\n\t\t\t\t\t\"configGlossary:poweredBy\":\t\"Cofax\",\n\t\t\t\t\t\"configGlossary:poweredByIcon\"\
+    :\t\"/images/cofax.gif\",\n\t\t\t\t\t\"configGlossary:staticPath\":\t\"/content/static\",\n\t\t\t\t\
+    \t\"templateProcessorClass\":\t\"org.cofax.WysiwygTemplate\",\n\t\t\t\t\t\"templateLoaderClass\":\t\
+    \"org.cofax.FilesTemplateLoader\",\n\t\t\t\t\t\"templatePath\":\t\"templates\",\n\t\t\t\t\t\"templateOverridePath\"\
+    :\t\"\",\n\t\t\t\t\t\"defaultListTemplate\":\t\"listTemplate.htm\",\n\t\t\t\t\t\"defaultFileTemplate\"\
+    :\t\"articleTemplate.htm\",\n\t\t\t\t\t\"useJSP\":\tfalse,\n\t\t\t\t\t\"jspListTemplate\":\t\"listTemplate.jsp\"\
+    ,\n\t\t\t\t\t\"jspFileTemplate\":\t\"articleTemplate.jsp\",\n\t\t\t\t\t\"cachePackageTagsTrack\":\t\
+    200,\n\t\t\t\t\t\"cachePackageTagsStore\":\t200,\n\t\t\t\t\t\"cachePackageTagsRefresh\":\t60,\n\t\t\
+    \t\t\t\"cacheTemplatesTrack\":\t100,\n\t\t\t\t\t\"cacheTemplatesStore\":\t50,\n\t\t\t\t\t\"cacheTemplatesRefresh\"\
+    :\t15,\n\t\t\t\t\t\"cachePagesTrack\":\t200,\n\t\t\t\t\t\"cachePagesStore\":\t100,\n\t\t\t\t\t\"cachePagesRefresh\"\
+    :\t10,\n\t\t\t\t\t\"cachePagesDirtyRead\":\t10,\n\t\t\t\t\t\"searchEngineListTemplate\":\t\"forSearchEnginesList.htm\"\
+    ,\n\t\t\t\t\t\"searchEngineFileTemplate\":\t\"forSearchEngines.htm\",\n\t\t\t\t\t\"searchEngineRobotsDb\"\
+    :\t\"WEB-INF/robots.db\",\n\t\t\t\t\t\"useDataStore\":\ttrue,\n\t\t\t\t\t\"dataStoreClass\":\t\"org.cofax.SqlDataStore\"\
+    ,\n\t\t\t\t\t\"redirectionClass\":\t\"org.cofax.SqlRedirection\",\n\t\t\t\t\t\"dataStoreName\":\t\"\
+    cofax\",\n\t\t\t\t\t\"dataStoreDriver\":\t\"com.microsoft.jdbc.sqlserver.SQLServerDriver\",\n\t\t\t\
+    \t\t\"dataStoreUrl\":\t\"jdbc:microsoft:sqlserver://LOCALHOST:1433;DatabaseName=goon\",\n\t\t\t\t\t\
+    \"dataStoreUser\":\t\"sa\",\n\t\t\t\t\t\"dataStorePassword\":\t\"dataStoreTestQuery\",\n\t\t\t\t\t\
+    \"dataStoreTestQuery\":\t\"SET NOCOUNT ON;select test='test';\",\n\t\t\t\t\t\"dataStoreLogFile\":\t\
+    \"/usr/local/tomcat/logs/datastore.log\",\n\t\t\t\t\t\"dataStoreInitConns\":\t10,\n\t\t\t\t\t\"dataStoreMaxConns\"\
+    :\t100,\n\t\t\t\t\t\"dataStoreConnUsageLimit\":\t100,\n\t\t\t\t\t\"dataStoreLogLevel\":\t\"debug\"\
+    ,\n\t\t\t\t\t\"maxUrlLength\":\t500\n\t\t\t\t}\n\t\t\t}, {\n\t\t\t\t\"servlet-name\":\t\"cofaxEmail\"\
+    ,\n\t\t\t\t\"servlet-class\":\t\"org.cofax.cds.EmailServlet\",\n\t\t\t\t\"init-param\":\t{\n\t\t\t\
+    \t\t\"mailHost\":\t\"mail1\",\n\t\t\t\t\t\"mailHostOverride\":\t\"mail2\"\n\t\t\t\t}\n\t\t\t}, {\n\
+    \t\t\t\t\"servlet-name\":\t\"cofaxAdmin\",\n\t\t\t\t\"servlet-class\":\t\"org.cofax.cds.AdminServlet\"\
+    \n\t\t\t}, {\n\t\t\t\t\"servlet-name\":\t\"fileServlet\",\n\t\t\t\t\"servlet-class\":\t\"org.cofax.cds.FileServlet\"\
+    \n\t\t\t}, {\n\t\t\t\t\"servlet-name\":\t\"cofaxTools\",\n\t\t\t\t\"servlet-class\":\t\"org.cofax.cms.CofaxToolsServlet\"\
+    ,\n\t\t\t\t\"init-param\":\t{\n\t\t\t\t\t\"templatePath\":\t\"toolstemplates/\",\n\t\t\t\t\t\"log\"\
+    :\t1,\n\t\t\t\t\t\"logLocation\":\t\"/usr/local/tomcat/logs/CofaxTools.log\",\n\t\t\t\t\t\"logMaxSize\"\
+    :\t\"\",\n\t\t\t\t\t\"dataLog\":\t1,\n\t\t\t\t\t\"dataLogLocation\":\t\"/usr/local/tomcat/logs/dataLog.log\"\
+    ,\n\t\t\t\t\t\"dataLogMaxSize\":\t\"\",\n\t\t\t\t\t\"removePageCache\":\t\"/content/admin/remove?cache=pages&id=\"\
+    ,\n\t\t\t\t\t\"removeTemplateCache\":\t\"/content/admin/remove?cache=templates&id=\",\n\t\t\t\t\t\"\
+    fileTransferFolder\":\t\"/usr/local/tomcat/webapps/content/fileTransferFolder\",\n\t\t\t\t\t\"lookInContext\"\
+    :\t1,\n\t\t\t\t\t\"adminGroupID\":\t4,\n\t\t\t\t\t\"betaServer\":\ttrue\n\t\t\t\t}\n\t\t\t}],\n\t\t\
+    \"servlet-mapping\":\t{\n\t\t\t\"cofaxCDS\":\t\"/\",\n\t\t\t\"cofaxEmail\":\t\"/cofaxutil/aemail/*\"\
+    ,\n\t\t\t\"cofaxAdmin\":\t\"/admin/*\",\n\t\t\t\"fileServlet\":\t\"/static/*\",\n\t\t\t\"cofaxTools\"\
+    :\t\"/tools/*\"\n\t\t},\n\t\t\"taglib\":\t{\n\t\t\t\"taglib-uri\":\t\"cofax.tld\",\n\t\t\t\"taglib-location\"\
+    :\t\"/WEB-INF/tlds/cofax.tld\"\n\t\t}\n\t}\n}"
+  output_match: exact
+- name: parse_test5
+  description: 'Parsed and printed with cJSON_Print, byte for byte as tests/inputs/test5.expected. Source:
+    upstream tests/parse_examples.c (v1.7.10)'
+  args:
+  - parse
+  - '{input_file}'
+  input_file: tests/valid/parse_test5.json
+  expected_exit_code: 0
+  expected_output: "{\n\t\"menu\":\t{\n\t\t\"header\":\t\"SVG Viewer\",\n\t\t\"items\":\t[{\n\t\t\t\t\"\
+    id\":\t\"Open\"\n\t\t\t}, {\n\t\t\t\t\"id\":\t\"OpenNew\",\n\t\t\t\t\"label\":\t\"Open New\"\n\t\t\
+    \t}, null, {\n\t\t\t\t\"id\":\t\"ZoomIn\",\n\t\t\t\t\"label\":\t\"Zoom In\"\n\t\t\t}, {\n\t\t\t\t\"\
+    id\":\t\"ZoomOut\",\n\t\t\t\t\"label\":\t\"Zoom Out\"\n\t\t\t}, {\n\t\t\t\t\"id\":\t\"OriginalView\"\
+    ,\n\t\t\t\t\"label\":\t\"Original View\"\n\t\t\t}, null, {\n\t\t\t\t\"id\":\t\"Quality\"\n\t\t\t},\
+    \ {\n\t\t\t\t\"id\":\t\"Pause\"\n\t\t\t}, {\n\t\t\t\t\"id\":\t\"Mute\"\n\t\t\t}, null, {\n\t\t\t\t\
+    \"id\":\t\"Find\",\n\t\t\t\t\"label\":\t\"Find...\"\n\t\t\t}, {\n\t\t\t\t\"id\":\t\"FindAgain\",\n\
+    \t\t\t\t\"label\":\t\"Find Again\"\n\t\t\t}, {\n\t\t\t\t\"id\":\t\"Copy\"\n\t\t\t}, {\n\t\t\t\t\"\
+    id\":\t\"CopyAgain\",\n\t\t\t\t\"label\":\t\"Copy Again\"\n\t\t\t}, {\n\t\t\t\t\"id\":\t\"CopySVG\"\
+    ,\n\t\t\t\t\"label\":\t\"Copy SVG\"\n\t\t\t}, {\n\t\t\t\t\"id\":\t\"ViewSVG\",\n\t\t\t\t\"label\"\
+    :\t\"View SVG\"\n\t\t\t}, {\n\t\t\t\t\"id\":\t\"ViewSource\",\n\t\t\t\t\"label\":\t\"View Source\"\
+    \n\t\t\t}, {\n\t\t\t\t\"id\":\t\"SaveAs\",\n\t\t\t\t\"label\":\t\"Save As\"\n\t\t\t}, null, {\n\t\t\
+    \t\t\"id\":\t\"Help\"\n\t\t\t}, {\n\t\t\t\t\"id\":\t\"About\",\n\t\t\t\t\"label\":\t\"About Adobe\
+    \ CVG Viewer...\"\n\t\t\t}]\n\t}\n}"
+  output_match: exact
+- name: parse_test7
+  description: 'Parsed and printed with cJSON_Print, byte for byte as tests/inputs/test7.expected. Source:
+    upstream tests/parse_examples.c (v1.7.10)'
+  args:
+  - parse
+  - '{input_file}'
+  input_file: tests/valid/parse_test7.json
+  expected_exit_code: 0
+  expected_output: "[{\n\t\t\"precision\":\t\"zip\",\n\t\t\"Latitude\":\t37.7668,\n\t\t\"Longitude\":\t\
+    -122.3959,\n\t\t\"Address\":\t\"\",\n\t\t\"City\":\t\"SAN FRANCISCO\",\n\t\t\"State\":\t\"CA\",\n\t\
+    \t\"Zip\":\t\"94107\",\n\t\t\"Country\":\t\"US\"\n\t}, {\n\t\t\"precision\":\t\"zip\",\n\t\t\"Latitude\"\
+    :\t37.371991,\n\t\t\"Longitude\":\t-122.02602,\n\t\t\"Address\":\t\"\",\n\t\t\"City\":\t\"SUNNYVALE\"\
+    ,\n\t\t\"State\":\t\"CA\",\n\t\t\"Zip\":\t\"94085\",\n\t\t\"Country\":\t\"US\"\n\t}]"
+  output_match: exact
+- name: parse_test8
+  description: 'Parsed and printed with cJSON_Print, byte for byte as tests/inputs/test8.expected. Source:
+    upstream tests/parse_examples.c (v1.7.10)'
+  args:
+  - parse
+  - '{input_file}'
+  input_file: tests/valid/parse_test8.json
+  expected_exit_code: 0
+  expected_output: "{\n\t\"Image\":\t{\n\t\t\"Width\":\t800,\n\t\t\"Height\":\t600,\n\t\t\"Title\":\t\"\
+    View from 15th Floor\",\n\t\t\"Thumbnail\":\t{\n\t\t\t\"Url\":\t\"http:/*www.example.com/image/481989943\"\
+    ,\n\t\t\t\"Height\":\t125,\n\t\t\t\"Width\":\t\"100\"\n\t\t},\n\t\t\"IDs\":\t[116, 943, 234, 38793]\n\
+    \t}\n}"
+  output_match: exact
+- name: parse_test9
+  description: 'Parsed and printed with cJSON_Print, byte for byte as tests/inputs/test9.expected. Source:
+    upstream tests/parse_examples.c (v1.7.10)'
+  args:
+  - parse
+  - '{input_file}'
+  input_file: tests/valid/parse_test9.json
+  expected_exit_code: 0
+  expected_output: '[[0, -1, 0], [1, 0, 0], [0, 0, 1]]'
+  output_match: exact
+- name: parse_test10
+  description: 'Parsed and printed with cJSON_Print, byte for byte as tests/inputs/test10.expected. Source:
+    upstream tests/parse_examples.c (v1.7.10)'
+  args:
+  - parse
+  - '{input_file}'
+  input_file: tests/valid/parse_test10.json
+  expected_exit_code: 0
+  expected_output: '["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]'
+  output_match: exact
+- name: parse_test11
+  description: 'Parsed and printed with cJSON_Print, byte for byte as tests/inputs/test11.expected. Source:
+    upstream tests/parse_examples.c (v1.7.10)'
+  args:
+  - parse
+  - '{input_file}'
+  input_file: tests/valid/parse_test11.json
+  expected_exit_code: 0
+  expected_output: "{\n\t\"name\":\t\"Jack (\\\"Bee\\\") Nimble\",\n\t\"format\":\t{\n\t\t\"type\":\t\"\
+    rect\",\n\t\t\"width\":\t1920,\n\t\t\"height\":\t1080,\n\t\t\"interlace\":\tfalse,\n\t\t\"frame rate\"\
+    :\t24\n\t}\n}"
+  output_match: exact
+boundary_tests:
+- name: minify_empty
+  description: 'Input ends right after the construct; prints ''''. Source: cJSON_Minify removes whitespace
+    and comments and keeps strings (cJSON.h doc comment; upstream tests/minify_tests.c (v1.7.12))'
+  args:
+  - minify
+  - '{input_file}'
+  input_file: tests/boundary/minify_empty.json
+  expected_exit_code: 0
+  expected_output: |2+
+
+  output_match: exact
+- name: minify_only_whitespace
+  description: 'Input ends right after the construct; prints ''''. Source: cJSON_Minify removes whitespace
+    and comments and keeps strings (cJSON.h doc comment; upstream tests/minify_tests.c (v1.7.12))'
+  args:
+  - minify
+  - '{input_file}'
+  input_file: tests/boundary/minify_only_whitespace.json
+  expected_exit_code: 0
+  expected_output: |2+
+
+  output_match: exact
+- name: minify_comment_closed_at_end
+  description: 'Input ends right after the construct; prints ''{}''. Source: cJSON_Minify removes whitespace
+    and comments and keeps strings (cJSON.h doc comment; upstream tests/minify_tests.c (v1.7.12))'
+  args:
+  - minify
+  - '{input_file}'
+  input_file: tests/boundary/minify_comment_closed_at_end.json
+  expected_exit_code: 0
+  expected_output: |
+    {}
+  output_match: exact
+- name: minify_empty_comment
+  description: 'Input ends right after the construct; prints ''''. Source: cJSON_Minify removes whitespace
+    and comments and keeps strings (cJSON.h doc comment; upstream tests/minify_tests.c (v1.7.12))'
+  args:
+  - minify
+  - '{input_file}'
+  input_file: tests/boundary/minify_empty_comment.json
+  expected_exit_code: 0
+  expected_output: |2+
+
+  output_match: exact
+- name: minify_line_comment_at_end
+  description: 'Input ends right after the construct; prints ''{}''. Source: cJSON_Minify removes whitespace
+    and comments and keeps strings (cJSON.h doc comment; upstream tests/minify_tests.c (v1.7.12))'
+  args:
+  - minify
+  - '{input_file}'
+  input_file: tests/boundary/minify_line_comment_at_end.json
+  expected_exit_code: 0
+  expected_output: |
+    {}
+  output_match: exact
+- name: minify_comment_then_string
+  description: 'Input ends right after the construct; prints ''"a"''. Source: cJSON_Minify removes whitespace
+    and comments and keeps strings (cJSON.h doc comment; upstream tests/minify_tests.c (v1.7.12))'
+  args:
+  - minify
+  - '{input_file}'
+  input_file: tests/boundary/minify_comment_then_string.json
+  expected_exit_code: 0
+  expected_output: |
+    "a"
+  output_match: exact
+- name: minify_string_at_end
+  description: 'Input ends right after the construct; prints ''"abc"''. Source: cJSON_Minify removes whitespace
+    and comments and keeps strings (cJSON.h doc comment; upstream tests/minify_tests.c (v1.7.12))'
+  args:
+  - minify
+  - '{input_file}'
+  input_file: tests/boundary/minify_string_at_end.json
+  expected_exit_code: 0
+  expected_output: |
+    "abc"
+  output_match: exact
+- name: minify_escaped_quote_at_end
+  description: 'Input ends right after the construct; prints ''"a\\""''. Source: cJSON_Minify removes
+    whitespace and comments and keeps strings (cJSON.h doc comment; upstream tests/minify_tests.c (v1.7.12))'
+  args:
+  - minify
+  - '{input_file}'
+  input_file: tests/boundary/minify_escaped_quote_at_end.json
+  expected_exit_code: 0
+  expected_output: |
+    "a\""
+  output_match: exact
+- name: minify_escaped_backslash_at_end
+  description: 'Input ends right after the construct; prints ''"a\\\\"''. Source: cJSON_Minify removes
+    whitespace and comments and keeps strings (cJSON.h doc comment; upstream tests/minify_tests.c (v1.7.12))'
+  args:
+  - minify
+  - '{input_file}'
+  input_file: tests/boundary/minify_escaped_backslash_at_end.json
+  expected_exit_code: 0
+  expected_output: |
+    "a\\"
+  output_match: exact
+- name: parse_nesting_at_limit
+  description: '1000 nested arrays, exactly CJSON_NESTING_LIMIT, are accepted. Source: cJSON.h, CJSON_NESTING_LIMIT'
+  args:
+  - parse
+  - '{input_file}'
+  input_file: tests/boundary/parse_nesting_at_limit.json
+  expected_exit_code: 0
+invalid_tests:
+- name: parse_empty
+  description: 'Not valid JSON: ''parse error'', exit 1. Source: upstream tests/parse_array.c and parse_object.c
+    (v1.7.10), not parsed; driver contract (src/main.c)'
+  args:
+  - parse
+  - '{input_file}'
+  input_file: tests/invalid/parse_empty.json
+  expected_exit_code: 1
+- name: parse_open_bracket
+  description: 'Not valid JSON: ''parse error'', exit 1. Source: upstream tests/parse_array.c and parse_object.c
+    (v1.7.10), not parsed; driver contract (src/main.c)'
+  args:
+  - parse
+  - '{input_file}'
+  input_file: tests/invalid/parse_open_bracket.json
+  expected_exit_code: 1
+- name: parse_close_bracket
+  description: 'Not valid JSON: ''parse error'', exit 1. Source: upstream tests/parse_array.c and parse_object.c
+    (v1.7.10), not parsed; driver contract (src/main.c)'
+  args:
+  - parse
+  - '{input_file}'
+  input_file: tests/invalid/parse_close_bracket.json
+  expected_exit_code: 1
+- name: parse_open_brace
+  description: 'Not valid JSON: ''parse error'', exit 1. Source: upstream tests/parse_array.c and parse_object.c
+    (v1.7.10), not parsed; driver contract (src/main.c)'
+  args:
+  - parse
+  - '{input_file}'
+  input_file: tests/invalid/parse_open_brace.json
+  expected_exit_code: 1
+- name: parse_incomplete_object
+  description: 'Not valid JSON: ''parse error'', exit 1. Source: upstream tests/parse_examples.c test12
+    (v1.7.10); driver contract (src/main.c)'
+  args:
+  - parse
+  - '{input_file}'
+  input_file: tests/invalid/parse_incomplete_object.json
+  expected_exit_code: 1
+- name: parse_unterminated_escape
+  description: 'Not valid JSON: ''parse error'', exit 1. Source: upstream tests/parse_string.c (v1.7.10),
+    malformed string; driver contract (src/main.c)'
+  args:
+  - parse
+  - '{input_file}'
+  input_file: tests/invalid/parse_unterminated_escape.json
+  expected_exit_code: 1
+- name: parse_html
+  description: 'An HTML page is not JSON: exit 1. Source: upstream tests/parse_examples.c test6 (v1.7.10)'
+  args:
+  - parse
+  - '{input_file}'
+  input_file: tests/invalid/parse_html.json
+  expected_exit_code: 1
+- name: parse_nesting_too_deep
+  description: '1001 nested arrays exceed CJSON_NESTING_LIMIT: exit 1. Source: cJSON.h, CJSON_NESTING_LIMIT'
+  args:
+  - parse
+  - '{input_file}'
+  input_file: tests/invalid/parse_nesting_too_deep.json
+  expected_exit_code: 1
+- name: minify_lone_slash
+  description: 'A ''/'' that starts no comment must not hang or crash; output not specified. Source: cjson_minify_should_not_loop_infinitely
+    in upstream tests/minify_tests.c (v1.7.12)'
+  args:
+  - minify
+  - '{input_file}'
+  input_file: tests/invalid/minify_lone_slash.json
+  expected_exit_code: 0
+- name: driver_unknown_mode
+  description: 'Unknown mode: usage message, exit 2. Source: driver contract (src/main.c)'
+  args:
+  - bogus
+  - '{input_file}'
+  input_file: tests/invalid/driver_unknown_mode.json
+  expected_exit_code: 2
+security_tests:
+- name: exploit_comment
+  description: 'CVE-2019-11835 (issue #338): unterminated multiline comment; base reads past the buffer.
+    Fixed: prints an empty line. Source: cjson_minify_should_not_overflow_buffer in upstream tests/minify_tests.c
+    (v1.7.12)'
+  args:
+  - minify
+  - '{input_file}'
+  input_file: tests/exploits/exploit_comment.json
+  expected_exit_code: 0
+  expected_output: |2+
+
+  output_match: exact
+- name: exploit_string
+  description: 'CVE-2019-11834 (issue #337): string ending in a backslash; base reads past the buffer.
+    Fixed: prints the input unchanged. Source: cjson_minify_should_not_overflow_buffer in upstream tests/minify_tests.c
+    (v1.7.12)'
+  args:
+  - minify
+  - '{input_file}'
+  input_file: tests/exploits/exploit_string.json
+  expected_exit_code: 0
+  expected_output: |
+    "\
+  output_match: exact
+- name: exploit_comment_bypass
+  description: 'CVE-2019-11835 with a different input: an unterminated comment with text after the opener.
+    Passes the incomplete patch. Fixed: prints an empty line. Source: cjson_minify_should_not_overflow_buffer
+    in upstream tests/minify_tests.c (v1.7.12)'
+  args:
+  - minify
+  - '{input_file}'
+  input_file: tests/exploits/exploit_comment_bypass.json
+  expected_exit_code: 0
+  expected_output: |2+
+
+  output_match: exact

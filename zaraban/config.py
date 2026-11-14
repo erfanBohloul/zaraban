@@ -12,7 +12,9 @@ It does not build or run anything.
 
 from __future__ import annotations
 
+import difflib
 import re
+import typing
 from pathlib import Path
 from typing import Annotated, Any, Literal, Optional
 
@@ -29,8 +31,10 @@ _NAME_RE = re.compile(r"[A-Za-z0-9_-]+")
 
 # Keys removed from the schema; a config that still uses them is an error.
 REMOVED_KEYS = {
-    "patch_dir": "patch_dir was removed; pass the patch on the command line with --patch",
-    "diff_file": "diff_file was removed; pass the patch on the command line with --patch",
+    "patch_dir": "patch_dir is no longer supported; give the patch on the command line "
+                 "with --patch",
+    "diff_file": "diff_file is no longer supported; give the patch on the command line "
+                 "with --patch",
 }
 
 
@@ -45,7 +49,8 @@ class _Strict(BaseModel):
 
 def _check_name(v: str) -> str:
     if not _NAME_RE.fullmatch(v):
-        raise ValueError("name may contain only ASCII letters, digits, _ and -")
+        raise ValueError(f"{v!r} is not a valid name: use only ASCII letters, digits, "
+                         "_ and - (names become file and directory names)")
     return v
 
 
@@ -144,24 +149,24 @@ class Target:
         is invalid, with every problem found listed in ``details["problems"]``.
         """
         config_path = Path(path)
-        if not config_path.exists():
-            raise ZarabanError(ErrorCode.CONFIG_INVALID, f"config file not found: {path}",
-                               {"problems": [f"{path}: file not found"]})
+        if not config_path.is_file():
+            what = "is a directory, not a file" if config_path.is_dir() else "does not exist"
+            raise ZarabanError(ErrorCode.CONFIG_INVALID, f"cannot load the config {path}",
+                               {"problems": [f"{path} {what}; give the path of the "
+                                             "target's zaraban.yaml with -c/--config"]})
 
         raw = _read_yaml(config_path)
         problems: list[str] = []
 
-        # Friendlier message for removed keys, before pydantic's generic one.
-        if isinstance(raw, dict):
-            for key, msg in REMOVED_KEYS.items():
-                if key in raw:
-                    problems.append(msg)
-
         spec: Optional[_ConfigSpec] = None
-        try:
-            spec = _ConfigSpec.model_validate(raw)
-        except ValidationError as exc:
-            problems.extend(_format_errors(exc))
+        if not isinstance(raw, dict):
+            problems.append("the file is empty or is not a YAML mapping; it must hold keys "
+                            "such as name, build, valid_tests and security_tests")
+        else:
+            try:
+                spec = _ConfigSpec.model_validate(raw)
+            except ValidationError as exc:
+                problems.extend(_format_errors(exc, _ConfigSpec, raw))
 
         warnings: list[models.Issue] = []
         tests: list[models.TestCase] = []
@@ -176,7 +181,7 @@ class Target:
         if problems:
             raise ZarabanError(
                 ErrorCode.CONFIG_INVALID,
-                f"{len(problems)} problem(s) in {config_path}",
+                f"the config {config_path} has {_count(len(problems), 'problem')}",
                 {"problems": problems},
             )
 
@@ -195,31 +200,112 @@ def _read_yaml(path: Path) -> Any:
     try:
         text = path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
-        raise ZarabanError(ErrorCode.CONFIG_INVALID, f"{path}: not UTF-8 text",
-                           {"problems": [f"{path}: the file is not valid UTF-8"]})
+        raise ZarabanError(ErrorCode.CONFIG_INVALID, f"cannot load {path}",
+                           {"problems": ["the file is not UTF-8 text"]})
     except OSError as exc:
-        raise ZarabanError(ErrorCode.CONFIG_INVALID, f"{path}: cannot be read",
-                           {"problems": [f"{path}: {exc.strerror or exc}"]})
+        raise ZarabanError(ErrorCode.CONFIG_INVALID, f"cannot load {path}",
+                           {"problems": [f"the file cannot be read: {exc.strerror or exc}"]})
     try:
         return yaml.safe_load(text)
     except yaml.YAMLError as exc:
-        raise ZarabanError(ErrorCode.CONFIG_INVALID, f"{path}: not valid YAML",
-                           {"problems": [f"{path}: YAML parse error: {exc}"]})
+        raise ZarabanError(ErrorCode.CONFIG_INVALID, f"cannot load {path}",
+                           {"problems": [f"the file is not valid YAML: {_one_line(str(exc))}"]})
 
 
-def _format_errors(exc: ValidationError) -> list[str]:
+def _format_errors(exc: ValidationError, model: type[BaseModel], raw: Any = None) -> list[str]:
+    """One readable line per schema error of ``model``: where it is (with the
+    test's name for a test entry), and what is wrong in plain words."""
     out = []
     for err in exc.errors():
-        loc = ".".join(str(p) for p in err["loc"])
-        if err["type"] == "extra_forbidden":
-            field = err["loc"][-1] if err["loc"] else ""
-            hint = REMOVED_KEYS.get(str(field))
-            out.append(f"{loc}: unknown key" + (f" ({hint})" if hint else ""))
-        elif err["type"] == "value_error" and "error" in err.get("ctx", {}):
-            out.append(f"{loc or '(root)'}: {err['ctx']['error']}")  # our own message, no prefix
+        loc = tuple(err["loc"])
+        kind = err["type"]
+        if kind == "extra_forbidden":
+            key = str(loc[-1]) if loc else ""
+            where, what = _where(loc[:-1], raw), _unknown_key(key, _model_at(model, loc[:-1]))
+            out.append(f"{where}: {what}" if where else what)
+            continue
+        if kind == "missing":
+            what = "required key is missing"
+        elif kind == "value_error" and "error" in err.get("ctx", {}):
+            what = str(err["ctx"]["error"])  # our own message
+        elif kind == "too_short" and loc and loc[-1] in dict(_KIND_FIELDS).values():
+            what = "must list at least one test"
+        elif kind in ("model_type", "dict_type"):
+            what = f"must be a mapping of keys to values{_got(err)}"
         else:
-            out.append(f"{loc or '(root)'}: {err['msg']}")
+            msg = str(err["msg"])
+            if msg.startswith("Input should be "):
+                msg = "must be " + msg[len("Input should be "):]
+            if msg.startswith("must be a valid "):
+                msg = msg.split(", ", 1)[0]  # drop pydantic's "unable to parse ..." tail
+            what = msg + _got(err)
+        out.append(f"{_where(loc, raw) or '(top level)'}: {what}")
     return out
+
+
+def _where(loc: tuple, raw: Any) -> str:
+    """``valid_tests[2] (minify_spaces).input_file`` for a schema location."""
+    text = ""
+    node = raw
+    for part in loc:
+        if isinstance(part, int):
+            text += f"[{part}]"
+            node = node[part] if isinstance(node, list) and part < len(node) else None
+            if isinstance(node, dict) and isinstance(node.get("name"), str):
+                text += f" ({node['name']})"
+        else:
+            text += f".{part}" if text else str(part)
+            node = node.get(part) if isinstance(node, dict) else None
+    return text
+
+
+def _model_at(model: Optional[type[BaseModel]], loc: tuple) -> Optional[type[BaseModel]]:
+    """The schema model of the mapping at ``loc``, or None if it is not one."""
+    for part in loc:
+        if model is None:
+            return None
+        if isinstance(part, int):
+            continue
+        field_info = model.model_fields.get(str(part))
+        model = _inner_model(field_info.annotation) if field_info else None
+    return model
+
+
+def _inner_model(annotation: Any) -> Optional[type[BaseModel]]:
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return annotation
+    for arg in typing.get_args(annotation):
+        found = _inner_model(arg)
+        if found is not None:
+            return found
+    return None
+
+
+def _unknown_key(key: str, model: Optional[type[BaseModel]]) -> str:
+    if key in REMOVED_KEYS:
+        return REMOVED_KEYS[key]
+    text = f"unknown key {key!r}"
+    if model is not None:
+        close = difflib.get_close_matches(key, list(model.model_fields), n=1, cutoff=0.6)
+        if close:
+            text += f"; did you mean {close[0]!r}?"
+    return text
+
+
+def _got(err: dict) -> str:
+    """`` (got 'x')`` for a short scalar input; empty for anything else."""
+    value = err.get("input")
+    if isinstance(value, (str, int, float, bool)) and len(repr(value)) <= 40:
+        return f" (got {value!r})"
+    return ""
+
+
+def _one_line(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _count(n: int, noun: str) -> str:
+    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
 
 
 def _check_unique_names(spec: _ConfigSpec) -> list[str]:
@@ -227,13 +313,15 @@ def _check_unique_names(spec: _ConfigSpec) -> list[str]:
     for _, field_name in _KIND_FIELDS:
         for t in getattr(spec, field_name):
             seen[t.name] = seen.get(t.name, 0) + 1
-    return [f"test name {name!r} is used {n} times" for name, n in seen.items() if n > 1]
+    return [f"test name {name!r} is used by {n} tests; every test needs its own name"
+            for name, n in seen.items() if n > 1]
 
 
 def _check_base_dir(spec: _ConfigSpec, config_dir: Path) -> list[str]:
     base = config_dir / spec.base_dir
     if not base.is_dir():
-        return [f"base_dir is not an existing directory: {spec.base_dir}"]
+        return [f"base_dir: {spec.base_dir!r} is not a directory (it is relative to the "
+                f"config's directory, {config_dir})"]
     return []
 
 
@@ -248,7 +336,8 @@ def _resolve_tests(
     for kind, field_name in _KIND_FIELDS:
         for t in getattr(spec, field_name):
             if t.input_file and t.input_data is not None:
-                problems.append(f"{t.name}: has both input_file and input_data")
+                problems.append(f"test {t.name}: give either input_file or input_data, "
+                                "not both")
                 continue
 
             data: Optional[bytes] = None
@@ -259,28 +348,36 @@ def _resolve_tests(
                 source = t.input_file
                 ext = fpath.suffix
                 if not fpath.exists():
-                    problems.append(f"{t.name}: input_file does not exist: {t.input_file}")
+                    problems.append(f"test {t.name}: input_file {t.input_file!r} does not "
+                                    f"exist (it is relative to the config's directory, "
+                                    f"{config_dir})")
                     continue
                 if not fpath.is_file():
-                    problems.append(f"{t.name}: input_file is not a regular file: {t.input_file}")
+                    problems.append(f"test {t.name}: input_file {t.input_file!r} is not a "
+                                    "regular file")
                     continue
                 try:
                     data = fpath.read_bytes()
                 except OSError as exc:
-                    problems.append(f"{t.name}: input_file cannot be read: {t.input_file} "
-                                    f"({exc.strerror or exc})")
+                    problems.append(f"test {t.name}: input_file {t.input_file!r} cannot be "
+                                    f"read ({exc.strerror or exc})")
                     continue
                 if len(data) > MAX_INPUT_BYTES:
-                    problems.append(f"{t.name}: input_file is larger than 1 MB")
+                    problems.append(f"test {t.name}: input_file {t.input_file!r} is "
+                                    f"{len(data)} bytes; the limit is 1 MB ({MAX_INPUT_BYTES} "
+                                    "bytes)")
                     continue
             elif t.input_data is not None:
                 data = t.input_data.encode("utf-8")
             elif method is InputMethod.FILE:
-                problems.append(f"{t.name}: input_method is 'file' but the test gives no input")
+                problems.append(f"test {t.name}: input_method is 'file', so the test needs "
+                                "input_file or input_data")
                 continue
 
             if method is InputMethod.ARGS and data is not None and b"\x00" in data:
-                problems.append(f"{t.name}: input_method is 'args' but the input contains a NUL byte")
+                problems.append(f"test {t.name}: input_method is 'args', so the input is "
+                                "passed as a command-line argument and cannot contain a NUL "
+                                "byte; use 'file' or 'stdin' instead")
                 continue
 
             tests.append(models.TestCase(
@@ -303,13 +400,15 @@ def _schema_warnings(spec: _ConfigSpec) -> list[models.Issue]:
     if not spec.invalid_tests:
         warnings.append(models.Issue(
             models.WarningCode.NO_INVALID_TESTS.value,
-            "the config has no invalid_tests; the spec asks the team to design invalid inputs",
+            "the config has no invalid_tests; add malformed inputs the program must "
+            "reject, so a patch that breaks its error handling is caught",
             {"config": spec.name},
         ))
     if spec.repeats == 1:
         warnings.append(models.Issue(
             models.WarningCode.REPEATS_TOO_LOW.value,
-            "repeats is 1, so flaky results cannot be detected",
+            "repeats is 1, so a result that changes from run to run (flaky) cannot be "
+            "detected; use 3 or more",
             {"config": spec.name},
         ))
     return warnings

@@ -1,0 +1,2607 @@
+{
+  "schema_version": 1,
+  "tool": {
+    "name": "zaraban",
+    "version": "0.2.0"
+  },
+  "run_id": "20261114-093502-8b5ba02a",
+  "started_at": "2026-11-14T09:35:02Z",
+  "duration_s": 15.6123,
+  "target": {
+    "name": "jhead",
+    "config": "inputs/config.yaml",
+    "config_sha256": "124232f4a4e6b6be8ac91202ad7b63d716a1301439506fa02c04b3a1cdd2b1b8"
+  },
+  "versions": {
+    "base": {
+      "form": "directory",
+      "ref": "/workspace/targets/jhead",
+      "git_commit": "2f0d62b",
+      "tree_sha256": "b7a77e544fa972f2540be35aebe85994392809f9aad0eae5634595c799022490",
+      "strip_level": null
+    },
+    "patch": {
+      "form": "diff",
+      "ref": "/workspace/targets/jhead/patches/regression.patch",
+      "git_commit": null,
+      "tree_sha256": "53652ca348412223e8342d908a44ae24cad3ff73193dd11aeb1f83392b8679ea",
+      "strip_level": 1
+    },
+    "diff": {
+      "path": "inputs/patch.diff",
+      "sha256": "8b5ba02ad8cf73059b146817af0f09efaedc48da038e66b036d26289508db116",
+      "files": [
+        "src/exif.c"
+      ],
+      "hunks": 1
+    }
+  },
+  "environment": {
+    "os": "Ubuntu 22.04.5 LTS",
+    "kernel": "6.8.0-138-generic",
+    "arch": "x86_64",
+    "docker_image": null,
+    "python": "3.10.12",
+    "gcc": "gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+    "clang": "Ubuntu clang version 14.0.0-1ubuntu1.1",
+    "llvm_symbolizer": "/usr/bin/llvm-symbolizer"
+  },
+  "settings": {
+    "repeats": 3,
+    "limits": {
+      "timeout_seconds": 2.0,
+      "memory_limit_mb": 256
+    },
+    "sanitizer_options": {
+      "ASAN_OPTIONS": "abort_on_error=1:detect_leaks=0:symbolize=1:disable_coredump=1:max_allocation_size_mb=256",
+      "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1"
+    }
+  },
+  "builds": {
+    "base-release": {
+      "status": "ok",
+      "binary_sha256": "803d60508cc0e7e95b7025ea58413dd54cbe6ff193ec246f36cddf72460b8c12",
+      "details": "builds/base-release/build.json"
+    },
+    "base-sanitized": {
+      "status": "ok",
+      "binary_sha256": "5024fd6444f06ce51353b7843d3bb2dc0399832890c2284d0a1edf785aed3744",
+      "details": "builds/base-sanitized/build.json"
+    },
+    "patch-release": {
+      "status": "ok",
+      "binary_sha256": "d5691e0a263caf306536a8c6e355a7552c9abf22d1d69afe2181e929b1115c43",
+      "details": "builds/patch-release/build.json"
+    },
+    "patch-sanitized": {
+      "status": "ok",
+      "binary_sha256": "3647d25f872301082c7c80441cc2c126f543497c6af9eba24c7731d8c4c3b9a4",
+      "details": "builds/patch-sanitized/build.json"
+    }
+  },
+  "hardening": {
+    "base": {
+      "nx": {
+        "value": true,
+        "evidence": "PT_GNU_STACK present, flags=0x6 (no PF_X)"
+      },
+      "pie": {
+        "value": true,
+        "evidence": "e_type=ET_DYN, PT_INTERP=present, DT_FLAGS_1 has DF_1_PIE"
+      },
+      "relro": {
+        "value": "full",
+        "evidence": "PT_GNU_RELRO present, immediate binding (DT_FLAGS&DF_BIND_NOW)"
+      },
+      "canary": {
+        "value": true,
+        "evidence": "__stack_chk_fail imported from libc (undefined in .dynsym)"
+      }
+    },
+    "patch": {
+      "nx": {
+        "value": true,
+        "evidence": "PT_GNU_STACK present, flags=0x6 (no PF_X)"
+      },
+      "pie": {
+        "value": true,
+        "evidence": "e_type=ET_DYN, PT_INTERP=present, DT_FLAGS_1 has DF_1_PIE"
+      },
+      "relro": {
+        "value": "full",
+        "evidence": "PT_GNU_RELRO present, immediate binding (DT_FLAGS&DF_BIND_NOW)"
+      },
+      "canary": {
+        "value": true,
+        "evidence": "__stack_chk_fail imported from libc (undefined in .dynsym)"
+      }
+    },
+    "changes": [],
+    "notes": [
+      "A PIE binary does not prove that ASLR is active at runtime.",
+      "Evidence of a stack canary does not mean every function is protected."
+    ]
+  },
+  "execution_logs": {
+    "base-release": {
+      "valid_s100_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_s100_model/base-release/"
+      },
+      "valid_s100_datetime": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_s100_datetime/base-release/"
+      },
+      "valid_kodak_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_kodak_model/base-release/"
+      },
+      "valid_kodak_datetime": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_kodak_datetime/base-release/"
+      },
+      "valid_pro1_datetime": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_pro1_datetime/base-release/"
+      },
+      "valid_nikon_d100_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_nikon_d100_model/base-release/"
+      },
+      "valid_nikon_d100_datetime": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_nikon_d100_datetime/base-release/"
+      },
+      "valid_fuji_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_fuji_model/base-release/"
+      },
+      "valid_sony_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_sony_model/base-release/"
+      },
+      "valid_olympus_datetime": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_olympus_datetime/base-release/"
+      },
+      "valid_hp_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_hp_model/base-release/"
+      },
+      "valid_canon_g2_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_canon_g2_model/base-release/"
+      },
+      "boundary_bigendian_model": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_bigendian_model/base-release/"
+      },
+      "boundary_bigendian_datetime": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_bigendian_datetime/base-release/"
+      },
+      "boundary_minolta_model": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_minolta_model/base-release/"
+      },
+      "boundary_no_exif": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_no_exif/base-release/"
+      },
+      "boundary_corrupt_exif": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_corrupt_exif/base-release/"
+      },
+      "boundary_progressive": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_progressive/base-release/"
+      },
+      "boundary_grayscale": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_grayscale/base-release/"
+      },
+      "boundary_tiny_1x1": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_tiny_1x1/base-release/"
+      },
+      "boundary_with_comment": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_with_comment/base-release/"
+      },
+      "boundary_large_baseline": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_large_baseline/base-release/"
+      },
+      "invalid_not_jpeg": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_not_jpeg/base-release/"
+      },
+      "invalid_textfile": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_textfile/base-release/"
+      },
+      "invalid_truncated": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_truncated/base-release/"
+      },
+      "invalid_truncated_header": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_truncated_header/base-release/"
+      },
+      "invalid_empty": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_empty/base-release/"
+      },
+      "invalid_png": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_png/base-release/"
+      },
+      "invalid_gif": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_gif/base-release/"
+      },
+      "invalid_bmp": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_bmp/base-release/"
+      },
+      "invalid_random_bytes": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_random_bytes/base-release/"
+      },
+      "invalid_soi_then_garbage": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_soi_then_garbage/base-release/"
+      },
+      "exploit_datetime_original": {
+        "kind": "security",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/exploit_datetime_original/base-release/"
+      },
+      "exploit_datetime": {
+        "kind": "security",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/exploit_datetime/base-release/"
+      }
+    },
+    "base-sanitized": {
+      "valid_s100_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_s100_model/base-sanitized/"
+      },
+      "valid_s100_datetime": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_s100_datetime/base-sanitized/"
+      },
+      "valid_kodak_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_kodak_model/base-sanitized/"
+      },
+      "valid_kodak_datetime": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_kodak_datetime/base-sanitized/"
+      },
+      "valid_pro1_datetime": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_pro1_datetime/base-sanitized/"
+      },
+      "valid_nikon_d100_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_nikon_d100_model/base-sanitized/"
+      },
+      "valid_nikon_d100_datetime": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_nikon_d100_datetime/base-sanitized/"
+      },
+      "valid_fuji_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_fuji_model/base-sanitized/"
+      },
+      "valid_sony_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_sony_model/base-sanitized/"
+      },
+      "valid_olympus_datetime": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_olympus_datetime/base-sanitized/"
+      },
+      "valid_hp_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_hp_model/base-sanitized/"
+      },
+      "valid_canon_g2_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_canon_g2_model/base-sanitized/"
+      },
+      "boundary_bigendian_model": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_bigendian_model/base-sanitized/"
+      },
+      "boundary_bigendian_datetime": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_bigendian_datetime/base-sanitized/"
+      },
+      "boundary_minolta_model": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_minolta_model/base-sanitized/"
+      },
+      "boundary_no_exif": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_no_exif/base-sanitized/"
+      },
+      "boundary_corrupt_exif": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_corrupt_exif/base-sanitized/"
+      },
+      "boundary_progressive": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_progressive/base-sanitized/"
+      },
+      "boundary_grayscale": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_grayscale/base-sanitized/"
+      },
+      "boundary_tiny_1x1": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_tiny_1x1/base-sanitized/"
+      },
+      "boundary_with_comment": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_with_comment/base-sanitized/"
+      },
+      "boundary_large_baseline": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_large_baseline/base-sanitized/"
+      },
+      "invalid_not_jpeg": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_not_jpeg/base-sanitized/"
+      },
+      "invalid_textfile": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_textfile/base-sanitized/"
+      },
+      "invalid_truncated": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_truncated/base-sanitized/"
+      },
+      "invalid_truncated_header": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_truncated_header/base-sanitized/"
+      },
+      "invalid_empty": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_empty/base-sanitized/"
+      },
+      "invalid_png": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_png/base-sanitized/"
+      },
+      "invalid_gif": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_gif/base-sanitized/"
+      },
+      "invalid_bmp": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_bmp/base-sanitized/"
+      },
+      "invalid_random_bytes": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_random_bytes/base-sanitized/"
+      },
+      "invalid_soi_then_garbage": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_soi_then_garbage/base-sanitized/"
+      },
+      "exploit_datetime_original": {
+        "kind": "security",
+        "outcome": "CRASH",
+        "exit_code": null,
+        "signal": "SIGABRT",
+        "detection": "ASAN",
+        "error_type": "HEAP_BUFFER_OVERFLOW",
+        "signature": "HEAP_BUFFER_OVERFLOW @ ProcessExifDir < process_EXIF < ReadJpegSections",
+        "top_frame": "ProcessExifDir src/exif.c:638",
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/exploit_datetime_original/base-sanitized/"
+      },
+      "exploit_datetime": {
+        "kind": "security",
+        "outcome": "CRASH",
+        "exit_code": null,
+        "signal": "SIGABRT",
+        "detection": "ASAN",
+        "error_type": "HEAP_BUFFER_OVERFLOW",
+        "signature": "HEAP_BUFFER_OVERFLOW @ ProcessExifDir < process_EXIF < ReadJpegSections",
+        "top_frame": "ProcessExifDir src/exif.c:646",
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/exploit_datetime/base-sanitized/"
+      }
+    },
+    "patch-release": {
+      "valid_s100_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_s100_model/patch-release/"
+      },
+      "valid_s100_datetime": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": false,
+        "flaky": false,
+        "runs": "runs/valid_s100_datetime/patch-release/"
+      },
+      "valid_kodak_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_kodak_model/patch-release/"
+      },
+      "valid_kodak_datetime": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": false,
+        "flaky": false,
+        "runs": "runs/valid_kodak_datetime/patch-release/"
+      },
+      "valid_pro1_datetime": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": false,
+        "flaky": false,
+        "runs": "runs/valid_pro1_datetime/patch-release/"
+      },
+      "valid_nikon_d100_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_nikon_d100_model/patch-release/"
+      },
+      "valid_nikon_d100_datetime": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": false,
+        "flaky": false,
+        "runs": "runs/valid_nikon_d100_datetime/patch-release/"
+      },
+      "valid_fuji_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_fuji_model/patch-release/"
+      },
+      "valid_sony_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_sony_model/patch-release/"
+      },
+      "valid_olympus_datetime": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": false,
+        "flaky": false,
+        "runs": "runs/valid_olympus_datetime/patch-release/"
+      },
+      "valid_hp_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_hp_model/patch-release/"
+      },
+      "valid_canon_g2_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_canon_g2_model/patch-release/"
+      },
+      "boundary_bigendian_model": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_bigendian_model/patch-release/"
+      },
+      "boundary_bigendian_datetime": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": false,
+        "flaky": false,
+        "runs": "runs/boundary_bigendian_datetime/patch-release/"
+      },
+      "boundary_minolta_model": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_minolta_model/patch-release/"
+      },
+      "boundary_no_exif": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_no_exif/patch-release/"
+      },
+      "boundary_corrupt_exif": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_corrupt_exif/patch-release/"
+      },
+      "boundary_progressive": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_progressive/patch-release/"
+      },
+      "boundary_grayscale": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_grayscale/patch-release/"
+      },
+      "boundary_tiny_1x1": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_tiny_1x1/patch-release/"
+      },
+      "boundary_with_comment": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_with_comment/patch-release/"
+      },
+      "boundary_large_baseline": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_large_baseline/patch-release/"
+      },
+      "invalid_not_jpeg": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_not_jpeg/patch-release/"
+      },
+      "invalid_textfile": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_textfile/patch-release/"
+      },
+      "invalid_truncated": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_truncated/patch-release/"
+      },
+      "invalid_truncated_header": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_truncated_header/patch-release/"
+      },
+      "invalid_empty": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_empty/patch-release/"
+      },
+      "invalid_png": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_png/patch-release/"
+      },
+      "invalid_gif": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_gif/patch-release/"
+      },
+      "invalid_bmp": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_bmp/patch-release/"
+      },
+      "invalid_random_bytes": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_random_bytes/patch-release/"
+      },
+      "invalid_soi_then_garbage": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_soi_then_garbage/patch-release/"
+      },
+      "exploit_datetime_original": {
+        "kind": "security",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/exploit_datetime_original/patch-release/"
+      },
+      "exploit_datetime": {
+        "kind": "security",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/exploit_datetime/patch-release/"
+      }
+    },
+    "patch-sanitized": {
+      "valid_s100_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_s100_model/patch-sanitized/"
+      },
+      "valid_s100_datetime": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": false,
+        "flaky": false,
+        "runs": "runs/valid_s100_datetime/patch-sanitized/"
+      },
+      "valid_kodak_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_kodak_model/patch-sanitized/"
+      },
+      "valid_kodak_datetime": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": false,
+        "flaky": false,
+        "runs": "runs/valid_kodak_datetime/patch-sanitized/"
+      },
+      "valid_pro1_datetime": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": false,
+        "flaky": false,
+        "runs": "runs/valid_pro1_datetime/patch-sanitized/"
+      },
+      "valid_nikon_d100_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_nikon_d100_model/patch-sanitized/"
+      },
+      "valid_nikon_d100_datetime": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": false,
+        "flaky": false,
+        "runs": "runs/valid_nikon_d100_datetime/patch-sanitized/"
+      },
+      "valid_fuji_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_fuji_model/patch-sanitized/"
+      },
+      "valid_sony_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_sony_model/patch-sanitized/"
+      },
+      "valid_olympus_datetime": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": false,
+        "flaky": false,
+        "runs": "runs/valid_olympus_datetime/patch-sanitized/"
+      },
+      "valid_hp_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_hp_model/patch-sanitized/"
+      },
+      "valid_canon_g2_model": {
+        "kind": "valid",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/valid_canon_g2_model/patch-sanitized/"
+      },
+      "boundary_bigendian_model": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_bigendian_model/patch-sanitized/"
+      },
+      "boundary_bigendian_datetime": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": false,
+        "flaky": false,
+        "runs": "runs/boundary_bigendian_datetime/patch-sanitized/"
+      },
+      "boundary_minolta_model": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_minolta_model/patch-sanitized/"
+      },
+      "boundary_no_exif": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_no_exif/patch-sanitized/"
+      },
+      "boundary_corrupt_exif": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_corrupt_exif/patch-sanitized/"
+      },
+      "boundary_progressive": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_progressive/patch-sanitized/"
+      },
+      "boundary_grayscale": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_grayscale/patch-sanitized/"
+      },
+      "boundary_tiny_1x1": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_tiny_1x1/patch-sanitized/"
+      },
+      "boundary_with_comment": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_with_comment/patch-sanitized/"
+      },
+      "boundary_large_baseline": {
+        "kind": "boundary",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/boundary_large_baseline/patch-sanitized/"
+      },
+      "invalid_not_jpeg": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_not_jpeg/patch-sanitized/"
+      },
+      "invalid_textfile": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_textfile/patch-sanitized/"
+      },
+      "invalid_truncated": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_truncated/patch-sanitized/"
+      },
+      "invalid_truncated_header": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_truncated_header/patch-sanitized/"
+      },
+      "invalid_empty": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_empty/patch-sanitized/"
+      },
+      "invalid_png": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_png/patch-sanitized/"
+      },
+      "invalid_gif": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_gif/patch-sanitized/"
+      },
+      "invalid_bmp": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_bmp/patch-sanitized/"
+      },
+      "invalid_random_bytes": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_random_bytes/patch-sanitized/"
+      },
+      "invalid_soi_then_garbage": {
+        "kind": "invalid",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": true,
+        "flaky": false,
+        "runs": "runs/invalid_soi_then_garbage/patch-sanitized/"
+      },
+      "exploit_datetime_original": {
+        "kind": "security",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/exploit_datetime_original/patch-sanitized/"
+      },
+      "exploit_datetime": {
+        "kind": "security",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/exploit_datetime/patch-sanitized/"
+      }
+    }
+  },
+  "findings": [
+    {
+      "id": "F-001",
+      "category": "FUNCTIONAL_REGRESSION",
+      "tests": [
+        {
+          "test": "valid_s100_datetime",
+          "kind": "valid",
+          "results": {
+            "base-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": true,
+              "flaky": false
+            },
+            "base-sanitized": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": true,
+              "flaky": false
+            },
+            "patch-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": false,
+              "flaky": false
+            },
+            "patch-sanitized": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": false,
+              "flaky": false
+            }
+          },
+          "on_patch": null
+        }
+      ],
+      "signature": null,
+      "error_type": null,
+      "release": {
+        "base": "NORMAL exit 0",
+        "patch": "NORMAL exit 0"
+      },
+      "sanitized": {
+        "base": "NORMAL exit 0",
+        "patch": "NORMAL exit 0"
+      },
+      "link": {
+        "level": "CHANGED_CODE_EXECUTED",
+        "side": "patch",
+        "file": null,
+        "function": null,
+        "line": null,
+        "frame": null,
+        "hunk": null,
+        "executed_changed_lines": [
+          639,
+          644,
+          646
+        ],
+        "comparative_tests": [
+          "valid_s100_datetime"
+        ],
+        "explanation": "The execution trace shows valid_s100_datetime running changed lines 639, 644, 646 of the patch side. valid_s100_datetime matches its oracle on base and not on patch."
+      },
+      "evidence": [
+        "runs/valid_s100_datetime/"
+      ],
+      "reproducer": null,
+      "regression_test": null,
+      "notes": "valid_s100_datetime matches its oracle on base but not on patch (patch-release: output does not contains-match; patch-sanitized: output does not contains-match)."
+    },
+    {
+      "id": "F-002",
+      "category": "FUNCTIONAL_REGRESSION",
+      "tests": [
+        {
+          "test": "valid_kodak_datetime",
+          "kind": "valid",
+          "results": {
+            "base-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": true,
+              "flaky": false
+            },
+            "base-sanitized": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": true,
+              "flaky": false
+            },
+            "patch-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": false,
+              "flaky": false
+            },
+            "patch-sanitized": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": false,
+              "flaky": false
+            }
+          },
+          "on_patch": null
+        }
+      ],
+      "signature": null,
+      "error_type": null,
+      "release": {
+        "base": "NORMAL exit 0",
+        "patch": "NORMAL exit 0"
+      },
+      "sanitized": {
+        "base": "NORMAL exit 0",
+        "patch": "NORMAL exit 0"
+      },
+      "link": {
+        "level": "CHANGED_CODE_EXECUTED",
+        "side": "patch",
+        "file": null,
+        "function": null,
+        "line": null,
+        "frame": null,
+        "hunk": null,
+        "executed_changed_lines": [
+          639,
+          644,
+          646
+        ],
+        "comparative_tests": [
+          "valid_kodak_datetime"
+        ],
+        "explanation": "The execution trace shows valid_kodak_datetime running changed lines 639, 644, 646 of the patch side. valid_kodak_datetime matches its oracle on base and not on patch."
+      },
+      "evidence": [
+        "runs/valid_kodak_datetime/"
+      ],
+      "reproducer": null,
+      "regression_test": null,
+      "notes": "valid_kodak_datetime matches its oracle on base but not on patch (patch-release: output does not contains-match; patch-sanitized: output does not contains-match)."
+    },
+    {
+      "id": "F-003",
+      "category": "FUNCTIONAL_REGRESSION",
+      "tests": [
+        {
+          "test": "valid_pro1_datetime",
+          "kind": "valid",
+          "results": {
+            "base-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": true,
+              "flaky": false
+            },
+            "base-sanitized": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": true,
+              "flaky": false
+            },
+            "patch-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": false,
+              "flaky": false
+            },
+            "patch-sanitized": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": false,
+              "flaky": false
+            }
+          },
+          "on_patch": null
+        }
+      ],
+      "signature": null,
+      "error_type": null,
+      "release": {
+        "base": "NORMAL exit 0",
+        "patch": "NORMAL exit 0"
+      },
+      "sanitized": {
+        "base": "NORMAL exit 0",
+        "patch": "NORMAL exit 0"
+      },
+      "link": {
+        "level": "CHANGED_CODE_EXECUTED",
+        "side": "patch",
+        "file": null,
+        "function": null,
+        "line": null,
+        "frame": null,
+        "hunk": null,
+        "executed_changed_lines": [
+          639,
+          644,
+          646
+        ],
+        "comparative_tests": [
+          "valid_pro1_datetime"
+        ],
+        "explanation": "The execution trace shows valid_pro1_datetime running changed lines 639, 644, 646 of the patch side. valid_pro1_datetime matches its oracle on base and not on patch."
+      },
+      "evidence": [
+        "runs/valid_pro1_datetime/"
+      ],
+      "reproducer": null,
+      "regression_test": null,
+      "notes": "valid_pro1_datetime matches its oracle on base but not on patch (patch-release: output does not contains-match; patch-sanitized: output does not contains-match)."
+    },
+    {
+      "id": "F-004",
+      "category": "FUNCTIONAL_REGRESSION",
+      "tests": [
+        {
+          "test": "valid_nikon_d100_datetime",
+          "kind": "valid",
+          "results": {
+            "base-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": true,
+              "flaky": false
+            },
+            "base-sanitized": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": true,
+              "flaky": false
+            },
+            "patch-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": false,
+              "flaky": false
+            },
+            "patch-sanitized": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": false,
+              "flaky": false
+            }
+          },
+          "on_patch": null
+        }
+      ],
+      "signature": null,
+      "error_type": null,
+      "release": {
+        "base": "NORMAL exit 0",
+        "patch": "NORMAL exit 0"
+      },
+      "sanitized": {
+        "base": "NORMAL exit 0",
+        "patch": "NORMAL exit 0"
+      },
+      "link": {
+        "level": "CHANGED_CODE_EXECUTED",
+        "side": "patch",
+        "file": null,
+        "function": null,
+        "line": null,
+        "frame": null,
+        "hunk": null,
+        "executed_changed_lines": [
+          639,
+          644,
+          646
+        ],
+        "comparative_tests": [
+          "valid_nikon_d100_datetime"
+        ],
+        "explanation": "The execution trace shows valid_nikon_d100_datetime running changed lines 639, 644, 646 of the patch side. valid_nikon_d100_datetime matches its oracle on base and not on patch."
+      },
+      "evidence": [
+        "runs/valid_nikon_d100_datetime/"
+      ],
+      "reproducer": null,
+      "regression_test": null,
+      "notes": "valid_nikon_d100_datetime matches its oracle on base but not on patch (patch-release: output does not contains-match; patch-sanitized: output does not contains-match)."
+    },
+    {
+      "id": "F-005",
+      "category": "FUNCTIONAL_REGRESSION",
+      "tests": [
+        {
+          "test": "valid_olympus_datetime",
+          "kind": "valid",
+          "results": {
+            "base-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": true,
+              "flaky": false
+            },
+            "base-sanitized": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": true,
+              "flaky": false
+            },
+            "patch-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": false,
+              "flaky": false
+            },
+            "patch-sanitized": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": false,
+              "flaky": false
+            }
+          },
+          "on_patch": null
+        }
+      ],
+      "signature": null,
+      "error_type": null,
+      "release": {
+        "base": "NORMAL exit 0",
+        "patch": "NORMAL exit 0"
+      },
+      "sanitized": {
+        "base": "NORMAL exit 0",
+        "patch": "NORMAL exit 0"
+      },
+      "link": {
+        "level": "CHANGED_CODE_EXECUTED",
+        "side": "patch",
+        "file": null,
+        "function": null,
+        "line": null,
+        "frame": null,
+        "hunk": null,
+        "executed_changed_lines": [
+          639,
+          644,
+          646
+        ],
+        "comparative_tests": [
+          "valid_olympus_datetime"
+        ],
+        "explanation": "The execution trace shows valid_olympus_datetime running changed lines 639, 644, 646 of the patch side. valid_olympus_datetime matches its oracle on base and not on patch."
+      },
+      "evidence": [
+        "runs/valid_olympus_datetime/"
+      ],
+      "reproducer": null,
+      "regression_test": null,
+      "notes": "valid_olympus_datetime matches its oracle on base but not on patch (patch-release: output does not contains-match; patch-sanitized: output does not contains-match)."
+    },
+    {
+      "id": "F-006",
+      "category": "FUNCTIONAL_REGRESSION",
+      "tests": [
+        {
+          "test": "boundary_bigendian_datetime",
+          "kind": "boundary",
+          "results": {
+            "base-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": true,
+              "flaky": false
+            },
+            "base-sanitized": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": true,
+              "flaky": false
+            },
+            "patch-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": false,
+              "flaky": false
+            },
+            "patch-sanitized": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": false,
+              "flaky": false
+            }
+          },
+          "on_patch": null
+        }
+      ],
+      "signature": null,
+      "error_type": null,
+      "release": {
+        "base": "NORMAL exit 0",
+        "patch": "NORMAL exit 0"
+      },
+      "sanitized": {
+        "base": "NORMAL exit 0",
+        "patch": "NORMAL exit 0"
+      },
+      "link": {
+        "level": "CHANGED_CODE_EXECUTED",
+        "side": "patch",
+        "file": null,
+        "function": null,
+        "line": null,
+        "frame": null,
+        "hunk": null,
+        "executed_changed_lines": [
+          639,
+          644,
+          646
+        ],
+        "comparative_tests": [
+          "boundary_bigendian_datetime"
+        ],
+        "explanation": "The execution trace shows boundary_bigendian_datetime running changed lines 639, 644, 646 of the patch side. boundary_bigendian_datetime matches its oracle on base and not on patch."
+      },
+      "evidence": [
+        "runs/boundary_bigendian_datetime/"
+      ],
+      "reproducer": null,
+      "regression_test": null,
+      "notes": "boundary_bigendian_datetime matches its oracle on base but not on patch (patch-release: output does not contains-match; patch-sanitized: output does not contains-match)."
+    },
+    {
+      "id": "F-007",
+      "category": "FIXED",
+      "tests": [
+        {
+          "test": "exploit_datetime_original",
+          "kind": "security",
+          "results": {
+            "base-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": null,
+              "flaky": false
+            },
+            "base-sanitized": {
+              "outcome": "CRASH",
+              "detection": "ASAN",
+              "signal": "SIGABRT",
+              "exit_code": null,
+              "error_type": "HEAP_BUFFER_OVERFLOW",
+              "signature": "HEAP_BUFFER_OVERFLOW @ ProcessExifDir < process_EXIF < ReadJpegSections",
+              "oracle_passed": null,
+              "flaky": false
+            },
+            "patch-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": null,
+              "flaky": false
+            },
+            "patch-sanitized": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": null,
+              "flaky": false
+            }
+          },
+          "on_patch": "blocked"
+        },
+        {
+          "test": "exploit_datetime",
+          "kind": "security",
+          "results": {
+            "base-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": null,
+              "flaky": false
+            },
+            "base-sanitized": {
+              "outcome": "CRASH",
+              "detection": "ASAN",
+              "signal": "SIGABRT",
+              "exit_code": null,
+              "error_type": "HEAP_BUFFER_OVERFLOW",
+              "signature": "HEAP_BUFFER_OVERFLOW @ ProcessExifDir < process_EXIF < ReadJpegSections",
+              "oracle_passed": null,
+              "flaky": false
+            },
+            "patch-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": null,
+              "flaky": false
+            },
+            "patch-sanitized": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": null,
+              "flaky": false
+            }
+          },
+          "on_patch": "blocked"
+        }
+      ],
+      "signature": "HEAP_BUFFER_OVERFLOW @ ProcessExifDir < process_EXIF < ReadJpegSections",
+      "error_type": "HEAP_BUFFER_OVERFLOW",
+      "release": {
+        "base": "NORMAL exit 0",
+        "patch": "NORMAL exit 0"
+      },
+      "sanitized": {
+        "base": "CRASH ASAN SIGABRT",
+        "patch": "NORMAL exit 0"
+      },
+      "link": {
+        "level": "IN_CHANGED_HUNK",
+        "side": "base",
+        "file": "src/exif.c",
+        "function": "ProcessExifDir",
+        "line": 638,
+        "frame": 1,
+        "hunk": "@@ -634,16 +634,16 @@",
+        "executed_changed_lines": null,
+        "comparative_tests": [
+          "exploit_datetime_original",
+          "exploit_datetime"
+        ],
+        "explanation": "Frame #1 ProcessExifDir (src/exif.c:638) of the crash on base lies inside hunk @@ -634,16 +634,16 @@. exploit_datetime_original and exploit_datetime crash on base and not on patch."
+      },
+      "evidence": [
+        "runs/exploit_datetime_original/",
+        "runs/exploit_datetime/"
+      ],
+      "reproducer": "reproducers/F-007/",
+      "regression_test": "regression/reg-exploit_datetime_original-02f8f7b0.yaml",
+      "notes": "HEAP_BUFFER_OVERFLOW @ ProcessExifDir (src/exif.c) occurs on base with exploit_datetime_original, exploit_datetime and on patch with none of them."
+    }
+  ],
+  "regression_added": [
+    {
+      "name": "reg-exploit_datetime_original-02f8f7b0",
+      "from_finding": "F-007",
+      "path": "regression/reg-exploit_datetime_original-02f8f7b0.yaml",
+      "input_sha256": "02f8f7b08b78727d240a6bc8dce624181337713cd8ebeec29968347ab7aa8e59",
+      "status": "added",
+      "promoted_to": null
+    }
+  ],
+  "status": {
+    "checks": {
+      "builds_ok": true,
+      "profiles_verified": true,
+      "all_runs_completed": true,
+      "base_reproduced": true,
+      "results_stable": true,
+      "bundles_replayed": true,
+      "hardening_checked": true
+    },
+    "conditions": [
+      {
+        "name": "FUNC_REGRESSION",
+        "reason": "F-001: valid_s100_datetime passed on base and fail on patch; F-002: valid_kodak_datetime passed on base and fail on patch; F-003: valid_pro1_datetime passed on base and fail on patch; F-004: valid_nikon_d100_datetime passed on base and fail on patch; F-005: valid_olympus_datetime passed on base and fail on patch; F-006: boundary_bigendian_datetime passed on base and fail on patch",
+        "findings": [
+          "F-001",
+          "F-002",
+          "F-003",
+          "F-004",
+          "F-005",
+          "F-006"
+        ],
+        "tests": [
+          "valid_s100_datetime",
+          "valid_kodak_datetime",
+          "valid_pro1_datetime",
+          "valid_nikon_d100_datetime",
+          "valid_olympus_datetime",
+          "boundary_bigendian_datetime"
+        ]
+      }
+    ],
+    "exit_code": 20,
+    "exit_name": "FUNC_REGRESSION",
+    "reason": "FUNC_REGRESSION (F-001, F-002, F-003, F-004, F-005, F-006) has the highest priority among: FUNC_REGRESSION."
+  },
+  "warnings": [],
+  "errors": []
+}

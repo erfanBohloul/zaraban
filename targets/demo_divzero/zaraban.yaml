@@ -1,0 +1,32 @@
+name: "demo_divzero"
+input_method: "file"
+
+build:
+  binary_path: "demo_divzero"
+  release_cmd: "make release"
+  sanitized_cmd: "make sanitized"
+  coverage_cmd: "make coverage"
+  clean_cmd: "make clean"
+
+limits:
+  timeout_seconds: 2.0
+  memory_limit_mb: 128
+
+valid_tests:
+  - name: "valid_ten_two"
+    args: ["{input_file}"]
+    input_file: "tests/valid/ten_two.txt"
+    expected_exit_code: 0
+    expected_output: "result=5"
+
+boundary_tests:
+  - name: "boundary_nine_three"
+    args: ["{input_file}"]
+    input_file: "tests/boundary/nine_three.txt"
+    expected_exit_code: 0
+
+security_tests:
+  - name: "exploit_zero_divisor"
+    args: ["{input_file}"]
+    input_file: "tests/exploits/zero.txt"
+    description: "A zero divisor makes the program divide by zero (SIGFPE / undefined behaviour)."
