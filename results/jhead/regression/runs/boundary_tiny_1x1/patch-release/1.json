@@ -5,13 +5,13 @@
   "build": "patch-release",
   "repeat": 1,
   "cmd": [
-    "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/builds/patch-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/regression/jhead/20261114-204751-8b5ba02a/builds/patch-release/bin/jhead",
     "input.jpg"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-67rj62oi",
+  "cwd": "/tmp/zaraban-run-okckjbhj",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -22,11 +22,11 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0035,
+  "duration_s": 0.0032,
   "stdout": {
     "path": "runs/boundary_tiny_1x1/patch-release/1.stdout",
     "bytes": 125,
-    "sha256": "af3e220f4058e6a7b7b6f5fb16d3c2ba5d06537fe76139459ff3966aa322b7f9",
+    "sha256": "5152e7ed076057e73069076923e2518dfd92e02562c656449aef486ef0dec7ca",
     "truncated": false
   },
   "stderr": {

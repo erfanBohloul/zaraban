@@ -8,9 +8,9 @@
     "HOME": "/tmp",
     "LANG": "C"
   },
-  "cwd": "/tmp/run_matrix/jhead/incomplete/jhead/20261114-093448-279059a3/work/base-release",
+  "cwd": "/workspace/out/run_matrix/jhead/incomplete/jhead/20261114-204740-279059a3/work/base-release",
   "exit_code": 0,
-  "duration_s": 0.8746,
+  "duration_s": 0.6734,
   "log": "builds/base-release/build.log",
   "binary": {
     "path": "builds/base-release/bin/jhead",

@@ -5,7 +5,7 @@
   "build": "patch-sanitized",
   "repeat": 3,
   "cmd": [
-    "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/builds/patch-sanitized/bin/jhead",
+    "/workspace/out/run_matrix/jhead/regression/jhead/20261114-204751-8b5ba02a/builds/patch-sanitized/bin/jhead",
     "input.jpg"
   ],
   "env": {
@@ -14,7 +14,7 @@
     "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1",
     "ASAN_SYMBOLIZER_PATH": "/usr/bin/llvm-symbolizer"
   },
-  "cwd": "/tmp/zaraban-run-wqi7gyhb",
+  "cwd": "/tmp/zaraban-run-wthl48d8",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -25,11 +25,11 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0061,
+  "duration_s": 0.0101,
   "stdout": {
     "path": "runs/valid_nikon_d100_datetime/patch-sanitized/3.stdout",
     "bytes": 454,
-    "sha256": "16ad26bc9f4739080528f5e7ec13cfcfeb04076f287a46afa6fd4ebb3e5589bd",
+    "sha256": "3824fbc3b88d126bb60b36fedd38f6584ebe2d2c4b719ecb631505b944acb3d2",
     "truncated": false
   },
   "stderr": {

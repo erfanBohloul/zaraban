@@ -5,13 +5,13 @@
   "build": "base-release",
   "repeat": 1,
   "cmd": [
-    "/tmp/run_matrix/jhead/correct/jhead/20261114-093436-3f9def97/builds/base-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/correct/jhead/20261114-204728-3f9def97/builds/base-release/bin/jhead",
     "input.jpg"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-493oe4nr",
+  "cwd": "/tmp/zaraban-run-0uu3n0hg",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -22,7 +22,7 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0027,
+  "duration_s": 0.0029,
   "stdout": {
     "path": "runs/invalid_empty/base-release/1.stdout",
     "bytes": 0,

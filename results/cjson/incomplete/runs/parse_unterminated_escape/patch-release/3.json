@@ -5,14 +5,14 @@
   "build": "patch-release",
   "repeat": 3,
   "cmd": [
-    "/tmp/run_matrix/cjson/incomplete/cjson/20261114-093419-5d31d06f/builds/patch-release/bin/cjson_driver",
+    "/workspace/out/run_matrix/cjson/incomplete/cjson/20261114-204712-5d31d06f/builds/patch-release/bin/cjson_driver",
     "parse",
     "input.json"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-axsp_abm",
+  "cwd": "/tmp/zaraban-run-r62pxxtx",
   "input": {
     "method": "file",
     "name": "input.json",
@@ -23,7 +23,7 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0037,
+  "duration_s": 0.0028,
   "stdout": {
     "path": "runs/parse_unterminated_escape/patch-release/3.stdout",
     "bytes": 0,

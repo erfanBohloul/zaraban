@@ -3,6 +3,10 @@
 # jhead has its own CLI, so there is no driver. Oracle sources: ORACLE.md.
 
 name: jhead
+# The exact upstream version of src/, recorded in the report and bundles.
+upstream:
+  repo: https://github.com/Matthias-Wandel/jhead
+  commit: 56c108f1a0653b3a3c98960f66c2de5a9a67e5de
 input_method: file
 
 build:

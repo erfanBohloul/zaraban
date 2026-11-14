@@ -5,14 +5,14 @@
   "build": "patch-release",
   "repeat": 2,
   "cmd": [
-    "/tmp/run_matrix/cjson/regression/cjson/20261114-093427-f42ffd37/builds/patch-release/bin/cjson_driver",
+    "/workspace/out/run_matrix/cjson/regression/cjson/20261114-204720-f42ffd37/builds/patch-release/bin/cjson_driver",
     "bogus",
     "input.json"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-m7gdtz0n",
+  "cwd": "/tmp/zaraban-run-mnqqaiu5",
   "input": {
     "method": "file",
     "name": "input.json",
@@ -23,7 +23,7 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0027,
+  "duration_s": 0.0031,
   "stdout": {
     "path": "runs/driver_unknown_mode/patch-release/2.stdout",
     "bytes": 0,
@@ -32,8 +32,8 @@
   },
   "stderr": {
     "path": "runs/driver_unknown_mode/patch-release/2.stderr",
-    "bytes": 127,
-    "sha256": "bea7a6fc56d2dcae51a454e2e2a2ec6b1e28718723617f560843ca34a6afa064",
+    "bytes": 137,
+    "sha256": "1c9edc300782b268be7438cd400ad5087957eac4f06e17a9a8bd28f062b6b714",
     "truncated": false
   },
   "analysis": {

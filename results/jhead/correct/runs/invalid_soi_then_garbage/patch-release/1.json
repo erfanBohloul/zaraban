@@ -5,13 +5,13 @@
   "build": "patch-release",
   "repeat": 1,
   "cmd": [
-    "/tmp/run_matrix/jhead/correct/jhead/20261114-093436-3f9def97/builds/patch-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/correct/jhead/20261114-204728-3f9def97/builds/patch-release/bin/jhead",
     "input.jpg"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-y927grbs",
+  "cwd": "/tmp/zaraban-run-2wucemlj",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -22,7 +22,7 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0035,
+  "duration_s": 0.0028,
   "stdout": {
     "path": "runs/invalid_soi_then_garbage/patch-release/1.stdout",
     "bytes": 0,

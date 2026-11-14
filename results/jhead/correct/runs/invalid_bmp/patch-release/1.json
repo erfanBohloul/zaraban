@@ -5,13 +5,13 @@
   "build": "patch-release",
   "repeat": 1,
   "cmd": [
-    "/tmp/run_matrix/jhead/correct/jhead/20261114-093436-3f9def97/builds/patch-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/correct/jhead/20261114-204728-3f9def97/builds/patch-release/bin/jhead",
     "input.bmp"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-q46rsbzm",
+  "cwd": "/tmp/zaraban-run-odefr0zb",
   "input": {
     "method": "file",
     "name": "input.bmp",
@@ -22,7 +22,7 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0027,
+  "duration_s": 0.0031,
   "stdout": {
     "path": "runs/invalid_bmp/patch-release/1.stdout",
     "bytes": 0,

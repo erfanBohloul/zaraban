@@ -5,7 +5,7 @@
   "build": "base-sanitized",
   "repeat": 2,
   "cmd": [
-    "/tmp/run_matrix/jhead/correct/jhead/20261114-093436-3f9def97/builds/base-sanitized/bin/jhead",
+    "/workspace/out/run_matrix/jhead/correct/jhead/20261114-204728-3f9def97/builds/base-sanitized/bin/jhead",
     "input.jpg"
   ],
   "env": {
@@ -14,7 +14,7 @@
     "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1",
     "ASAN_SYMBOLIZER_PATH": "/usr/bin/llvm-symbolizer"
   },
-  "cwd": "/tmp/zaraban-run-jrc3hlyd",
+  "cwd": "/tmp/zaraban-run-sqlvna16",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -25,11 +25,11 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0061,
+  "duration_s": 0.006,
   "stdout": {
     "path": "runs/boundary_minolta_model/base-sanitized/2.stdout",
     "bytes": 376,
-    "sha256": "ecd0045377d1731471905dd55b43aa82018706981fdf1e66240b71d524f112ac",
+    "sha256": "9f784e7e5a6b7239d02fc9118795da9716746d793a4d7061a8d58cb9721292fd",
     "truncated": false
   },
   "stderr": {

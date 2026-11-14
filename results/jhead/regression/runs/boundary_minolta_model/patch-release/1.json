@@ -5,13 +5,13 @@
   "build": "patch-release",
   "repeat": 1,
   "cmd": [
-    "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/builds/patch-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/regression/jhead/20261114-204751-8b5ba02a/builds/patch-release/bin/jhead",
     "input.jpg"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-0_gpp1b6",
+  "cwd": "/tmp/zaraban-run-68nb8kfs",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -22,11 +22,11 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0053,
+  "duration_s": 0.0036,
   "stdout": {
     "path": "runs/boundary_minolta_model/patch-release/1.stdout",
     "bytes": 367,
-    "sha256": "bd9514e18c1b2478ca9604be8d282fb98303fd57e7db8d8f76fc1b934e5e91da",
+    "sha256": "d06ef441928565e5ef8191eb6ef2a151cb7e9804c98c5e11810167003c5ca891",
     "truncated": false
   },
   "stderr": {

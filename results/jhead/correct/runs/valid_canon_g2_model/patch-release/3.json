@@ -5,13 +5,13 @@
   "build": "patch-release",
   "repeat": 3,
   "cmd": [
-    "/tmp/run_matrix/jhead/correct/jhead/20261114-093436-3f9def97/builds/patch-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/correct/jhead/20261114-204728-3f9def97/builds/patch-release/bin/jhead",
     "input.jpg"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-i1kdnlv1",
+  "cwd": "/tmp/zaraban-run-2vp7jmhv",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -22,11 +22,11 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.004,
+  "duration_s": 0.0029,
   "stdout": {
     "path": "runs/valid_canon_g2_model/patch-release/3.stdout",
     "bytes": 460,
-    "sha256": "2dd273c6efea695aec740e617575c2d55db635e40e8511cda4f860642241ea2d",
+    "sha256": "f511c5d4642f0e372e04b576c315dd78248f9f773712f2e4c93d54c251d7b674",
     "truncated": false
   },
   "stderr": {

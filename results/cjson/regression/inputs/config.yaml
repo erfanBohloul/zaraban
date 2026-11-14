@@ -2,6 +2,10 @@
 # Where every expected behavior comes from: ORACLE.md.
 
 name: cjson
+# The exact upstream version of src/ (tag v1.7.10), recorded in the report and bundles.
+upstream:
+  repo: https://github.com/DaveGamble/cJSON
+  commit: c69134d01746dcf551dd7724b4edb12f922eb0d1
 input_method: file
 build:
   binary_path: cjson_driver

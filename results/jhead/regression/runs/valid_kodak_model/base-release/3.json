@@ -5,13 +5,13 @@
   "build": "base-release",
   "repeat": 3,
   "cmd": [
-    "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/builds/base-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/regression/jhead/20261114-204751-8b5ba02a/builds/base-release/bin/jhead",
     "input.jpg"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-o8lq3efn",
+  "cwd": "/tmp/zaraban-run-3vseppu9",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -22,11 +22,11 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.003,
+  "duration_s": 0.0031,
   "stdout": {
     "path": "runs/valid_kodak_model/base-release/3.stdout",
     "bytes": 471,
-    "sha256": "bb74f70b1bfa8924578aa3f77c1332040ac0dc51eaa21d37d6a41ba8b45a1420",
+    "sha256": "f4b8aa479c223cfc7cbed59fa806dea10621c679c1a1621b60aafb783d7e0760",
     "truncated": false
   },
   "stderr": {

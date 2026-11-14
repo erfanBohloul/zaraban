@@ -5,7 +5,7 @@
   "build": "base-sanitized",
   "repeat": 1,
   "cmd": [
-    "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/builds/base-sanitized/bin/jhead",
+    "/workspace/out/run_matrix/jhead/regression/jhead/20261114-204751-8b5ba02a/builds/base-sanitized/bin/jhead",
     "input.jpg"
   ],
   "env": {
@@ -14,7 +14,7 @@
     "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1",
     "ASAN_SYMBOLIZER_PATH": "/usr/bin/llvm-symbolizer"
   },
-  "cwd": "/tmp/zaraban-run-q8fem896",
+  "cwd": "/tmp/zaraban-run-wh8i0za9",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -29,7 +29,7 @@
   "stdout": {
     "path": "runs/valid_fuji_model/base-sanitized/1.stdout",
     "bytes": 422,
-    "sha256": "854751c51a189acb29041aa0360d27d7c59ca033954a4481bcdabdb1ceaa7d7d",
+    "sha256": "95cf30048e7201e1fd200bb6a14e6126fd92b471558ad03aa2f83b82bc59475f",
     "truncated": false
   },
   "stderr": {

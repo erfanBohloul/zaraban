@@ -5,14 +5,14 @@
   "build": "base-release",
   "repeat": 2,
   "cmd": [
-    "/tmp/run_matrix/cjson/regression/cjson/20261114-093427-f42ffd37/builds/base-release/bin/cjson_driver",
+    "/workspace/out/run_matrix/cjson/regression/cjson/20261114-204720-f42ffd37/builds/base-release/bin/cjson_driver",
     "minify",
     "input.json"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-inogqfq_",
+  "cwd": "/tmp/zaraban-run-ufeo3x_t",
   "input": {
     "method": "file",
     "name": "input.json",

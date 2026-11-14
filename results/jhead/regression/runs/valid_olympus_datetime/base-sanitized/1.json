@@ -5,7 +5,7 @@
   "build": "base-sanitized",
   "repeat": 1,
   "cmd": [
-    "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/builds/base-sanitized/bin/jhead",
+    "/workspace/out/run_matrix/jhead/regression/jhead/20261114-204751-8b5ba02a/builds/base-sanitized/bin/jhead",
     "input.jpg"
   ],
   "env": {
@@ -14,7 +14,7 @@
     "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1",
     "ASAN_SYMBOLIZER_PATH": "/usr/bin/llvm-symbolizer"
   },
-  "cwd": "/tmp/zaraban-run-kqopyp3d",
+  "cwd": "/tmp/zaraban-run-tthjp6i_",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -29,7 +29,7 @@
   "stdout": {
     "path": "runs/valid_olympus_datetime/base-sanitized/1.stdout",
     "bytes": 365,
-    "sha256": "e400e30ebf7c47cbede5659cb7dafae2ffb70691f9f4959fbfd53b399e5ed44e",
+    "sha256": "4818fa6e03c541be720fd8108ab7e69a6109a61470e3bf6d58ecc7419c357142",
     "truncated": false
   },
   "stderr": {

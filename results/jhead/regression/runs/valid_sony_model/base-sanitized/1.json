@@ -5,7 +5,7 @@
   "build": "base-sanitized",
   "repeat": 1,
   "cmd": [
-    "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/builds/base-sanitized/bin/jhead",
+    "/workspace/out/run_matrix/jhead/regression/jhead/20261114-204751-8b5ba02a/builds/base-sanitized/bin/jhead",
     "input.jpg"
   ],
   "env": {
@@ -14,7 +14,7 @@
     "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1",
     "ASAN_SYMBOLIZER_PATH": "/usr/bin/llvm-symbolizer"
   },
-  "cwd": "/tmp/zaraban-run-aipqap2p",
+  "cwd": "/tmp/zaraban-run-kcqc_dyi",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -29,7 +29,7 @@
   "stdout": {
     "path": "runs/valid_sony_model/base-sanitized/1.stdout",
     "bytes": 422,
-    "sha256": "c0dc13f8564a59a720de26800685f143d64a5f7dbca70002d4f90f9ced114bce",
+    "sha256": "e5c2048e0a8319faa33fcb28f9aabf018cf80d64455b70d9b53371ed97f0c2ff",
     "truncated": false
   },
   "stderr": {

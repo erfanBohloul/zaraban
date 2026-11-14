@@ -5,13 +5,13 @@
   "build": "base-release",
   "repeat": 1,
   "cmd": [
-    "/tmp/run_matrix/jhead/correct/jhead/20261114-093436-3f9def97/builds/base-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/correct/jhead/20261114-204728-3f9def97/builds/base-release/bin/jhead",
     "input.jpg"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-tac1okt0",
+  "cwd": "/tmp/zaraban-run-slanhhn_",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -22,11 +22,11 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0028,
+  "duration_s": 0.0039,
   "stdout": {
     "path": "runs/valid_nikon_d100_datetime/base-release/1.stdout",
     "bytes": 463,
-    "sha256": "c7af42cd960812920ccdbb744c9cac144323945dfee1d556fddfe920e60c8a14",
+    "sha256": "26fd1d631e8befaf990c5ede48e9135be5d513ef03bcf0cbc6afeb5fa026f6ca",
     "truncated": false
   },
   "stderr": {

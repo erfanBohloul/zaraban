@@ -5,13 +5,13 @@
   "build": "base-release",
   "repeat": 1,
   "cmd": [
-    "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/builds/base-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/regression/jhead/20261114-204751-8b5ba02a/builds/base-release/bin/jhead",
     "input.jpg"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-8yqchkl4",
+  "cwd": "/tmp/zaraban-run-gjqd3zr3",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -26,7 +26,7 @@
   "stdout": {
     "path": "runs/boundary_bigendian_model/base-release/1.stdout",
     "bytes": 418,
-    "sha256": "4dba32a1155f0bca9fd1e79be554f978d63a0d4996983e0ae92286ea8f3cc0b5",
+    "sha256": "80b267ee85f7b388e9d0d23b568a6ad77c2ffeb7d20cc2f84a948a9c445cf6d2",
     "truncated": false
   },
   "stderr": {

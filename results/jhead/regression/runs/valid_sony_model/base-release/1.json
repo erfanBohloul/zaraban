@@ -5,13 +5,13 @@
   "build": "base-release",
   "repeat": 1,
   "cmd": [
-    "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/builds/base-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/regression/jhead/20261114-204751-8b5ba02a/builds/base-release/bin/jhead",
     "input.jpg"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-s42avxfb",
+  "cwd": "/tmp/zaraban-run-1espbkqm",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -26,7 +26,7 @@
   "stdout": {
     "path": "runs/valid_sony_model/base-release/1.stdout",
     "bytes": 422,
-    "sha256": "c0dc13f8564a59a720de26800685f143d64a5f7dbca70002d4f90f9ced114bce",
+    "sha256": "e5c2048e0a8319faa33fcb28f9aabf018cf80d64455b70d9b53371ed97f0c2ff",
     "truncated": false
   },
   "stderr": {

@@ -8,14 +8,14 @@
     "HOME": "/tmp",
     "LANG": "C"
   },
-  "cwd": "/tmp/run_matrix/cjson/incomplete/cjson/20261114-093419-5d31d06f/work/base-sanitized",
+  "cwd": "/workspace/out/run_matrix/cjson/incomplete/cjson/20261114-204712-5d31d06f/work/base-sanitized",
   "exit_code": 0,
-  "duration_s": 1.1753,
+  "duration_s": 0.9242,
   "log": "builds/base-sanitized/build.log",
   "binary": {
     "path": "builds/base-sanitized/bin/cjson_driver",
-    "size": 1671080,
-    "sha256": "9b1faf688ea5a108235655ede33f5bd742ca763effb0e9279e01d1bbfb7afed4"
+    "size": 1671104,
+    "sha256": "f89d0c095b8fb44798ce3b9a7536184b6e9728a60dae29d1df0658ed7252fa45"
   },
   "sanitizers_verified": true,
   "has_debug_info": true

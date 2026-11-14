@@ -5,13 +5,13 @@
   "build": "patch-release",
   "repeat": 2,
   "cmd": [
-    "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/builds/patch-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/regression/jhead/20261114-204751-8b5ba02a/builds/patch-release/bin/jhead",
     "input.jpg"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-95pnn98j",
+  "cwd": "/tmp/zaraban-run-y0zbqkgr",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -22,11 +22,11 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0028,
+  "duration_s": 0.0032,
   "stdout": {
     "path": "runs/valid_fuji_model/patch-release/2.stdout",
     "bytes": 413,
-    "sha256": "ea46549a78ea50dac2bed3497b9be82a4510a79b68a437b44b461005b6d4ce7e",
+    "sha256": "d6b4a1fc0d9b0fbd5aabb9f848d33bf41f6df276a3549c8146b1e39e33036ac7",
     "truncated": false
   },
   "stderr": {

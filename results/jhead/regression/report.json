@@ -4,28 +4,34 @@
     "name": "zaraban",
     "version": "0.2.0"
   },
-  "run_id": "20261114-093502-8b5ba02a",
-  "started_at": "2026-11-14T09:35:02Z",
-  "duration_s": 15.6123,
+  "run_id": "20261114-204751-8b5ba02a",
+  "started_at": "2026-11-14T20:47:51Z",
+  "duration_s": 14.253,
   "target": {
     "name": "jhead",
     "config": "inputs/config.yaml",
-    "config_sha256": "124232f4a4e6b6be8ac91202ad7b63d716a1301439506fa02c04b3a1cdd2b1b8"
+    "config_sha256": "446b11144f8204c9c2eb62921c2a22386220275d92a72648be6fb7a752805eb3"
   },
   "versions": {
     "base": {
       "form": "directory",
       "ref": "/workspace/targets/jhead",
-      "git_commit": "2f0d62b",
-      "tree_sha256": "b7a77e544fa972f2540be35aebe85994392809f9aad0eae5634595c799022490",
-      "strip_level": null
+      "git_commit": "dca9efc32e499da77c891f99ab1926d4040a4a48",
+      "tree_sha256": "106cf2169013f9d18c61b218db45d7466c56f8691bd0a06a8e455ba163f02a6a",
+      "strip_level": null,
+      "git_dirty": false,
+      "upstream_repo": "https://github.com/Matthias-Wandel/jhead",
+      "upstream_commit": "56c108f1a0653b3a3c98960f66c2de5a9a67e5de"
     },
     "patch": {
       "form": "diff",
       "ref": "/workspace/targets/jhead/patches/regression.patch",
       "git_commit": null,
-      "tree_sha256": "53652ca348412223e8342d908a44ae24cad3ff73193dd11aeb1f83392b8679ea",
-      "strip_level": 1
+      "tree_sha256": "7ee75277a139c1e955cc12dec1b12bd68ce0ce9e8ac13e46f1e2ccc922951155",
+      "strip_level": 1,
+      "git_dirty": null,
+      "upstream_repo": null,
+      "upstream_commit": null
     },
     "diff": {
       "path": "inputs/patch.diff",
@@ -55,6 +61,12 @@
     "sanitizer_options": {
       "ASAN_OPTIONS": "abort_on_error=1:detect_leaks=0:symbolize=1:disable_coredump=1:max_allocation_size_mb=256",
       "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1"
+    },
+    "variants": {
+      "enabled": false,
+      "budget_runs": 200,
+      "seed": 1,
+      "max_tests": 5
     }
   },
   "builds": {
@@ -65,7 +77,7 @@
     },
     "base-sanitized": {
       "status": "ok",
-      "binary_sha256": "5024fd6444f06ce51353b7843d3bb2dc0399832890c2284d0a1edf785aed3744",
+      "binary_sha256": "d6e0f5a9216793ef3390274ee09e4360575359a561db5edc1440a2cdbd5033a8",
       "details": "builds/base-sanitized/build.json"
     },
     "patch-release": {
@@ -75,7 +87,7 @@
     },
     "patch-sanitized": {
       "status": "ok",
-      "binary_sha256": "3647d25f872301082c7c80441cc2c126f543497c6af9eba24c7731d8c4c3b9a4",
+      "binary_sha256": "9c8c87b577f54985ec153a6d8e79822a3d25d6f823a059649a46c7387a03281d",
       "details": "builds/patch-sanitized/build.json"
     }
   },
@@ -565,6 +577,32 @@
         "oracle_passed": null,
         "flaky": false,
         "runs": "runs/exploit_datetime/base-release/"
+      },
+      "reg-exploit_datetime-95bef140": {
+        "kind": "regression",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/reg-exploit_datetime-95bef140/base-release/"
+      },
+      "reg-exploit_datetime_original-02f8f7b0": {
+        "kind": "regression",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/reg-exploit_datetime_original-02f8f7b0/base-release/"
       }
     },
     "base-sanitized": {
@@ -1009,6 +1047,32 @@
         "oracle_passed": null,
         "flaky": false,
         "runs": "runs/exploit_datetime/base-sanitized/"
+      },
+      "reg-exploit_datetime-95bef140": {
+        "kind": "regression",
+        "outcome": "CRASH",
+        "exit_code": null,
+        "signal": "SIGABRT",
+        "detection": "ASAN",
+        "error_type": "HEAP_BUFFER_OVERFLOW",
+        "signature": "HEAP_BUFFER_OVERFLOW @ ProcessExifDir < process_EXIF < ReadJpegSections",
+        "top_frame": "ProcessExifDir src/exif.c:646",
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/reg-exploit_datetime-95bef140/base-sanitized/"
+      },
+      "reg-exploit_datetime_original-02f8f7b0": {
+        "kind": "regression",
+        "outcome": "CRASH",
+        "exit_code": null,
+        "signal": "SIGABRT",
+        "detection": "ASAN",
+        "error_type": "HEAP_BUFFER_OVERFLOW",
+        "signature": "HEAP_BUFFER_OVERFLOW @ ProcessExifDir < process_EXIF < ReadJpegSections",
+        "top_frame": "ProcessExifDir src/exif.c:638",
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/reg-exploit_datetime_original-02f8f7b0/base-sanitized/"
       }
     },
     "patch-release": {
@@ -1453,6 +1517,32 @@
         "oracle_passed": null,
         "flaky": false,
         "runs": "runs/exploit_datetime/patch-release/"
+      },
+      "reg-exploit_datetime-95bef140": {
+        "kind": "regression",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/reg-exploit_datetime-95bef140/patch-release/"
+      },
+      "reg-exploit_datetime_original-02f8f7b0": {
+        "kind": "regression",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/reg-exploit_datetime_original-02f8f7b0/patch-release/"
       }
     },
     "patch-sanitized": {
@@ -1897,6 +1987,32 @@
         "oracle_passed": null,
         "flaky": false,
         "runs": "runs/exploit_datetime/patch-sanitized/"
+      },
+      "reg-exploit_datetime-95bef140": {
+        "kind": "regression",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/reg-exploit_datetime-95bef140/patch-sanitized/"
+      },
+      "reg-exploit_datetime_original-02f8f7b0": {
+        "kind": "regression",
+        "outcome": "NORMAL",
+        "exit_code": 1,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/reg-exploit_datetime_original-02f8f7b0/patch-sanitized/"
       }
     }
   },
@@ -2520,17 +2636,111 @@
             }
           },
           "on_patch": "blocked"
+        },
+        {
+          "test": "reg-exploit_datetime-95bef140",
+          "kind": "regression",
+          "results": {
+            "base-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 1,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": null,
+              "flaky": false
+            },
+            "base-sanitized": {
+              "outcome": "CRASH",
+              "detection": "ASAN",
+              "signal": "SIGABRT",
+              "exit_code": null,
+              "error_type": "HEAP_BUFFER_OVERFLOW",
+              "signature": "HEAP_BUFFER_OVERFLOW @ ProcessExifDir < process_EXIF < ReadJpegSections",
+              "oracle_passed": null,
+              "flaky": false
+            },
+            "patch-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 1,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": null,
+              "flaky": false
+            },
+            "patch-sanitized": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 1,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": null,
+              "flaky": false
+            }
+          },
+          "on_patch": "blocked"
+        },
+        {
+          "test": "reg-exploit_datetime_original-02f8f7b0",
+          "kind": "regression",
+          "results": {
+            "base-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 1,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": null,
+              "flaky": false
+            },
+            "base-sanitized": {
+              "outcome": "CRASH",
+              "detection": "ASAN",
+              "signal": "SIGABRT",
+              "exit_code": null,
+              "error_type": "HEAP_BUFFER_OVERFLOW",
+              "signature": "HEAP_BUFFER_OVERFLOW @ ProcessExifDir < process_EXIF < ReadJpegSections",
+              "oracle_passed": null,
+              "flaky": false
+            },
+            "patch-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 1,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": null,
+              "flaky": false
+            },
+            "patch-sanitized": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 1,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": null,
+              "flaky": false
+            }
+          },
+          "on_patch": "blocked"
         }
       ],
       "signature": "HEAP_BUFFER_OVERFLOW @ ProcessExifDir < process_EXIF < ReadJpegSections",
       "error_type": "HEAP_BUFFER_OVERFLOW",
       "release": {
-        "base": "NORMAL exit 0",
-        "patch": "NORMAL exit 0"
+        "base": "NORMAL exit 0 (exploit_datetime_original, exploit_datetime); NORMAL exit 1 (reg-exploit_datetime-95bef140, reg-exploit_datetime_original-02f8f7b0)",
+        "patch": "NORMAL exit 0 (exploit_datetime_original, exploit_datetime); NORMAL exit 1 (reg-exploit_datetime-95bef140, reg-exploit_datetime_original-02f8f7b0)"
       },
       "sanitized": {
         "base": "CRASH ASAN SIGABRT",
-        "patch": "NORMAL exit 0"
+        "patch": "NORMAL exit 0 (exploit_datetime_original, exploit_datetime); NORMAL exit 1 (reg-exploit_datetime-95bef140, reg-exploit_datetime_original-02f8f7b0)"
       },
       "link": {
         "level": "IN_CHANGED_HUNK",
@@ -2543,27 +2753,31 @@
         "executed_changed_lines": null,
         "comparative_tests": [
           "exploit_datetime_original",
-          "exploit_datetime"
+          "exploit_datetime",
+          "reg-exploit_datetime-95bef140",
+          "reg-exploit_datetime_original-02f8f7b0"
         ],
-        "explanation": "Frame #1 ProcessExifDir (src/exif.c:638) of the crash on base lies inside hunk @@ -634,16 +634,16 @@. exploit_datetime_original and exploit_datetime crash on base and not on patch."
+        "explanation": "Frame #1 ProcessExifDir (src/exif.c:638) of the crash on base lies inside hunk @@ -634,16 +634,16 @@. exploit_datetime_original, exploit_datetime, reg-exploit_datetime-95bef140 and reg-exploit_datetime_original-02f8f7b0 crash on base and not on patch."
       },
       "evidence": [
         "runs/exploit_datetime_original/",
-        "runs/exploit_datetime/"
+        "runs/exploit_datetime/",
+        "runs/reg-exploit_datetime-95bef140/",
+        "runs/reg-exploit_datetime_original-02f8f7b0/"
       ],
       "reproducer": "reproducers/F-007/",
-      "regression_test": "regression/reg-exploit_datetime_original-02f8f7b0.yaml",
-      "notes": "HEAP_BUFFER_OVERFLOW @ ProcessExifDir (src/exif.c) occurs on base with exploit_datetime_original, exploit_datetime and on patch with none of them."
+      "regression_test": null,
+      "notes": "HEAP_BUFFER_OVERFLOW @ ProcessExifDir (src/exif.c) occurs on base with exploit_datetime_original, exploit_datetime, reg-exploit_datetime-95bef140, reg-exploit_datetime_original-02f8f7b0 and on patch with none of them."
     }
   ],
   "regression_added": [
     {
       "name": "reg-exploit_datetime_original-02f8f7b0",
       "from_finding": "F-007",
-      "path": "regression/reg-exploit_datetime_original-02f8f7b0.yaml",
+      "path": "/workspace/targets/jhead/tests/regression/reg-exploit_datetime_original-02f8f7b0.yaml",
       "input_sha256": "02f8f7b08b78727d240a6bc8dce624181337713cd8ebeec29968347ab7aa8e59",
-      "status": "added",
-      "promoted_to": null
+      "status": "already_present",
+      "promoted_to": "/workspace/targets/jhead/tests/regression"
     }
   ],
   "status": {

@@ -8,14 +8,14 @@
     "HOME": "/tmp",
     "LANG": "C"
   },
-  "cwd": "/tmp/run_matrix/jhead/incomplete/jhead/20261114-093448-279059a3/work/patch-sanitized",
+  "cwd": "/workspace/out/run_matrix/jhead/incomplete/jhead/20261114-204740-279059a3/work/patch-sanitized",
   "exit_code": 0,
-  "duration_s": 2.0778,
+  "duration_s": 1.676,
   "log": "builds/patch-sanitized/build.log",
   "binary": {
     "path": "builds/patch-sanitized/bin/jhead",
-    "size": 1898776,
-    "sha256": "fdc841af1b8b403ac7e9749482d920296aa748b8010c723d93286c6e357d57f4"
+    "size": 1898800,
+    "sha256": "26a448814f6b16c164f7657b05a0767852083fefa3a3898190b240c03db5f0ed"
   },
   "sanitizers_verified": true,
   "has_debug_info": true

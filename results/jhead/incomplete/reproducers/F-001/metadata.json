@@ -6,10 +6,15 @@
   "version": "patch",
   "build": "patch-sanitized",
   "git_commit": null,
-  "tree_sha256": "0928cc81a6c22ce462e1d7818acaff02c455d07ed56151681f0a4ba7ca7019a1",
+  "git_dirty": null,
+  "tree_sha256": "e6ee81aeb2f629e6d15d50b77f0d4a92bb7a34ba32cefb65fbbf73bd0dead7c7",
+  "upstream": {
+    "repo": "https://github.com/Matthias-Wandel/jhead",
+    "commit": "56c108f1a0653b3a3c98960f66c2de5a9a67e5de"
+  },
   "diff_sha256": "279059a3e932d8cead10d38b62bbb994adf3edf19198706fd52c031f764d5b81",
   "binary": "bin/jhead",
-  "binary_sha256": "fdc841af1b8b403ac7e9749482d920296aa748b8010c723d93286c6e357d57f4",
+  "binary_sha256": "26a448814f6b16c164f7657b05a0767852083fefa3a3898190b240c03db5f0ed",
   "build_settings": {
     "cmd": "make sanitized",
     "env": {
@@ -29,7 +34,7 @@
     "ASAN_SYMBOLIZER_PATH": "/usr/bin/llvm-symbolizer"
   },
   "cmd": [
-    "/tmp/run_matrix/jhead/incomplete/jhead/20261114-093448-279059a3/builds/patch-sanitized/bin/jhead",
+    "/workspace/out/run_matrix/jhead/incomplete/jhead/20261114-204740-279059a3/builds/patch-sanitized/bin/jhead",
     "input.jpg"
   ],
   "bundle_cmd": [

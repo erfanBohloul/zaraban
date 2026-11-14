@@ -5,13 +5,13 @@
   "build": "patch-release",
   "repeat": 1,
   "cmd": [
-    "/tmp/run_matrix/jhead/correct/jhead/20261114-093436-3f9def97/builds/patch-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/correct/jhead/20261114-204728-3f9def97/builds/patch-release/bin/jhead",
     "input.jpg"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-is7v5z81",
+  "cwd": "/tmp/zaraban-run-dvbgneoi",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -22,11 +22,11 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.003,
+  "duration_s": 0.0032,
   "stdout": {
     "path": "runs/valid_sony_model/patch-release/1.stdout",
     "bytes": 422,
-    "sha256": "c79279c1f0922fa7017d3b6253b186f6ebbe7e49851dded8eac883977d6772a6",
+    "sha256": "270a099df709c7bfcc9e2a8108cfb4d8ec06b77affc41737f2cb0312086248f9",
     "truncated": false
   },
   "stderr": {

@@ -5,13 +5,13 @@
   "build": "base-release",
   "repeat": 3,
   "cmd": [
-    "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/builds/base-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/regression/jhead/20261114-204751-8b5ba02a/builds/base-release/bin/jhead",
     "input.jpg"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-11yfg9qu",
+  "cwd": "/tmp/zaraban-run-8ia2pswj",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -22,11 +22,11 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0026,
+  "duration_s": 0.003,
   "stdout": {
     "path": "runs/valid_canon_g2_model/base-release/3.stdout",
     "bytes": 460,
-    "sha256": "8dbe3c9b9465ad1ebf3d327e0b6cc347ea44b01ccc51180400b3204f6ff4b7d7",
+    "sha256": "47cb5e8087d1dc904129ca4df0ada46d8ecfc7200b83b2fcd102c84cfd2ea89c",
     "truncated": false
   },
   "stderr": {

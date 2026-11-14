@@ -5,13 +5,13 @@
   "build": "base-release",
   "repeat": 1,
   "cmd": [
-    "/tmp/run_matrix/jhead/correct/jhead/20261114-093436-3f9def97/builds/base-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/correct/jhead/20261114-204728-3f9def97/builds/base-release/bin/jhead",
     "input.jpg"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-r4vl24h_",
+  "cwd": "/tmp/zaraban-run-ua3sec88",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -22,11 +22,11 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.003,
+  "duration_s": 0.0043,
   "stdout": {
     "path": "runs/valid_hp_model/base-release/1.stdout",
     "bytes": 398,
-    "sha256": "d5e03f4462a6d24708ec222024f7450c1a6bcce22eef88f3a9fa5ec7a8d9c38e",
+    "sha256": "f56e3e72d690a00d52dc14b83cf93714e101e3a6d4e06d8e0b7f9a8f5b8d3b8f",
     "truncated": false
   },
   "stderr": {
