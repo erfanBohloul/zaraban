@@ -1,7 +1,7 @@
-"""Oracle matching (SPEC §5.4).
+"""Oracle matching.
 
 Compares a run with the test's expected exit code and standard output.
-Standard error is not compared; it is used only for crash analysis (§7.4).
+Standard error is not compared; it is used only for crash analysis.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from .models import OracleResult, Outcome, OutputMatch, TestCase
 
 
 def match(test: TestCase, outcome: Outcome, exit_code: Optional[int], stdout: bytes) -> OracleResult:
-    """Judge one run against the test's oracle fields (§5.4).
+    """Judge one run against the test's oracle fields.
 
     A run that did not end normally never matches. ``expected_output`` is
     compared as UTF-8 bytes: anywhere in stdout for ``contains``, byte for

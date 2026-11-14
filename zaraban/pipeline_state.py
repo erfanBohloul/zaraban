@@ -3,9 +3,9 @@
 The pipeline connects the modules into one run. The run is split in two
 halves that are developed and tested independently:
 
-* **build & execute** (stages 2–5): the four builds, hardening, and the
+* **build & execute**: the four builds, hardening, and the
   execution matrix — fills the second group of fields here;
-* **analyze & report** (stages 6–11): diff, findings, links, reproducers,
+* **analyze & report**: diff, findings, links, reproducers,
   regression, status and the report — reads them and fills the third group.
 
 :class:`RunContext` is the *only* thing they exchange. It is a plain data
