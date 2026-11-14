@@ -248,9 +248,9 @@ def test_4_config_path_is_a_directory(tmp_path):
 
 def test_4_delivered_sample_config_loads():
     root = Path(__file__).resolve().parent.parent
-    target, _ = Target.load(root / "targets" / "target1_sample" / "zaraban.yaml")
+    target, _ = Target.load(root / "targets" / "test_token_parser" / "zaraban.yaml")
     assert target.name == "token_parser"
-    assert target.base_dir == (root / "targets" / "target1_sample").resolve()
+    assert target.base_dir == (root / "targets" / "test_token_parser").resolve()
 
 
 # --- Messages a first-time user can act on -----------------------------------

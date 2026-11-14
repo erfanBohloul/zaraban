@@ -21,7 +21,7 @@ The tool never reads ``scenarios.yaml``; only this script does.
 Usage::
 
     python3 scripts/run_matrix.py                    # every target
-    python3 scripts/run_matrix.py target1_sample     # some targets
+    python3 scripts/run_matrix.py test_token_parser     # some targets
     python3 scripts/run_matrix.py --save             # also write results/
 """
 
@@ -70,7 +70,7 @@ class Outcome:
     def line(self) -> str:
         s = self.scenario
         code = "-" if self.exit_code is None else str(self.exit_code)
-        return (f"{s.target + '/' + s.name:<28}exit {code:<3}(expected {s.expect_exit:<2})  "
+        return (f"{s.target + '/' + s.name:<31} exit {code:<3}(expected {s.expect_exit:<2})  "
                 f"findings {'ok ' if self.findings_ok else 'BAD'}  "
                 f"{'PASS' if self.matched else 'FAIL'}")
 

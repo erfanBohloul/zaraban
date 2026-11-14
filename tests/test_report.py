@@ -52,8 +52,8 @@ REPORT_KEYS = ["schema_version", "tool", "run_id", "started_at", "duration_s", "
 # -- fixtures ----------------------------------------------------------------
 
 def _versions() -> dict:
-    base = VersionInfo("directory", "targets/target1_sample", "c76e9ca", "0" * 64)
-    patch = VersionInfo("diff", "targets/target1_sample/patches/incomplete.patch", "c76e9ca",
+    base = VersionInfo("directory", "targets/test_token_parser", "c76e9ca", "0" * 64)
+    patch = VersionInfo("diff", "targets/test_token_parser/patches/incomplete.patch", "c76e9ca",
                         "1" * 64, strip_level=2)
     diff = DiffInfo(path="inputs/patch.diff", sha256="2" * 64, files=["src/main.c"], hunks=1)
     return {"base": base, "patch": patch, "diff": diff}
@@ -197,8 +197,8 @@ def test_12_5_summary_matches_the_spec_layout(tmp_path):
                                     "out/token_parser/20261111-183002-3f2a91c0/report.json")
     assert text == (
         "ZARABAN 0.2.0  token_parser  run 20261111-183002-3f2a91c0\n"
-        "base:  targets/target1_sample (directory)\n"
-        "patch: targets/target1_sample/patches/incomplete.patch (diff, -p2)\n"
+        "base:  targets/test_token_parser (directory)\n"
+        "patch: targets/test_token_parser/patches/incomplete.patch (diff, -p2)\n"
         "\n"
         "BUILDS     base-release ok · base-sanitized ok · patch-release ok · patch-sanitized ok\n"
         "HARDENING  NX on→on · PIE on→on · RELRO full→full · canary on→on   (no changes)\n"

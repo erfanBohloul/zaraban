@@ -30,7 +30,7 @@ from zaraban.models import (
 from zaraban.runner import RunSettings, combine, output_warnings, run_once, run_test
 
 REPO = Path(__file__).resolve().parents[1]
-TARGET = REPO / "targets" / "target1_sample"
+TARGET = REPO / "targets" / "test_token_parser"
 REL, SAN = BuildName.PATCH_RELEASE, BuildName.PATCH_SANITIZED
 
 PROGRAMS = {

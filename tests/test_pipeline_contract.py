@@ -19,14 +19,14 @@ from zaraban.config import Target
 from zaraban.models import ErrorCode, Issue, ZarabanError
 from zaraban.pipeline_state import RunContext
 
-TARGET1 = Path("targets/target1_sample/zaraban.yaml")
-PATCH_CORRECT = Path("targets/target1_sample/patches/correct.patch")
+TEST_TARGET = Path("targets/test_token_parser/zaraban.yaml")
+PATCH_CORRECT = Path("targets/test_token_parser/patches/correct.patch")
 RUN_ID = re.compile(r"^\d{8}-\d{6}-[0-9a-f]{8}$")
 
 
 @pytest.fixture
 def target():
-    t, _ = Target.load(TARGET1)
+    t, _ = Target.load(TEST_TARGET)
     return t
 
 
@@ -72,7 +72,7 @@ def test_12_1_each_run_gets_its_own_directory_with_inputs(tmp_path, target):
     assert ctx.work_dir == run_dir / "work"
     assert ctx.sources.base_tree == run_dir / "work" / "base"  # moved with the work dir
     assert ctx.sources.base_tree.is_dir()
-    assert (run_dir / "inputs" / "config.yaml").read_bytes() == TARGET1.read_bytes()
+    assert (run_dir / "inputs" / "config.yaml").read_bytes() == TEST_TARGET.read_bytes()
     assert (run_dir / "inputs" / "patch.diff").read_bytes() == PATCH_CORRECT.read_bytes()
     assert ctx.sources.diff.path == "inputs/patch.diff"  # relative to the run dir (§12.2)
     # No temporary work directory is left next to the runs.
