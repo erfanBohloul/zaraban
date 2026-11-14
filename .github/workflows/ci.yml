@@ -39,7 +39,7 @@ jobs:
 
       - name: Run the token_parser scenarios
         run: |
-          docker compose run --rm -T zaraban python3 scripts/run_matrix.py target1_sample --out /tmp/run_matrix
+          docker compose run --rm -T zaraban python3 scripts/run_matrix.py test_token_parser --out /tmp/run_matrix
 
       - name: Run the cjson and jhead scenarios
         run: |

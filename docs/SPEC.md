@@ -117,7 +117,7 @@ Rules for diff files:
 - The diff is applied strictly (`git apply` with no fuzz). If it does not apply
   cleanly, the run stops with exit code `30`.
 - The path prefix depth differs between tools (for example `a/src/main.c`
-  versus `targets/target1_sample/src/main.c`). The tool tries strip levels
+  versus `targets/test_token_parser/src/main.c`). The tool tries strip levels
   `-p0` to `-p4` with `git apply --check` and uses the level that changes or
   deletes files existing in the base. If two levels would patch different
   existing files, the diff is ambiguous and the run stops with exit code `30`
@@ -165,8 +165,8 @@ verdict comes only from building and running the code (§4 of the spec).
 Validate a delivered scenario, giving the patch as a diff file:
 
 ```bash
-python -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
-  --patch targets/target1_sample/patches/incomplete.patch
+python -m zaraban.cli -c targets/test_token_parser/zaraban.yaml \
+  --patch targets/test_token_parser/patches/incomplete.patch
 ```
 
 The same scenario, giving the patch as a full directory. The result must be
@@ -175,8 +175,8 @@ its own Makefile. On `main` today, `versions/patch_*` contain only `src/`;
 see §14.2.)
 
 ```bash
-python -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
-  --patch targets/target1_sample/versions/patch_incomplete
+python -m zaraban.cli -c targets/test_token_parser/zaraban.yaml \
+  --patch targets/test_token_parser/versions/patch_incomplete
 ```
 
 Check a config after editing it, without building anything:
@@ -1386,8 +1386,8 @@ tests that never ran (the sources or a build failed) show `not run`.
 
 ```
 ZARABAN 0.2.0  token_parser  run 20261111-183002-3f2a91c0
-base:  targets/target1_sample (directory)
-patch: targets/target1_sample/patches/incomplete.patch (diff, -p2)
+base:  targets/test_token_parser (directory)
+patch: targets/test_token_parser/patches/incomplete.patch (diff, -p2)
 
 BUILDS     base-release ok · base-sanitized ok · patch-release ok · patch-sanitized ok
 HARDENING  NX on→on · PIE on→on · RELRO full→full · canary on→on   (no changes)
@@ -1568,7 +1568,7 @@ Correct patch of each is the upstream fix:
 
 The Incomplete and Regression patches are written by the team, and the
 `ORACLE.md` of each target says how. The reproduction of each CVE is recorded
-in `docs/repro/`. `token_parser` (`targets/target1_sample`) is written by the
+in `docs/repro/`. `token_parser` (`targets/test_token_parser`) is written by the
 team, so it is a development fixture for the tool's own tests, and is not one
 of the two delivered targets.
 

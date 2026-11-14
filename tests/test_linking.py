@@ -15,7 +15,7 @@ from zaraban.models import (BUILD_ORDER, BuildName, Category, Frame, Hunk, LinkL
 from zaraban.linking import (comparative_tests, link_crash, link_findings, link_side,
                              locate)
 
-TARGET = Path(__file__).resolve().parent.parent / "targets" / "target1_sample"
+TARGET = Path(__file__).resolve().parent.parent / "targets" / "test_token_parser"
 TOKEN_STACK = frames(("handle_set_command", "src/main.c", 37),
                      ("process_input", "src/main.c", 60),
                      ("main", "src/main.c", 80))
