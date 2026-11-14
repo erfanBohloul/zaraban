@@ -22,15 +22,15 @@ docker compose build
 
 # Validate a patch given as a diff file
 docker compose run --rm zaraban \
-  python -m zaraban.cli -c targets/<target>/zaraban.yaml \
+  python3 -m zaraban.cli -c targets/<target>/zaraban.yaml \
   --patch targets/<target>/patches/incomplete.patch
 
 # Only check a config file, without building anything
 docker compose run --rm zaraban \
-  python -m zaraban.cli -c targets/<target>/zaraban.yaml --check-config
+  python3 -m zaraban.cli -c targets/<target>/zaraban.yaml --check-config
 
 # Run every delivered scenario and compare with the expected results
-docker compose run --rm zaraban python scripts/run_matrix.py
+docker compose run --rm zaraban python3 scripts/run_matrix.py
 ```
 
 Outputs go to `out/<target>/<run id>/`: `summary.txt`, `report.json`, raw
@@ -57,17 +57,17 @@ Run the validation engine on a target by providing its configuration file and a 
 ```bash
 # Validate the correct patch (Expected: Exit 0 / PASS)
 docker compose run --rm zaraban \
-  python -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
+  python3 -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
   --patch targets/target1_sample/patches/correct.patch
 
 # Validate an incomplete patch (Expected: Exit 10 / VULN_REMAINS)
 docker compose run --rm zaraban \
-  python -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
+  python3 -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
   --patch targets/target1_sample/patches/incomplete.patch
 
 # Validate a behavior-breaking patch (Expected: Exit 20 / FUNC_REGRESSION)
 docker compose run --rm zaraban \
-  python -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
+  python3 -m zaraban.cli -c targets/target1_sample/zaraban.yaml \
   --patch targets/target1_sample/patches/regression.patch
 ```
 
@@ -184,7 +184,7 @@ Run the tool on one patch at a time and read the exit code it returns. Using
 ```bash
 # correct fix -> the bug is gone, nothing else breaks -> exit 0 (PASS)
 docker compose run --rm zaraban \
-  python -m zaraban.cli -c targets/demo_stack_overflow/zaraban.yaml \
+  python3 -m zaraban.cli -c targets/demo_stack_overflow/zaraban.yaml \
   --patch targets/demo_stack_overflow/patches/correct.patch
 echo "exit code: $?"
 ```
@@ -192,7 +192,7 @@ echo "exit code: $?"
 ```bash
 # incomplete fix -> the exploit still crashes -> exit 10 (VULN_REMAINS)
 docker compose run --rm zaraban \
-  python -m zaraban.cli -c targets/demo_stack_overflow/zaraban.yaml \
+  python3 -m zaraban.cli -c targets/demo_stack_overflow/zaraban.yaml \
   --patch targets/demo_stack_overflow/patches/incomplete.patch
 echo "exit code: $?"
 ```
@@ -200,7 +200,7 @@ echo "exit code: $?"
 ```bash
 # regression -> the bug is fixed but a valid test now fails -> exit 20 (FUNC_REGRESSION)
 docker compose run --rm zaraban \
-  python -m zaraban.cli -c targets/demo_stack_overflow/zaraban.yaml \
+  python3 -m zaraban.cli -c targets/demo_stack_overflow/zaraban.yaml \
   --patch targets/demo_stack_overflow/patches/regression.patch
 echo "exit code: $?"
 ```
@@ -230,10 +230,10 @@ the scenario expects. Give it one or more target names, or none for all:
 
 ```bash
 # one target, all three of its scenarios
-docker compose run --rm zaraban python scripts/run_matrix.py demo_stack_overflow
+docker compose run --rm zaraban python3 scripts/run_matrix.py demo_stack_overflow
 
 # all four demo targets at once
-docker compose run --rm zaraban python scripts/run_matrix.py \
+docker compose run --rm zaraban python3 scripts/run_matrix.py \
   demo_stack_overflow demo_heap_overread demo_divzero demo_null_deref
 ```
 
