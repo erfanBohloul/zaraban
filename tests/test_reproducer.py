@@ -390,7 +390,7 @@ def asan_binary(tmp_path_factory):
     subprocess.run(["clang", "-O0", "-g", "-fsanitize=address", "-o", str(d / "prog"),
                     str(d / "prog.c")], check=True)
     # On hosts with vm.mmap_rnd_bits=32, clang 14's ASan itself sometimes dies
-    # with SIGSEGV before reporting (docs/Issues/002). Replays there are
+    # with SIGSEGV before reporting (README, "Troubleshooting"). Replays there are
     # rightly unstable, so these tests can only run on a fixed host.
     (d / "input.txt").write_bytes(b"BUG")
     for _ in range(10):
@@ -399,12 +399,12 @@ def asan_binary(tmp_path_factory):
                                 "ASAN_OPTIONS": "abort_on_error=1:detect_leaks=0"})
         if b"ERROR: AddressSanitizer" not in p.stderr:
             pytest.skip("ASan is unreliable on this host (vm.mmap_rnd_bits=32, "
-                        "see docs/Issues/002-asan-stack-overflow-segfault.md)")
+                        "see the README, Troubleshooting)")
     return d / "prog"
 
 
 def real_run(binary: Path, env: dict):
-    """A tiny stand-in for Member B's runner and analysis (§5.3, §7.4)."""
+    """A tiny stand-in for the runner and analysis (§5.3, §7.4)."""
     def run(data: bytes) -> RunOutcome:
         with tempfile.TemporaryDirectory() as cwd:
             Path(cwd, "input.txt").write_bytes(data)

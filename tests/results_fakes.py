@@ -1,4 +1,4 @@
-"""Fake run results for the findings and linking tests (Member C).
+"""Fake run results for the findings and linking tests.
 
 Builds ``Results`` (``results[test][build] -> CombinedResult``) from short
 descriptions, so a test can state a scenario as a table:

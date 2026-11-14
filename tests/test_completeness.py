@@ -1,4 +1,4 @@
-"""Unit tests for the completeness check (SPEC §8.7, Task 2.4)."""
+"""Unit tests for the completeness check (SPEC §8.7)."""
 
 import copy
 

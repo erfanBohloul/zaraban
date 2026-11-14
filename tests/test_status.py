@@ -1,7 +1,7 @@
 """Unit tests for the status/exit-code logic (SPEC §13).
 
 These build Finding and Checks objects by hand (the frozen models.py types),
-so Member D can test the verdict logic without Member B or C finished.
+so the verdict logic is tested without running anything.
 """
 
 from zaraban.models import (

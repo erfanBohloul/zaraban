@@ -1,4 +1,4 @@
-"""Task 2.3: the build & execute stage runs the regression tests of earlier runs."""
+"""The build & execute stage runs the regression tests of earlier runs."""
 
 from pathlib import Path
 from types import SimpleNamespace
