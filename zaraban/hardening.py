@@ -1,12 +1,12 @@
-"""Binary hardening checker (SPEC §11).
+"""Binary hardening checker.
 
 Checks NX, PIE, RELRO and the stack canary on the two **release** binaries,
 records the evidence for each, and warns when a protection is weaker on patch
 than on base (for example because the patch changed the build script). The
 sanitized builds are never checked: they are instrumented and do not represent
-the delivered program (§11.1).
+the delivered program.
 
-Hardening never changes the exit code (§11.3): a downgrade is the warning
+Hardening never changes the exit code: a downgrade is the warning
 ``HARDENING_DOWNGRADE`` only.
 """
 
@@ -26,12 +26,12 @@ from .models import (
     WarningCode,
 )
 
-# Strength order for the comparison (§11.3). Higher index = stronger.
+# Strength order for the comparison. Higher index = stronger.
 _RELRO_ORDER = {Relro.NONE: 0, Relro.PARTIAL: 1, Relro.FULL: 2}
 
 
 def check(binary: str | Path) -> HardeningResult:
-    """Read the four protections of one release binary, with evidence (§11.2)."""
+    """Read the four protections of one release binary, with evidence."""
     elf = ElfView.load(binary)
     return HardeningResult(
         nx=_nx(elf),
@@ -42,7 +42,7 @@ def check(binary: str | Path) -> HardeningResult:
 
 
 def report(base_binary: str | Path, patch_binary: str | Path) -> tuple[HardeningReport, list[Issue]]:
-    """Check both release binaries and compare them (§11.2, §11.3).
+    """Check both release binaries and compare them.
 
     Returns the report and any ``HARDENING_DOWNGRADE`` warnings. Improvements
     and unchanged protections produce no warning.
@@ -54,7 +54,7 @@ def report(base_binary: str | Path, patch_binary: str | Path) -> tuple[Hardening
 
 
 # ---------------------------------------------------------------------------
-# One protection each (§11.2)
+# One protection each
 # ---------------------------------------------------------------------------
 
 
@@ -116,7 +116,7 @@ def _canary(elf: ElfView) -> ProtectionResult:
 
 
 # ---------------------------------------------------------------------------
-# Comparison (§11.3)
+# Comparison
 # ---------------------------------------------------------------------------
 
 

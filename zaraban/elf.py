@@ -1,10 +1,10 @@
-"""Read-only ELF inspection shared by the build profile check (§6.3) and the
-hardening checker (§11).
+"""Read-only ELF inspection shared by the build profile check and the
+hardening checker.
 
 Both read the same file: its header, program headers, dynamic section and
 symbol tables. :class:`ElfView` parses the file once with ``pyelftools`` and
 exposes exactly the facts those two modules need, so there is one ELF parser
-in the tool, not two (SPEC §11.4 change from current code).
+in the tool, not two.
 """
 
 from __future__ import annotations
@@ -37,7 +37,8 @@ class ElfView:
     """The facts the tool needs about one ELF file, read once.
 
     Build it with :meth:`load`. Everything here comes straight from the file;
-    no judgement about profiles or hardening is made (that is §6.3 and §11).
+    no judgement about profiles or hardening is made (that is builder.py and
+    hardening.py).
     """
 
     path: Path
@@ -69,7 +70,7 @@ class ElfView:
     @property
     def is_x86_64_exec(self) -> bool:
         """True for an x86-64 ELF executable, PIE or not; false for a shared
-        library or an object file (§6.2 step 4)."""
+        library or an object file."""
         return (self.is_elf and self.machine == "EM_X86_64"
                 and (self.e_type == "ET_EXEC" or self.is_pie))
 
