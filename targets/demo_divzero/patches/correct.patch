@@ -1,0 +1,16 @@
+diff --git a/src/main.c b/src/main.c
+index a39b75f..5f52df8 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -16,7 +16,10 @@ int main(int argc, char **argv)
+     }
+     fclose(f);
+ 
+-    /* BUG: no check that b is non-zero. */
++    if (b == 0) {                        /* FIX: reject a zero divisor */
++        fprintf(stderr, "division by zero\n");
++        return 1;
++    }
+     printf("result=%ld\n", a / b);
+     return 0;
+ }
