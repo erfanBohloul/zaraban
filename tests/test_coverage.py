@@ -1,4 +1,4 @@
-"""Unit tests for the execution trace (SPEC §9.4, Phase 2 Task 2.2).
+"""Unit tests for the execution trace (SPEC §9.4).
 
 The three heavy steps (build, run, export) are injected, so nothing here needs
 clang or LLVM: the parsing and the changed-line intersection are tested with a

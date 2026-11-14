@@ -170,3 +170,46 @@ machine-readable form), confirmed by running it:
 - **Regression**: the six `*_datetime` tests (five valid, one boundary) match
   on base and fail on patch, so six `FUNCTIONAL_REGRESSION` findings, and the
   exploits give `FIXED`. Exit `20`.
+
+## Reproducing by hand
+
+Inside the container (`docker compose run --rm zaraban bash`), build the
+sanitized base in a scratch copy and run an exploit:
+
+```bash
+cp -r targets/jhead /tmp/jhead && cd /tmp/jhead
+make sanitized
+./jhead tests/exploits/exploit_datetime_original.jpg
+./jhead tests/exploits/exploit_datetime.jpg
+```
+
+Each aborts with `AddressSanitizer: heap-buffer-overflow` (`READ`) in
+`ProcessExifDir`, in the `strncpy` of the DateTime value
+(`src/exif.c:638` and `src/exif.c:646`). The upstream fix `df124a4` makes
+both inputs exit `0`.
+
+The saved bundle of the incomplete scenario replays the remaining bug on the
+patched binary, on its own (exit `0` means reproduced):
+
+```bash
+bash results/jhead/incomplete/reproducers/F-001/reproduce.sh
+```
+
+## With the variant step
+
+The delivered scenarios run without `--variants`, and their verdicts above
+assume that. With `--variants`, mutations of `exploit_datetime_original`
+also reach two **older jhead bugs** on every patched version:
+
+- a heap over-read in `process_DQT` (`src/jpgqguess.c`), and
+- undefined behavior (a shift) in `Get32s` (`src/exif.c`).
+
+On base the same inputs stop earlier, at the DateTime over-read, so the tool
+reports these bugs as `NEW_ISSUE` and every jhead patch gives exit `10`.
+They are not caused by the patches: after minimization, the `process_DQT`
+input also crashes base in `process_DQT`, which the tool notes as
+`REGRESSION_NOT_ADDED` ("expected to give no crash on base"). Exit `10` is
+still correct, because the patched program has a confirmed memory error,
+but it differs from the delivered verdicts. This is why the step is off by
+default.
+

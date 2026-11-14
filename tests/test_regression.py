@@ -166,7 +166,7 @@ def test_10_6_different_inputs_for_the_same_error_are_both_kept(tmp_path):
     assert len(yamls) == 2
 
 
-# -- loading in later runs (Task 2.3, §10.6) ---------------------------------
+# -- loading in later runs (§10.6) ---------------------------------
 
 import pytest  # noqa: E402
 

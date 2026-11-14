@@ -1,4 +1,4 @@
-"""Unit tests for the shared pipeline state (Phase 2 step 0).
+"""Unit tests for the shared pipeline state.
 
 RunContext is a plain data container, so these build it directly — no pipeline
 or stages needed, which keeps these tests independent of the stages.

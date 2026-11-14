@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v4
 
       # ASan needs fewer ASLR bits than recent kernels use, or sanitized
-      # binaries crash at start-up at random (docs/Issues/002).
+      # binaries crash at start-up at random (README, "Troubleshooting").
       - name: Configure ASan kernel parameter
         run: sudo sysctl -w vm.mmap_rnd_bits=28
 

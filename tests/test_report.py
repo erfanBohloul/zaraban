@@ -1,7 +1,7 @@
 """Unit tests for the report writer (SPEC §12).
 
 Everything the report needs is built by hand from the frozen models.py types,
-so this runs without Member B or C finished. The fake run is the
+so this runs without building or running anything. The fake run is the
 ``incomplete.patch`` scenario of the §12.5 example.
 """
 
