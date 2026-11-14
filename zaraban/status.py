@@ -1,16 +1,15 @@
-"""Decide the run's outcome: conditions and the final exit code (SPEC §13).
+"""Decide the run's outcome: conditions and the final exit code.
 
-This is the tool's verdict. It takes the findings (Member C, §8), the errors
-of the run (§12.6) and the required checks (gathered by the pipeline, §13.2)
-and produces a :class:`~zaraban.models.Status`: the list of
+This is the tool's verdict. It takes the findings, the errors of the run and
+the required checks (gathered by the pipeline) and produces a :class:`~zaraban.models.Status`: the list of
 :class:`Condition` reasons, the single :class:`ExitCode`, and a one-line
 reason.
 
-Conditions (§13.3):
+Conditions:
 
 * ``BUILD_OR_CONFIG_ERROR`` (30): there is at least one error. A failed
   ``builds_ok``, ``profiles_verified``, ``all_runs_completed`` or
-  ``hardening_checked`` check is an error too (§13.2), so it raises this
+  ``hardening_checked`` check is an error too, so it raises this
   condition even if the pipeline forgot to record the error.
 * ``VULN_REMAINS`` / ``NEW_ISSUE`` (10), ``FUNC_REGRESSION`` (20),
   ``INCONCLUSIVE`` (40): one per finding category; ``FIXED`` raises nothing.
@@ -21,8 +20,8 @@ Conditions (§13.3):
   that the original error was reproduced and then removed.
 
 When several conditions hold, the first code in ``EXIT_PRIORITY`` wins
-(30 > 10 > 20 > 40 > 0, §13.1); between ``VULN_REMAINS`` and ``NEW_ISSUE``
-the name is ``VULN_REMAINS`` (§13.4). Every condition stays in the report.
+(30 > 10 > 20 > 40 > 0); between ``VULN_REMAINS`` and ``NEW_ISSUE``
+the name is ``VULN_REMAINS``. Every condition stays in the report.
 """
 
 from __future__ import annotations
@@ -50,7 +49,7 @@ _CATEGORY_CONDITION: dict[Category, ConditionName] = {
     Category.INCONCLUSIVE: ConditionName.INCONCLUSIVE,
 }
 
-# Required checks whose failure is an error, code 30 (§13.2).
+# Required checks whose failure is an error, code 30.
 _ERROR_CHECKS: tuple[tuple[str, str], ...] = (
     ("builds_ok", "a build failed"),
     ("profiles_verified", "a binary failed profile verification"),
@@ -58,10 +57,10 @@ _ERROR_CHECKS: tuple[tuple[str, str], ...] = (
     ("hardening_checked", "the release binaries were not inspected for hardening"),
 )
 
-# Required checks whose failure means INCONCLUSIVE, code 40 (§13.2).
+# Required checks whose failure means INCONCLUSIVE, code 40.
 # ``results_stable`` and ``bundles_replayed`` are normally covered by the
-# INCONCLUSIVE findings of §8.5 and §10.4; they are checked here as well so a
-# failed check can never end in PASS.
+# INCONCLUSIVE findings for flaky results and for bundles that do not replay;
+# they are checked here as well so a failed check can never end in PASS.
 _INCONCLUSIVE_CHECKS: tuple[tuple[str, str], ...] = (
     ("base_reproduced", "a security test did not crash on base-sanitized"),
     ("results_stable", "a result was flaky"),
@@ -85,7 +84,7 @@ def compute_status(
     errors: Optional[list[Issue]] = None,
     base_not_reproduced: Optional[list[str]] = None,
 ) -> Status:
-    """Turn findings, errors and checks into the run's :class:`Status` (§13).
+    """Turn findings, errors and checks into the run's :class:`Status`.
 
     ``base_not_reproduced`` names the security tests that did not crash on
     ``base-sanitized``; it is used for the reason of the ``base_reproduced``
@@ -107,7 +106,7 @@ def compute_status(
                 findings=fixed,
                 tests=unique(t for f in findings if f.id in fixed for t in f.test_names))]
         else:
-            # Cannot happen when base_reproduced succeeded (§13.3).
+            # Cannot happen when base_reproduced succeeded.
             conditions = [Condition(
                 ConditionName.INCONCLUSIVE,
                 "no FIXED finding: nothing shows the error was reproduced on base "

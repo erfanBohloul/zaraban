@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Zaraban environment check: verifies, inside the container, every tool and
-# behavior that Phases 1-4 rely on. Run it with:
+# behavior the pipeline relies on. Run it with:
 #
 #   docker compose run --rm zaraban bash scripts/verify_env.sh
 #
@@ -33,7 +33,7 @@ EOF
 LONG=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 
 # ---------------------------------------------------------------------------
-section "Phase 0: container basics"
+section "Container basics"
 [ "$(id -u)" != "0" ] && ok "runs as non-root user ($(whoami))" || bad "runs as non-root user" "running as root"
 [ "$(uname -m)" = "x86_64" ] && ok "architecture is x86_64" || bad "architecture is x86_64" "got $(uname -m)"
 python3 -c 'import sys; assert sys.version_info >= (3, 10)' && ok "python >= 3.10 ($(python3 -V 2>&1))" || bad "python >= 3.10"
@@ -43,7 +43,7 @@ else ok "no network access (isolated)"; fi
 [ -w /workspace ] && ok "/workspace is writable" || bad "/workspace is writable" "rebuild with UID=\$(id -u) GID=\$(id -g) docker compose build"
 [ "$(ulimit -c)" = "0" ] && ok "core dumps disabled" || warn "core dumps disabled" "ulimit -c is $(ulimit -c)"
 
-section "Phase 0: tools"
+section "Tools"
 for t in gcc g++ clang make git cmake ctags llvm-symbolizer llvm-cov llvm-profdata gdb readelf checksec file; do
   command -v "$t" >/dev/null && ok "$t found" || bad "$t found"
 done
@@ -52,7 +52,7 @@ check "python packages import (yaml pydantic elftools unidiff rich pytest)" \
   python3 -c 'import yaml, pydantic, elftools, unidiff, rich, pytest; assert pydantic.VERSION.startswith("2")'
 
 # ---------------------------------------------------------------------------
-section "Phase 1 (A): builds and hardening"
+section "Builds and hardening"
 check "release build with hardening flags (gcc)" \
   gcc -O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -Wl,-z,relro,-z,now ovf.c -o rel
 check "sanitized build (clang ASan+UBSan)" \
@@ -86,7 +86,7 @@ check "git apply with strip-level detection" bash -c '
   grep -q "x = 2" src/m.c'
 
 # ---------------------------------------------------------------------------
-section "Phase 1 (B): running and crash detection"
+section "Running and crash detection"
 out="$(./san "$LONG" 2>&1)"; rc=$?
 echo "$out" | grep -q "ERROR: AddressSanitizer: stack-buffer-overflow" && ok "ASan reports stack-buffer-overflow" || bad "ASan reports stack-buffer-overflow" "$(echo "$out" | head -3)"
 [ $rc -eq 134 ] && ok "ASan aborts with SIGABRT (abort_on_error=1)" || warn "ASan aborts with SIGABRT" "exit status $rc"
@@ -112,7 +112,7 @@ assert q.returncode in (-signal.SIGXCPU, -signal.SIGKILL), q.returncode
 EOF
 
 # ---------------------------------------------------------------------------
-section "Phase 1-2 (C): diff parsing, functions, execution trace"
+section "Diff parsing, changed functions, execution trace"
 check "unidiff parses hunks" python3 - <<'EOF'
 from unidiff import PatchSet
 d = """--- a/src/m.c\n+++ b/src/m.c\n@@ -1,3 +1,4 @@\n int a;\n-int b;\n+int b2;\n+int c;\n int d;\n"""
@@ -133,7 +133,7 @@ if timeout 20 gdb -q -batch -ex "break copy" -ex run -ex bt --args ./dbg hi 2>&1
 else warn "gdb can trace a program" "only needed if you use the gdb trace; check cap_add SYS_PTRACE"; fi
 
 # ---------------------------------------------------------------------------
-section "Phase 1 (D): minimization and bundles"
+section "Minimization and bundles"
 check "sha256sum and env -i available for reproduce.sh" bash -c 'sha256sum san >/dev/null && env -i PATH=/usr/bin:/bin ./rel hi >/dev/null'
 
 # ---------------------------------------------------------------------------

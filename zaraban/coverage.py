@@ -311,8 +311,8 @@ def build_coverage(version_tree: Path, coverage_cmd: str, dest: Path, binary_rel
 def run_for_profile(binary: Path, test: TestCase, spec: RunSpec, profraw: Path, run_dir: Path) -> bool:
     """Run the test once on the coverage binary with ``LLVM_PROFILE_FILE`` set.
 
-    The input, environment and limits are those of a normal release run
-   : the runner's environment and its timeout, CPU and memory
+    The input, environment and limits are those of a normal release run:
+    the runner's environment and its timeout, CPU and memory
     limits, with the whole process group killed at the end."""
     run_dir = Path(run_dir)
     if run_dir.exists():
