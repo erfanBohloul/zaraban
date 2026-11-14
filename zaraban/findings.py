@@ -480,7 +480,7 @@ def functional_findings(results: Results, tests: Optional[list[str]] = None) -> 
     - ``valid``, ``boundary``, ``invalid``: does not match the oracle on a
       base build -> ``INCONCLUSIVE`` (the test or its oracle is wrong);
       otherwise, does not match on a patch build -> ``FUNCTIONAL_REGRESSION``.
-    - ``security``, ``regression``: does not crash on a patch build but does
+    - ``security``, ``regression``, ``variant``: does not crash on a patch build but does
       not match the oracle there, or stops with ``TIMEOUT`` or
       ``RESOURCE_LIMIT`` -> ``INCONCLUSIVE``. Base is not judged: these
       tests are expected to crash there.
@@ -507,7 +507,7 @@ def _functional(results: Results, order: list[str]) -> Found:
                     Category.FUNCTIONAL_REGRESSION, per_build, None, None,
                     f"{test} matches its oracle on base but not on patch "
                     f"({_reasons(patch_bad)}).")))
-        elif patch_bad:  # security, regression
+        elif patch_bad:  # security, regression, variant
             if all(r.outcome is not Outcome.NORMAL for r in patch_bad):
                 why = "stops on patch without a crash"
                 tail = "not every stop is an exploitable vulnerability."
@@ -616,7 +616,7 @@ def build_findings(results: Results, tests: Optional[list[str]] = None) -> list[
     """Every finding of a run, numbered ``F-001``, ``F-002``, ....
 
     ``tests`` is the run order: tests in config order (valid,
-    boundary, invalid, security, regression). Findings are numbered in the
+    boundary, invalid, security, regression, variant). Findings are numbered in the
     order they are first observed in that order, test by test and, within a
     test, build by build. ``tests`` must name exactly the tests in
     ``results``, so that no result is left out.

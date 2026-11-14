@@ -81,6 +81,16 @@ class _LimitsSpec(_Strict):
     memory_limit_mb: int = Field(default=256, gt=0)
 
 
+class _VariantsSpec(_Strict):
+    """The optional variant step (variants.py). Off unless enabled here or
+    with --variants."""
+
+    enabled: bool = False
+    budget_runs: int = Field(default=200, ge=1)  # screening runs on patch-sanitized
+    seed: int = 1
+    max_tests: int = Field(default=5, ge=1)  # kept variants, each run like a test
+
+
 class _ConfigSpec(_Strict):
     name: Name
     base_dir: str = "."
@@ -95,6 +105,7 @@ class _ConfigSpec(_Strict):
     boundary_tests: list[_TestSpec] = Field(default_factory=list)
     invalid_tests: list[_TestSpec] = Field(default_factory=list)
     security_tests: list[_TestSpec] = Field(min_length=1)
+    variants: _VariantsSpec = Field(default_factory=_VariantsSpec)
 
 
 # ---------------------------------------------------------------------------
