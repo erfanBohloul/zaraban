@@ -9,12 +9,12 @@ refer to [`SPEC.md`](SPEC.md).
 
 ## Team
 
-| Member | Name | Role | Main parts | Testing |
-|---|---|---|---|---|
-| A | Amir Mohammad Hamidi (امیر محمد حمیدی) | Orchestrator, builds, hardening, CI | Phase 0 foundation; CLI, config, sources, builds, hardening; pipeline wiring; CI workflow | Phase 1 tests |
-| B | Ali Nouri (علی نوری) | Runner and crash analysis | runner, analysis, oracle; coverage trace; regression tests in later runs | Phase 3 tests; CI tests |
-| C | Fatemeh Shafiei (فاطمه شفیعی) | Findings and patch linking | diff info, findings, linking; completeness check; `run_matrix.py`; variant step | Phase 2 tests |
-| D | Erfan Bohloul (عرفان بهلول) | Reproducibility, reporting and real targets | initial setup; minimize, bundles, regression tests, status, report; cJSON and jhead targets | Final test of the project |
+| Name | Role | Main parts | Testing |
+|---|---|---|---|
+| Amir Mohammad Hamidi (امیر محمد حمیدی) | Orchestrator, builds, hardening, CI | Phase 0 foundation; CLI, config, sources, builds, hardening; pipeline wiring; CI workflow | Phase 1 tests |
+| Ali Nouri (علی نوری) | Runner and crash analysis | runner, analysis, oracle; coverage trace; regression tests in later runs | Phase 3 tests; CI tests |
+| Fatemeh Shafiei (فاطمه شفیعی) | Findings and patch linking | diff info, findings, linking; completeness check; `run_matrix.py`; variant step | Phase 2 tests |
+| Erfan Bohloul (عرفان بهلول) | Reproducibility, reporting and real targets | initial setup; minimize, bundles, regression tests, status, report; cJSON and jhead targets | Final test of the project |
 
 ## Summary by activity
 
@@ -142,35 +142,6 @@ verdict against the targets' oracles.
 module), PR #14 (`feat/target-template`, `targets/_template`), PR #16
 (`docs/cleanup`, the README as the run guide and `docs/OVERVIEW.md`), and the
 demo targets in `phase3-finish`.
-
-## Branches and pull requests
-
-| PR | Branch | Phase | Member |
-|---|---|---|---|
-| | first commits on `main` | Initial setup | Erfan |
-| | `docs/spec`, `Foundation` | Phase 0 | Amir |
-| #1 | `phase1-a-orchestration` | Phase 1 (A) | Amir |
-| #2 | `phase1-d-repro-report` | Phase 1 (D) | Erfan |
-| #3 | `phase1-c-findings-linking` | Phase 1 (C) | Fatemeh |
-| #4 | `phase1-b-runner` | Phase 1 (B) | Ali |
-| | `refactor/pre-phase2-cleanup` | Before Phase 2 | team |
-| #5 (closed) | `phase2` | Phase 2, first attempt | team |
-| #8 | `phase2` (with `feat/phase2-exec`, `feat/phase2-report`, `fix/phase2-pipeline`) | Phase 2, Tasks 2.1 to 2.5 | Amir, Ali, Fatemeh (see the Phase 2 table) |
-| #6 | `phase3-cjson` | Phase 3 | Erfan |
-| #7 | `phase3-jhead` | Phase 3 | Erfan |
-| #10 | `phase3-jhead-tests` | Phase 3, jhead test suite | Erfan |
-| #11, #12 | `phase3-finish` | Phase 3 | Erfan |
-| #9 | `chore/code-cleanup` | Documentation | team |
-| #13 | `phase4` | Phase 4.1 CI | Amir |
-| #14 | `feat/target-template` | Documentation | team |
-| #15 | `feat/variants` | Phase 4.4 variants | Fatemeh |
-| #16 | `docs/cleanup` | Documentation | team |
-
-Branches that were never merged, and hold early experiments, are `hardening`,
-`cjson_uaf` and `feat/complete-zaraban-engine`.
-
-In total, `main` has 126 commits outside merges, from 15 merged pull requests,
-and 541 tests.
 
 ## Problems found and solved
 
