@@ -296,3 +296,17 @@ def test_4_5_messages_do_not_refer_to_the_design_documents(tmp_path):
                                                           "name: token_parser\nrepeats: 1")))
     for w in warnings:
         assert "spec" not in w.message.lower() and "§" not in w.message
+
+
+def test_4_1_target_template_config_is_valid():
+    # targets/_template is what a new target starts from, so its config must
+    # stay valid when the schema changes, and list every top-level key.
+    path = Path(__file__).resolve().parent.parent / "targets" / "_template" / "zaraban.yaml"
+    target, warnings = Target.load(path)
+    assert warnings == []
+    assert [t.kind for t in target.all_tests()] == [
+        TestKind.VALID, TestKind.BOUNDARY, TestKind.INVALID, TestKind.SECURITY,
+    ]
+    text = path.read_text(encoding="utf-8")
+    for key in type(target.spec).model_fields:
+        assert f"{key}:" in text, f"the template does not mention {key}"
