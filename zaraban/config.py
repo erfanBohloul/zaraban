@@ -1,9 +1,9 @@
 """Target configuration: load and strictly validate a target's ``zaraban.yaml``.
 
-A target is described by one config file (SPEC §4). Adding a new target must
-need only a new config and the target's own files, no tool code (course spec
-§2). Validation is strict: any problem stops the run with exit code 30 before
-anything is built, and all problems are reported together (SPEC §4.5).
+A target is described by one config file. Adding a new target needs only a
+new config and the target's own files, never a change to the tool. Validation
+is strict: any problem stops the run with exit code 30 before anything is
+built, and all problems are reported together.
 
 This module turns the YAML into a validated :class:`Target`, and resolves each
 test entry into a ready-to-run :class:`models.TestCase` (input read to bytes).
@@ -22,12 +22,12 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationErr
 from . import models
 from .models import ErrorCode, InputMethod, OutputMatch, TestKind, ZarabanError
 
-MAX_INPUT_BYTES = 1 << 20  # 1 MB (SPEC §5.2)
+MAX_INPUT_BYTES = 1 << 20  # 1 MB
 
-# Names are used in output paths, so only ASCII letters, digits, _ and - (§4.2, §4.4).
+# Names are used in output paths, so only ASCII letters, digits, _ and -.
 _NAME_RE = re.compile(r"[A-Za-z0-9_-]+")
 
-# Keys removed from the schema; a config that still uses them is an error (§4.5).
+# Keys removed from the schema; a config that still uses them is an error.
 REMOVED_KEYS = {
     "patch_dir": "patch_dir was removed; pass the patch on the command line with --patch",
     "diff_file": "diff_file was removed; pass the patch on the command line with --patch",
@@ -35,7 +35,7 @@ REMOVED_KEYS = {
 
 
 # ---------------------------------------------------------------------------
-# The YAML schema (pydantic, extra keys forbidden so typos are errors, §4.5)
+# The YAML schema (pydantic, extra keys forbidden so typos are errors)
 # ---------------------------------------------------------------------------
 
 
@@ -68,7 +68,7 @@ class _BuildSpec(_Strict):
     release_cmd: str
     sanitized_cmd: str
     clean_cmd: Optional[str] = None
-    coverage_cmd: Optional[str] = None  # coverage build for the execution trace (§9.4)
+    coverage_cmd: Optional[str] = None  # coverage build for the execution trace
 
 
 class _LimitsSpec(_Strict):
@@ -109,7 +109,7 @@ class Target:
 
     Build it with :meth:`load`. ``spec`` is the raw validated schema;
     :meth:`all_tests` returns the config tests as :class:`models.TestCase`
-    (regression tests from ``regression_dir`` are added later, by §10).
+    (regression tests from ``regression_dir`` are added later, by regression.py).
     """
 
     def __init__(self, spec: _ConfigSpec, config_path: Path, tests: list[models.TestCase]):
@@ -132,7 +132,7 @@ class Target:
         return (self.config_dir / self.spec.base_dir).resolve()
 
     def all_tests(self) -> list[models.TestCase]:
-        """Config tests, in SPEC order: valid, boundary, invalid, security."""
+        """Config tests, in run order: valid, boundary, invalid, security."""
         return list(self._tests)
 
     @classmethod

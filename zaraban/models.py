@@ -1,16 +1,19 @@
 """Shared data types of Zaraban.
 
 Every module exchanges data through these types, and ``report.json`` is a dump
-of them (SPEC §12). They hold data only: no building, running or analysis
-logic lives here. A change to this file needs review by all four members.
+of them. They hold data only: no building, running or analysis logic lives
+here. Field names are the report's keys, so renaming a field changes the
+report format.
 
-Section numbers such as §7.4 refer to docs/SPEC.md.
-
-Ownership (who produces each type):
-    A  TestCase, BuildRecord, HardeningResult, VersionInfo, EnvironmentInfo
-    B  RunRecord, Analysis, Frame, OracleResult, CombinedResult
-    C  Hunk, Finding, FindingTest, Link
-    D  Bundle, Replay, RegressionTest, Condition, Status, Report
+Where each type is made:
+    config, sources, builder, hardening, environment
+        TestCase, VersionInfo, DiffInfo, BuildRecord, HardeningReport, EnvironmentInfo
+    runner, analysis, oracle
+        RunRecord, Analysis, Frame, OracleResult, CombinedResult
+    diffinfo, findings, linking
+        Hunk, Finding, FindingTest, Link
+    reproducer, regression, status, report
+        Bundle, Replay, RegressionTest, Condition, Status, Report
 """
 
 from __future__ import annotations
@@ -48,7 +51,7 @@ class Profile(StrEnum):
 
 
 class BuildName(StrEnum):
-    """The four builds, in the order they are built and run (§6.1)."""
+    """The four builds, in the order they are built and run."""
 
     BASE_RELEASE = "base-release"
     BASE_SANITIZED = "base-sanitized"
@@ -77,7 +80,7 @@ BUILD_ORDER: tuple[BuildName, ...] = (
 
 
 class TestKind(StrEnum):
-    """Kinds of test, in the order they run (§5.1, §7.1)."""
+    """Kinds of test, in the order they run."""
 
     __test__ = False  # not a pytest test class
 
@@ -100,7 +103,7 @@ class OutputMatch(StrEnum):
 
 
 class Outcome(StrEnum):
-    """How one run ended (§7.4). Only CRASH is a crash."""
+    """How one run ended. Only CRASH is a crash."""
 
     NORMAL = "NORMAL"
     CRASH = "CRASH"
@@ -114,7 +117,7 @@ class LimitKind(StrEnum):
 
 
 class Detection(StrEnum):
-    """What detected a crash (§7.4)."""
+    """What detected a crash."""
 
     ASAN = "ASAN"
     UBSAN = "UBSAN"
@@ -125,7 +128,7 @@ class Detection(StrEnum):
 
 
 class ErrorType(StrEnum):
-    """What kind of error a crash was (§7.4). Not a root-cause analysis."""
+    """What kind of error a crash was. Not a root-cause analysis."""
 
     STACK_BUFFER_OVERFLOW = "STACK_BUFFER_OVERFLOW"
     HEAP_BUFFER_OVERFLOW = "HEAP_BUFFER_OVERFLOW"
@@ -148,7 +151,7 @@ class ErrorType(StrEnum):
 
 
 class Category(StrEnum):
-    """Finding categories (§8.1)."""
+    """Finding categories."""
 
     FIXED = "FIXED"
     INCOMPLETE_FIX = "INCOMPLETE_FIX"
@@ -158,7 +161,7 @@ class Category(StrEnum):
 
 
 class OnPatch(StrEnum):
-    """What a test of a crash finding does on the patched version (§12.4)."""
+    """What a test of a crash finding does on the patched version."""
 
     REACHES = "reaches"
     BLOCKED = "blocked"
@@ -166,7 +169,7 @@ class OnPatch(StrEnum):
 
 
 class LinkLevel(StrEnum):
-    """Strength of the link between a finding and the diff, strongest first (§9.3)."""
+    """Strength of the link between a finding and the diff, strongest first."""
 
     IN_CHANGED_HUNK = "IN_CHANGED_HUNK"
     IN_CHANGED_FUNCTION = "IN_CHANGED_FUNCTION"
@@ -193,7 +196,8 @@ class RegressionStatus(StrEnum):
 
 
 class ExitCode(IntEnum):
-    """Process exit codes (course spec §3.5, SPEC §13.1)."""
+    """Process exit codes. These values are the agreed interface for scripts
+    and CI, so they never change."""
 
     PASS = 0
     VULN_REMAINS = 10  # also used for NEW_ISSUE
@@ -202,7 +206,7 @@ class ExitCode(IntEnum):
     INCONCLUSIVE = 40
 
 
-# When several conditions hold, the first code in this order wins (§13.1).
+# When several conditions hold, the first code in this order wins.
 EXIT_PRIORITY: tuple[ExitCode, ...] = (
     ExitCode.BUILD_OR_CONFIG_ERROR,
     ExitCode.VULN_REMAINS,
@@ -213,7 +217,7 @@ EXIT_PRIORITY: tuple[ExitCode, ...] = (
 
 
 class ConditionName(StrEnum):
-    """Reasons for an exit code (§13.3). NEW_ISSUE shares code 10."""
+    """Reasons for an exit code. NEW_ISSUE shares code 10."""
 
     BUILD_OR_CONFIG_ERROR = "BUILD_OR_CONFIG_ERROR"
     VULN_REMAINS = "VULN_REMAINS"
@@ -235,7 +239,7 @@ class ConditionName(StrEnum):
 
 
 class WarningCode(StrEnum):
-    """Warnings never change the exit code (§12.6)."""
+    """Warnings never change the exit code."""
 
     NO_INVALID_TESTS = "NO_INVALID_TESTS"
     NO_DEBUG_INFO = "NO_DEBUG_INFO"
@@ -251,7 +255,7 @@ class WarningCode(StrEnum):
 
 
 class ErrorCode(StrEnum):
-    """Every error gives exit code 30 (§12.6)."""
+    """Every error gives exit code 30."""
 
     ARGUMENT_INVALID = "ARGUMENT_INVALID"
     SOURCE_NOT_FOUND = "SOURCE_NOT_FOUND"
@@ -270,7 +274,7 @@ class ErrorCode(StrEnum):
 
 @dataclass
 class Issue:
-    """One entry of report.json's ``warnings`` or ``errors`` (§12.6)."""
+    """One entry of report.json's ``warnings`` or ``errors``."""
 
     code: str  # a WarningCode or ErrorCode value
     message: str
@@ -297,21 +301,21 @@ class ZarabanError(Exception):
 
 @dataclass
 class TestCase:
-    """One test, ready to run: the config entry resolved to bytes (§4.4, §5)."""
+    """One test, ready to run: the config entry resolved to bytes."""
 
     __test__ = False  # not a pytest test class
 
     name: str
     kind: TestKind
     input_bytes: Optional[bytes]  # None = no input
-    input_ext: str = ""  # ".txt", ".json", ... used for input.<ext> (§5.3)
+    input_ext: str = ""  # ".txt", ".json", ... used for input.<ext>
     args: list[str] = field(default_factory=list)
     description: Optional[str] = None
     source_path: Optional[str] = None  # where the input came from, for the report
     expected_exit_code: Optional[int] = None  # None = not checked
     expected_output: Optional[str] = None  # None = not checked
     output_match: OutputMatch = OutputMatch.CONTAINS
-    # regression tests only (§10.6)
+    # regression tests only
     expect_base_crash: Optional[bool] = None
     expected_signature: Optional[str] = None
 
@@ -327,7 +331,7 @@ class TestCase:
 
 @dataclass
 class VersionInfo:
-    """``report.versions.base`` / ``.patch`` (§12.4)."""
+    """``report.versions.base`` / ``.patch``."""
 
     form: str  # "directory" | "diff"
     ref: str  # as given on the command line
@@ -353,7 +357,7 @@ class BinaryInfo:
 
 @dataclass
 class BuildRecord:
-    """``builds/<build>/build.json`` (§6.4, §12.3)."""
+    """``builds/<build>/build.json``."""
 
     build: BuildName
     status: str  # "ok" | "failed"
@@ -383,7 +387,7 @@ class BuildRecord:
 
 @dataclass
 class EnvironmentInfo:
-    """``report.environment`` (§12.4)."""
+    """``report.environment``."""
 
     os: str
     kernel: str
@@ -396,7 +400,7 @@ class EnvironmentInfo:
 
 
 # ---------------------------------------------------------------------------
-# Hardening (producer: A, §11)
+# Hardening (made by hardening.py)
 # ---------------------------------------------------------------------------
 
 
@@ -439,7 +443,7 @@ class HardeningReport:
 
 
 # ---------------------------------------------------------------------------
-# Runs and their analysis (producer: B, §7)
+# Runs and their analysis (made by runner.py and analysis.py)
 # ---------------------------------------------------------------------------
 
 
@@ -451,7 +455,7 @@ class Frame:
     function: Optional[str]
     file: Optional[str]  # relative to the source root, e.g. "src/main.c"
     line: Optional[int]
-    runtime: bool  # inside the sanitizer runtime or libc (§7.4)
+    runtime: bool  # inside the sanitizer runtime or libc
 
 
 @dataclass
@@ -498,7 +502,7 @@ class StreamInfo:
 
 @dataclass
 class RunRecord:
-    """``runs/<test>/<build>/<n>.json``: one execution (§12.3)."""
+    """``runs/<test>/<build>/<n>.json``: one execution."""
 
     test: str
     kind: TestKind
@@ -522,7 +526,7 @@ class RunRecord:
 
 @dataclass
 class CombinedResult:
-    """The repeats of one test on one build, combined (§7.5)."""
+    """The repeats of one test on one build, combined."""
 
     test: str
     kind: TestKind
@@ -556,7 +560,7 @@ Results = dict[str, dict[BuildName, CombinedResult]]
 
 
 # ---------------------------------------------------------------------------
-# Diff (producer: C, §9.2)
+# Diff (made by diffinfo.py)
 # ---------------------------------------------------------------------------
 
 
@@ -581,13 +585,13 @@ class Hunk:
 
 
 # ---------------------------------------------------------------------------
-# Findings and links (producer: C, §8, §9)
+# Findings and links (made by findings.py and linking.py)
 # ---------------------------------------------------------------------------
 
 
 @dataclass
 class BuildSummary:
-    """Short per-build view of one test inside a finding (§12.4)."""
+    """Short per-build view of one test inside a finding."""
 
     outcome: Outcome
     detection: Optional[Detection] = None
@@ -609,7 +613,7 @@ class FindingTest:
 
 @dataclass
 class Link:
-    """How a finding relates to the diff (§9.6)."""
+    """How a finding relates to the diff."""
 
     level: LinkLevel
     side: Optional[Version] = None
@@ -625,7 +629,7 @@ class Link:
 
 @dataclass
 class Finding:
-    """One reportable problem (§8.8)."""
+    """One reportable problem."""
 
     id: str  # "F-001"
     category: Category
@@ -651,7 +655,7 @@ def finding_id(n: int) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Reproducers and regression tests (producer: D, §10)
+# Reproducers and regression tests (made by reproducer.py and regression.py)
 # ---------------------------------------------------------------------------
 
 
@@ -668,7 +672,7 @@ class Replay:
 
 @dataclass
 class Bundle:
-    """``reproducers/<finding id>/`` (§10.3)."""
+    """``reproducers/<finding id>/``."""
 
     finding: str
     source_test: str
@@ -685,7 +689,7 @@ class Bundle:
 
 @dataclass
 class RegressionTest:
-    """``regression_added`` entry of report.json (§10.6, §12.4)."""
+    """``regression_added`` entry of report.json."""
 
     name: str
     from_finding: str
@@ -696,13 +700,13 @@ class RegressionTest:
 
 
 # ---------------------------------------------------------------------------
-# Status and the report (producer: D, §12, §13)
+# Status and the report (made by status.py and report.py)
 # ---------------------------------------------------------------------------
 
 
 @dataclass
 class Condition:
-    """One reason for an exit code (§13.3)."""
+    """One reason for an exit code."""
 
     name: ConditionName
     reason: str
@@ -716,7 +720,7 @@ class Condition:
 
 @dataclass
 class Checks:
-    """Required checks; PASS needs all of them (§13.2)."""
+    """Required checks; PASS needs all of them."""
 
     builds_ok: bool = False
     profiles_verified: bool = False
@@ -742,7 +746,7 @@ class Status:
 
 @dataclass
 class Report:
-    """``report.json`` (§12.4). Field order is the order in the file."""
+    """``report.json``. Field order is the order in the file."""
 
     tool: dict[str, str]  # {"name": "zaraban", "version": "0.2.0"}
     run_id: str
@@ -764,7 +768,7 @@ class Report:
 
 
 # ---------------------------------------------------------------------------
-# Serialization (§12.2)
+# Serialization
 # ---------------------------------------------------------------------------
 
 
@@ -772,7 +776,7 @@ def to_jsonable(obj: Any) -> Any:
     """Convert any model to plain JSON types.
 
     Enums become their values, Paths become strings, bytes are never written
-    (program output lives in its own files, §12.2), None stays null, and
+    (program output lives in its own files), None stays null, and
     ``schema_version`` is moved to the front of every object that has it.
     """
     if isinstance(obj, Enum):
