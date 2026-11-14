@@ -23,7 +23,7 @@ These words have one fixed meaning throughout this document.
 | **Diff** | The textual difference between base and patch (unified diff format). Used to link findings to changed code. |
 | **Profile** | One of two ways to build a version: `release` (normal optimized build with the project's own hardening flags) or `sanitized` (built with AddressSanitizer and UndefinedBehaviorSanitizer). |
 | **Build** | One version built with one profile. There are always exactly four builds: `base-release`, `base-sanitized`, `patch-release`, `patch-sanitized`. |
-| **Test** | One input to the target, plus the behavior we expect from it (its oracle). Each test has a kind: `valid`, `boundary`, `invalid`, `security`, or `regression`. |
+| **Test** | One input to the target, plus the behavior we expect from it (its oracle). Each test has a kind: `valid`, `boundary`, `invalid`, `security`, `regression`, or `variant` (made by the optional variant step, §7.6). |
 | **Oracle** | The expected behavior of a test (expected exit code and/or expected output), defined independently of the patched version (§2 of the spec). |
 | **Run** | One execution of one test on one build. |
 | **Repeat** | Each test is run several times on each build (default 3) to detect unstable results. |
@@ -85,13 +85,17 @@ python -m zaraban.cli -c <config> --patch <patch> [options]
 | `--out` | no | `out/` | Directory where all outputs of this run are written (§12). |
 | `--no-promote` | no | off | Do not copy new regression tests into the target's `tests/regression/` directory. They are still written to the run's output directory. |
 | `--keep-work` | no | off | Keep the temporary build directories after the run, for debugging. |
+| `--variants` | no | off | Run the optional variant step (§7.6) for this run, even if the config's `variants.enabled` is false. |
+| `--no-variants` | no | off | Skip the variant step for this run, even if the config's `variants.enabled` is true. Cannot be given with `--variants`. |
 | `--check-config` | no | off | Only validate the config file and its referenced files, then exit with `0` (valid) or `30` (invalid). Nothing is built or run. |
 | `-v`, `--verbose` | no | off | Print progress details. |
 | `--version` | no | | Print the tool version and exit. |
 
 The set of options is kept small on purpose. An option that can switch off a
 required check (for example, skipping the release builds) could produce a
-`PASS` that the spec would not accept, so no such option exists.
+`PASS` that the spec would not accept, so no such option exists. The variant
+step (§7.6) is an addition to the required checks, not one of them, so
+turning it off never skips a required check.
 
 ### 3.2 Forms of `--patch` and `--base`
 
@@ -219,6 +223,7 @@ the config file.
 | `boundary_tests` | list of tests | no | `[]` | Valid inputs at the edges of what the program accepts. |
 | `invalid_tests` | list of tests | no | `[]` | Malformed or unacceptable inputs. The program must handle them without crashing. |
 | `security_tests` | list of tests | yes, at least one | | Inputs that trigger the vulnerability in the base version. |
+| `variants` | object | no | off | The optional variant step: `enabled` (default `false`), `budget_runs` (integer ≥ 1, default `200`), `seed` (integer, default `1`), `max_tests` (integer ≥ 1, default `5`). See §7.6. |
 
 The meaning of each test kind, and how results are judged, is defined in §5.
 
@@ -357,6 +362,7 @@ asks for inputs that trigger the vulnerability. Each kind has one purpose:
 | `invalid` | `invalid_tests` | Malformed or unacceptable inputs. The program must reject them without crashing. Detect new crashes on error paths. |
 | `security` | `security_tests` | Inputs that trigger the vulnerability in the base version, including the alternative input that bypasses the incomplete patch (§4 of the spec). |
 | `regression` | generated files in `regression_dir` | Minimized crashing inputs found by earlier runs (§10). Never written by hand. |
+| `variant` | made during the run (§7.6) | Mutated security inputs that crash the patched version with a bug no other test showed there. Only when the variant step is on. |
 
 ### 5.2 Input data
 
@@ -429,6 +435,7 @@ reports when a test does not behave as expected is defined in §8.
 | `invalid` | Must not crash. If the oracle gives an exit code or output, must match it. | Same as base. |
 | `security` | **Must crash.** This is how the tool shows the vulnerability is reproduced. | Must not crash. If the oracle gives an exit code or output (for example, "rejects the input with exit code 1"), must match it. |
 | `regression` | Must crash with the signature stored with the test, or must not crash if the test was created from a new issue (§10.6). | Must not crash. |
+| `variant` | Not judged: a variant has no oracle, and only its crashes matter (§7.6). | Must not crash. |
 
 For `security` tests, the oracle fields describe the expected behavior of the
 patched version only. On base, the test is expected to crash, so the oracle is
@@ -545,12 +552,13 @@ This information is required for the reproducer bundles (§3.3 of the spec:
 ### 7.1 What is run
 
 Every test runs on every build, `repeats` times (default 3). This includes all
-kinds: valid, boundary, invalid, security and regression tests. Section 3.1 of
+kinds: valid, boundary, invalid, security, regression and variant tests. Section 3.1 of
 the spec requires every input to run on both versions with matching settings,
 and §3.2 requires the release and sanitized builds to be run separately.
 
 Runs happen one at a time, in a fixed order: tests in config order (valid,
-boundary, invalid, security, then regression), and for each test the four
+boundary, invalid, security, then regression, then the variants of §7.6),
+and for each test the four
 builds in the order of §6.1, and for each build repeats 1 to N. Running one at
 a time keeps timing stable, which matters for timeouts.
 
@@ -683,6 +691,76 @@ For each test on each build, the repeats are combined into one **result**:
 With `repeats: 1`, flaky results cannot be detected. The tool accepts it, but
 records the warning `REPEATS_TOO_LOW`.
 
+### 7.6 Variant step (optional)
+
+Section 1 of the spec says that seeing no error in the tests does not prove
+that every vulnerability is gone. An incomplete patch often blocks the known
+exploit but not a slightly different input. The variant step looks for such
+inputs. It is **off by default**, so the delivered scenarios (§14.3) do not
+depend on it. It is turned on by `variants.enabled: true` in the config
+(§4.2) or by `--variants` for one run, and turned off for one run by
+`--no-variants` (§3.1).
+
+It runs after the execution matrix, and only if the four builds succeeded:
+
+1. **Candidates.** For each security test that has an input, mutated copies
+   of the input are made. The mutations use only the input and the diff,
+   never the program's structure, so the step works on any target (§2 of the
+   spec):
+   - structured candidates first: the input with its last 1 to 8 bytes cut,
+     and the longest run of one byte resized to each interesting length;
+   - then random ones, one to three of these stacked: replace or bit-flip a
+     byte, insert a byte, delete bytes, duplicate a chunk, cut the end, resize
+     the longest run.
+
+   Interesting lengths are the integers on the diff's added and removed
+   lines, each as `n - 1`, `n` and `n + 1` (between 2 and 65536).
+   Interesting bytes are the character literals on those lines, plus a fixed
+   set that often matters to parsers (NUL, `0xff`, quotes, backslash, slash,
+   star, brackets and white space). The random generator is seeded with
+   `variants.seed` and the test's name, so the same config, test and patch
+   always give the same candidates in the same order.
+2. **Screening.** Each candidate runs **once** on `patch-sanitized`, with the
+   same command, environment and limits as every other run (§7.2, §7.3). A
+   candidate equal to an existing test input, or (with `input_method: args`)
+   containing a NUL byte, is skipped without a run. The total number of
+   screening runs is `variants.budget_runs`, shared equally by the security
+   tests in config order. There is no time budget: the result must not depend
+   on the speed of the machine (§5 of the spec: the same evidence gives the
+   same result). The longest the step can take is therefore
+   `budget_runs × timeout_seconds`.
+3. **Keeping.** A candidate is kept when it crashes on patch with a bug key
+   (§8.2; the error type alone for a crash without a signature) that no test
+   of the matrix showed on `patch-sanitized`, in any repeat. It is run once
+   more, and kept only if the second run shows the same bug key, so a crash
+   seen by chance does not become a flaky test. Both runs count in the budget.
+   At most one candidate is kept per bug key, and at most
+   `variants.max_tests` in total.
+4. **Running.** Each kept candidate becomes a test of kind `variant`, named
+   `var-<security test>-<first 8 hex digits of the input's SHA-256>`, with the
+   security test's `args` and no oracle. Its input is saved as
+   `variants/<name><ext>` (§12.1). It runs like any other test: on all four
+   builds, `repeats` times (§7.1).
+
+From there nothing is special. The variant's results go through the finding
+rules of §8 with the other tests, so the same-bug rule decides its category:
+a variant that crashes on base and on patch with the base bug's key makes
+that finding `INCOMPLETE_FIX` (it is listed with `reaches`), and one whose
+patch crash has a key that base does not show is `NEW_ISSUE`. Its findings
+are linked (§9), minimized and bundled (§10), and give regression tests
+(§10.6), like any other.
+
+A `NEW_ISSUE` from a variant is a real memory error on patch, confirmed by
+the sanitizer, so exit `10` is correct (§3.5 of the spec). It does not by
+itself prove that the patch caused it: on base the same input may stop
+earlier, at the original bug, and so never reach the second one. The link
+(§9) and the regression-test check on base (§10.6) show which it is.
+
+`report.settings.variants` records the settings, the number of screening
+runs in total and per security test, the security tests without an input,
+the number of new crashes that a second run did not confirm, and each kept
+variant with its input file (§12.4).
+
 ---
 
 ## 8. Findings
@@ -799,7 +877,7 @@ So a valid input that runs normally on base and hangs on patch is a
 `FUNCTIONAL_REGRESSION`, with the termination recorded as `TIMEOUT`. It is
 never a crash (§7.3).
 
-A `TIMEOUT` or `RESOURCE_LIMIT` on patch for a `security` or `regression` test
+A `TIMEOUT` or `RESOURCE_LIMIT` on patch for a `security`, `regression` or `variant` test
 gets an `INCONCLUSIVE` finding: the spec says that not every stop is an
 exploitable vulnerability (§3.2).
 
@@ -1258,6 +1336,7 @@ builds/<build>/                   one per build (§6)
 runs/<test>/<build>/              one per test and build (§7)
   <n>.json  <n>.stdout  <n>.stderr        n = 1 … repeats
 reproducers/<finding id>/         one per bundle (§10.3)
+variants/<test><ext>              input of each kept variant (§7.6), only when the step is on
 regression/                       new regression tests of this run (§10.6)
 ```
 
@@ -1306,7 +1385,7 @@ Top-level fields, in this order:
 | `target` | `name`, `config` (path of the copy), `config_sha256`. |
 | `versions` | `base` and `patch`: `form` (`directory` or `diff`), `ref` (as given), `git_commit` (of the repository at run time), `tree_sha256`, and for a diff `strip_level`. `diff`: `path`, `sha256`, changed `files`, number of `hunks`. |
 | `environment` | `os`, `kernel`, `arch`, `docker_image`, `python`, `gcc`, `clang`, `llvm_symbolizer` (path or `null`). |
-| `settings` | `repeats`, `limits`, `sanitizer_options`. |
+| `settings` | `repeats`, `limits`, `sanitizer_options`, and `variants`: `enabled`, `budget_runs`, `seed`, `max_tests`, and when the step ran, `screening_runs`, `screening_runs_per_test`, `skipped_tests`, `unconfirmed_crashes` and `kept` (each kept variant's `test` and `input`) (§7.6). |
 | `builds` | For each build: `status`, `binary_sha256`, `details` (path of `build.json`). |
 | `hardening` | `base` and `patch`: for each protection its value and evidence; `changes` (protection, from, to, `downgrade` or `improvement`); `notes` (§11.3). |
 | `execution_logs` | For each build, for each test: the combined result (below). |
@@ -1378,7 +1457,8 @@ run: `name`, `from_finding`, `path`, `input_sha256`, `status` (`added`,
 The same text is printed at the end of the run. It has these parts, in order:
 the target and run id; base and patch; the state of the four builds; the
 hardening comparison; the number of tests, builds and repeats, and how many
-results were flaky; one block per finding; the warnings and errors, each with
+results were flaky; when the variant step is on, its seed, number of screening
+runs and kept variants (§7.6); one block per finding; the warnings and errors, each with
 its message (an error also lists its problems, for example why the diff did
 not apply at each strip level); the final exit code and name; the path of
 `report.json`. Tests without findings are only counted, not listed. Builds and

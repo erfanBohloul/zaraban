@@ -2,6 +2,12 @@
 
 All notable changes to the Zaraban security patch validation engine are documented in this file.
 
+## [Unreleased] - Phase 4: CI, docs and variants
+
+### Added
+- **Variant step** (`zaraban.variants`, SPEC §7.6), off by default: `variants` in the config or `--variants` / `--no-variants` on the command line. Seeded mutations of each security input (hints from the diff's integers and character literals) are screened on `patch-sanitized` within `budget_runs`; a confirmed new crash becomes a test of kind `variant` that runs on all four builds and goes through the normal finding, minimization and regression-test rules. `report.settings.variants` and a `VARIANTS` summary line record what was done.
+- **Target template**: `targets/_template/` for adding a new target; `run_matrix.py` skips directories that start with `_`.
+
 ## [Unreleased] - Phase 3: Real targets
 
 ### Added

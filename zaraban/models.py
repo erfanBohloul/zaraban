@@ -89,6 +89,7 @@ class TestKind(StrEnum):
     INVALID = "invalid"
     SECURITY = "security"
     REGRESSION = "regression"
+    VARIANT = "variant"  # made by the optional variant step, run last
 
 
 class InputMethod(StrEnum):
