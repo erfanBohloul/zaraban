@@ -12,8 +12,8 @@ Run inside the project's Docker image, from the repository root:
 
     docker compose run --rm zaraban python3 tests/fixtures/stderr/generate.py
 
-On hosts with vm.mmap_rnd_bits=32, ASan itself can crash; see
-docs/Issues/002-asan-stack-overflow-segfault.md.
+On hosts with vm.mmap_rnd_bits=32, ASan itself can crash; see the
+README, "Troubleshooting".
 """
 
 from __future__ import annotations

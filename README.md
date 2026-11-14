@@ -1,591 +1,486 @@
 # Zaraban
 
 Zaraban checks whether a security patch to a C/C++ program really fixes the
-vulnerability without breaking the program. It builds the version before the
-patch (base) and after it (patch), runs both on the same tests, and reports a
-verdict as a CI exit code, a readable summary and a JSON report.
+vulnerability, and whether it breaks anything else. It builds the program
+before the patch (**base**) and after it (**patch**). It runs both on the same
+tests, in release and sanitized builds, and compares what happens. It then
+reports a verdict as a CI exit code, a readable summary and a JSON report
+with all the evidence: the crash, where it is in the diff, a minimized input
+that reproduces it, and a regression test.
 
 Course project 1, Data & Network Security, Sharif University of Technology.
-The behavior of the tool is defined in [`docs/SPEC.md`](docs/SPEC.md). Design
-choices are recorded in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
----
+| Document | What it is for |
+|---|---|
+| This README | How to install and run the tool, read its results, and add a target |
+| [`docs/OVERVIEW.md`](docs/OVERVIEW.md) | A short tour of the design and why it works this way |
+| [`docs/SPEC.md`](docs/SPEC.md) | The full technical reference: every rule, input and output format |
+| `targets/<target>/ORACLE.md` | Each target's versions, tests and the source of every expected result |
+| [`docs/project1_spec.pdf`](docs/project1_spec.pdf) | The course specification |
 
-## Quick start
+## Contents
 
-Everything runs inside the Docker image, which provides the isolated
-environment the course requires.
+- [What it does](#what-it-does)
+- [Requirements](#requirements)
+- [Quick start on a fresh clone](#quick-start-on-a-fresh-clone)
+- [Validating a patch](#validating-a-patch)
+- [Command-line options](#command-line-options)
+- [Exit codes](#exit-codes)
+- [Reading the results](#reading-the-results)
+- [The variant step (optional)](#the-variant-step-optional)
+- [The delivered targets](#the-delivered-targets)
+- [Demo targets](#demo-targets)
+- [Adding a new target](#adding-a-new-target)
+- [Tests and CI](#tests-and-ci)
+- [Troubleshooting](#troubleshooting)
+- [Repository layout](#repository-layout)
 
-```bash
-# Build the image
-docker compose build
+## What it does
 
-# Validate a patch given as a diff file
-docker compose run --rm zaraban \
-  python3 -m zaraban.cli -c targets/<target>/zaraban.yaml \
-  --patch targets/<target>/patches/incomplete.patch
+One run validates **one patch** of **one target**:
 
-# Only check a config file, without building anything
-docker compose run --rm zaraban \
-  python3 -m zaraban.cli -c targets/<target>/zaraban.yaml --check-config
-
-# Run every delivered scenario and compare with the expected results
-docker compose run --rm zaraban python3 scripts/run_matrix.py
+```
+zaraban.yaml + base + patch (a diff file or a patched source tree)
+  -> check the config, prepare both source trees and the diff
+  -> 4 isolated builds: base/patch × release/sanitized (ASan + UBSan)
+  -> hardening check of both release binaries: NX, PIE, RELRO, stack canary
+  -> every test on every build, 3 times, with the same limits and environment
+  -> for each run: how it ended, what detected the error, which error, where
+  -> findings: FIXED / INCOMPLETE_FIX / NEW_ISSUE / FUNCTIONAL_REGRESSION / INCONCLUSIVE
+  -> link each finding to the diff (stack trace, changed functions, coverage)
+  -> for each crash: minimized input, reproducer bundle, 3 replays, regression test
+  -> summary.txt + report.json + exit code
 ```
 
-Outputs go to `out/<target>/<run id>/`: `summary.txt`, `report.json`, raw
-run logs, builds, reproducer bundles and new regression tests (SPEC §12).
+The tool depends on no specific program. A target is described only by its
+`zaraban.yaml`: how to build it, how its input is given (file, stdin or
+arguments), and its tests with their expected behavior.
 
-## How to run
+## Requirements
 
-### Prerequisites & Docker setup
+- **Docker** with Compose v2 (`docker compose`). Everything runs inside the
+  image (Ubuntu 22.04, gcc, clang 14, llvm, universal-ctags, Python 3.10).
+  Nothing else is needed on the host.
+- An **x86-64** machine. Linux is the tested host. On macOS with Apple
+  silicon, Docker runs the `linux/amd64` image under emulation, which is
+  slower.
+- **Linux hosts only:** clang 14's AddressSanitizer needs
+  `vm.mmap_rnd_bits=28`. Set it once per boot, or sanitized runs crash at
+  random (see [Troubleshooting](#asan-crashes-at-random-or-many-results-are-flaky)):
 
-Zaraban executes targets in an isolated Linux environment (Ubuntu 22.04 with GCC, Clang, ASan, and Universal Ctags):
+  ```bash
+  sudo sysctl -w vm.mmap_rnd_bits=28
+  ```
+
+## Quick start on a fresh clone
+
+These are the same steps CI runs:
 
 ```bash
-# 1. Linux hosts only: lower the address randomization bits for ASan, or the
-#    sanitized builds crash at start-up at random and results look flaky
-#    (docs/Issues/002). This is reset at every reboot; to keep it:
-#      echo 'vm.mmap_rnd_bits=28' | sudo tee /etc/sysctl.d/99-asan.conf
-sudo sysctl -w vm.mmap_rnd_bits=28
-
-# 2. Build the Docker image with your own user ids, so files in out/ are yours
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose build
+git clone https://github.com/erfanBohloul/zaraban.git && cd zaraban
+sudo sysctl -w vm.mmap_rnd_bits=28                          # Linux, once per boot
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose build    # files in out/ stay yours
+docker compose run --rm zaraban python3 -m pytest -q        # unit and end-to-end tests
+docker compose run --rm zaraban python3 scripts/run_matrix.py cjson jhead
 ```
 
-### Run guide on a fresh clone
-
-These are exactly the steps CI runs. From a new clone, they need nothing else:
-
-```bash
-git clone <repo url> zaraban && cd zaraban
-sudo sysctl -w vm.mmap_rnd_bits=28                       # Linux, once per boot
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose build
-docker compose run --rm zaraban python3 -m pytest -q     # all unit and e2e tests
-docker compose run --rm zaraban python3 scripts/run_matrix.py cjson jhead test_token_parser
-```
-
-The last command prints one line per scenario and ends with
-`9/9 scenarios matched`; it exits non-zero otherwise. Outputs are under
+The last command runs the six delivered scenarios. It prints one line per
+scenario and ends with `6/6 scenarios matched`; it exits non-zero if any
+scenario does not match. Each run's full output is under
 `out/run_matrix/<target>/<scenario>/`.
 
-If many unrelated tests suddenly become `INCONCLUSIVE` (flaky), check
-`vm.mmap_rnd_bits` first: it is reset after a reboot.
-
-### Validating a patch
-
-Run the validation engine on a target by providing its configuration file and a patch (either a unified `.patch` diff file or a patched source directory):
-
-```bash
-# Validate the correct patch (Expected: Exit 0 / PASS)
-docker compose run --rm zaraban \
-  python3 -m zaraban.cli -c targets/test_token_parser/zaraban.yaml \
-  --patch targets/test_token_parser/patches/correct.patch
-
-# Validate an incomplete patch (Expected: Exit 10 / VULN_REMAINS)
-docker compose run --rm zaraban \
-  python3 -m zaraban.cli -c targets/test_token_parser/zaraban.yaml \
-  --patch targets/test_token_parser/patches/incomplete.patch
-
-# Validate a behavior-breaking patch (Expected: Exit 20 / FUNC_REGRESSION)
-docker compose run --rm zaraban \
-  python3 -m zaraban.cli -c targets/test_token_parser/zaraban.yaml \
-  --patch targets/test_token_parser/patches/regression.patch
+```
+cjson/correct                   exit 0  (expected 0 )  findings ok   PASS
+cjson/incomplete                exit 10 (expected 10)  findings ok   PASS
+cjson/regression                exit 20 (expected 20)  findings ok   PASS
+jhead/correct                   exit 0  (expected 0 )  findings ok   PASS
+jhead/incomplete                exit 10 (expected 10)  findings ok   PASS
+jhead/regression                exit 20 (expected 20)  findings ok   PASS
+6/6 scenarios matched
 ```
 
-### CLI options
+## Validating a patch
 
-| Option | Description |
-|---|---|
-| `-c, --config FILE` | Path to the target's `zaraban.yaml` configuration file (required). |
-| `--patch PATCH` | Path to patch diff file or directory containing the patched source. |
-| `--base DIR` | Override the base source directory (default: `base_dir` from config). |
-| `--out DIR` | Root of the outputs; each run gets its own `<out>/<target>/<run id>/` (default: `out/`). |
-| `--no-promote` | Do not copy newly generated regression tests to the target's `regression_dir`. |
-| `--keep-work` | Keep the temporary source and build copies in `<run dir>/work/` after the run. |
-| `--variants` | Also run the optional variant step for this run (see below), even if the config leaves it off. |
-| `--no-variants` | Skip the variant step for this run, even if the config turns it on. |
-| `--check-config` | Validate the configuration file and its tests, then exit 0 without running builds. |
-| `-v, --verbose` | Print detailed execution and diagnostic messages. |
-| `--version` | Display the Zaraban engine version. |
-
-### Variant step (optional)
-
-An incomplete patch often blocks the known exploit but not a slightly
-different input. With `--variants` (or `variants: {enabled: true}` in the
-config), after the normal runs the tool mutates each security input with a
-fixed seed, runs each candidate once on `patch-sanitized`, and keeps a
-candidate that crashes with a bug no test showed there (confirmed by a
-second run). Each kept variant then runs on all four builds like any other
-test, so the normal finding, minimization and regression-test rules apply.
-It is off by default, so the delivered scenarios do not depend on it
-(SPEC §7.6).
+Give the target's config and the patch. The patch can be a unified diff
+(any `-p` level, found automatically) or a directory with the complete
+patched source tree:
 
 ```bash
+# A diff file
 docker compose run --rm zaraban \
   python3 -m zaraban.cli -c targets/cjson/zaraban.yaml \
-  --patch targets/cjson/patches/incomplete.patch --variants
+  --patch targets/cjson/patches/incomplete.patch
+echo "exit code: $?"
+
+# A patched source tree
+docker compose run --rm zaraban \
+  python3 -m zaraban.cli -c targets/cjson/zaraban.yaml \
+  --patch targets/cjson/versions/patch_incomplete
+
+# Only check a config and its test files, without building anything
+docker compose run --rm zaraban \
+  python3 -m zaraban.cli -c targets/cjson/zaraban.yaml --check-config
 ```
 
-The config block, with its defaults:
+The base is the target's `src/` tree (`base_dir` in the config) unless you
+give `--base DIR`. An unseen patch is validated the same way: only the
+`.patch` file is needed, and the verdict comes from running the tests, never
+from the patch's name.
 
-```yaml
-variants:
-  enabled: false
-  budget_runs: 200   # screening runs in total; no time budget, so results do not depend on machine speed
-  seed: 1            # same seed, same candidates
-  max_tests: 5       # kept variants, one per new bug
-```
+The paths must be inside the repository, because only the repository is
+mounted in the container (at `/workspace`). Copy an external patch into the
+repository first, for example to `tmp/` (git-ignored).
 
-On cJSON, with the hand-written bypass exploit removed from the config, the
-variant step alone finds an input that still overflows on the incomplete
-patch (exit 10). On jhead it also finds older bugs of jhead itself
-(`process_DQT`, `Get32s`) that the original crash hides on base, so every
-jhead patch then gives exit 10 with `NEW_ISSUE` findings.
+> **Regression tests are added to the target.** A run that finds a crash
+> writes a regression test to the run's `regression/` directory, and also
+> copies it to `targets/<target>/tests/regression/`, so later runs check it
+> (SPEC §10.6). When you are only experimenting, add `--no-promote` to leave
+> the target unchanged.
 
-### Inspecting outputs
+## Command-line options
 
-Every run writes to its own new directory `out/<target>/<run id>/`, where the
-run id is the UTC start time and the first 8 hex digits of the diff's SHA-256
-(for example `out/token_parser/20261111-183002-3f2a91c0/`). It holds:
-- `report.json`: Full machine-readable report containing run metadata, target info, versions, environment info, settings, builds, hardening check, execution logs, findings with patch diff links, regression tests, and status checks.
-- `summary.txt`: Human-readable terminal summary with final verdict, deciding conditions, and findings overview.
-- `reproducers/<finding_id>/`: Standalone reproducer bundle containing minimized inputs (`input.min.*`), original input, binary, replays log, and executable `reproduce.sh`.
-- `regression/`: Newly created regression tests with input files and YAML manifests.
-- `variants/`: only with the variant step: the input of each kept variant.
-- `inputs/`: copies of the config and the diff used; `builds/<build>/`: build log, `build.json` and the binary; `runs/<test>/<build>/`: one `.json`, `.stdout` and `.stderr` per repeat.
-- `errors.log`: only when the tool itself failed (`TOOL_INTERNAL`); the report is still written, with exit code 30.
-
-### Running tests
-
-```bash
-# Run unit and integration test suite inside Docker
-docker compose run --rm zaraban python3 -m pytest -v
-
-# Run the end-to-end test suite
-docker compose run --rm zaraban python3 -m pytest -v tests/test_e2e.py
-```
-
-If sanitized binaries crash at start-up with `SIGSEGV` and you cannot change
-`vm.mmap_rnd_bits`, run the tests with address randomization turned off in the
-container instead:
-
-```bash
-docker run --rm --network none --security-opt seccomp=unconfined -v "$PWD":/work -w /work \
-  zaraban:latest setarch x86_64 -R python3 -m pytest tests/ -q
-```
-
-## Continuous integration
-
-`.github/workflows/zaraban.yml` runs on every push and on pull requests to
-`main`. Inside the Docker image it runs the unit tests, the end-to-end tests
-and the scenarios of `test_token_parser`, `cjson` and `jhead`, and uploads
-`out/` as the `zaraban-out` artifact (reports, summaries and reproducer
-bundles), also when a step fails. A failing step fails the job, so the tool's
-exit codes decide the result.
+| Option | Meaning |
+|---|---|
+| `-c, --config FILE` | The target's `zaraban.yaml` (required). |
+| `--patch PATCH` | The patched version: a diff file or a directory (required, except with `--check-config`). |
+| `--base DIR` | The base source tree (default: `base_dir` from the config). |
+| `--out DIR` | Where outputs go; each run gets its own `<out>/<target>/<run id>/` (default: `out/`). |
+| `--no-promote` | Do not copy new regression tests into the target's `tests/regression/`. |
+| `--keep-work` | Keep the temporary source and build copies in `<run dir>/work/`, for debugging. |
+| `--variants` | Also run the [variant step](#the-variant-step-optional) for this run, even if the config leaves it off. |
+| `--no-variants` | Skip the variant step for this run, even if the config turns it on. |
+| `--check-config` | Only validate the config and its files, then exit `0` (valid) or `30` (invalid). |
+| `-v, --verbose` | Print progress details. |
+| `--version` | Print the tool version. |
 
 ## Exit codes
 
 | Code | Name | Meaning |
 |---|---|---|
-| `0` | `PASS` | The bug was reproduced on base and is gone on patch, and all functional tests and required checks passed. |
-| `10` | `VULN_REMAINS` / `NEW_ISSUE` | The original bug still occurs, or another confirmed security bug appeared. |
+| `0` | `PASS` | The bug was reproduced on base and is gone on patch, no other security error was found, and every functional test and required check passed. |
+| `10` | `VULN_REMAINS` / `NEW_ISSUE` | The original bug still occurs on patch, or another memory or security error was confirmed there. |
 | `20` | `FUNC_REGRESSION` | A valid test that passed on base fails on patch. |
-| `30` | `BUILD_OR_CONFIG_ERROR` | Build failed, config is invalid, or the tool itself failed. Never counts as fixed. |
-| `40` | `INCONCLUSIVE` | Not enough evidence, for example the base bug did not reproduce or results were unstable. |
+| `30` | `BUILD_OR_CONFIG_ERROR` | A build failed, the config or an argument is invalid, the patch does not apply, or the tool itself failed. |
+| `40` | `INCONCLUSIVE` | Not enough evidence: the base bug did not reproduce, a result was flaky, or a stop could not be classified. |
 
-When several apply, the priority is `30 > 10 > 20 > 40 > 0`. Hardening
-downgrades are warnings and never change the exit code.
+When several apply, the priority is `30 > 10 > 20 > 40 > 0`. Every finding
+stays in `report.json` whatever the exit code. A hardening downgrade is a
+warning and never changes the exit code.
 
-## How it works
+## Reading the results
+
+Every run writes to its own new directory, `out/<target>/<run id>/`. The run
+id is the UTC start time plus the first 8 hex digits of the diff's SHA-256.
+The summary is also printed at the end of the run. This is the cJSON
+incomplete patch (saved in `results/cjson/incomplete/summary.txt`):
 
 ```
-config + base + patch (dir or diff)
-  -> prepare trees, derive diff                         SPEC §3
-  -> 4 builds: base/patch x release/sanitized           SPEC §6
-  -> hardening check on both release builds             SPEC §11
-  -> run every test on every build, 3 repeats           SPEC §5, §7
-  -> optional: seeded variants of the security inputs   SPEC §7.6
-  -> analyse each run: outcome, detection, error type   SPEC §7.4
-  -> findings: FIXED / INCOMPLETE_FIX / NEW_ISSUE /
-     FUNCTIONAL_REGRESSION / INCONCLUSIVE               SPEC §8
-  -> link each finding to the diff                      SPEC §9
-  -> minimize, reproducer bundle, 3 replays,
-     regression test                                    SPEC §10
-  -> summary.txt + report.json + exit code              SPEC §12, §13
+ZARABAN 0.2.0  cjson  run 20261114-093419-5d31d06f
+base:  /workspace/targets/cjson (directory)
+patch: /workspace/targets/cjson/patches/incomplete.patch (diff, -p1)
+
+BUILDS     base-release ok · base-sanitized ok · patch-release ok · patch-sanitized ok
+HARDENING  NX on→on · PIE on→on · RELRO full→full · canary on→on   (no changes)
+TESTS      40 tests × 4 builds × 3 repeats   flaky: 0
+
+FINDINGS
+  F-001 INCOMPLETE_FIX  HEAP_BUFFER_OVERFLOW @ cJSON_Minify < main
+        tests:     exploit_comment blocked · exploit_string blocked · exploit_comment_bypass reaches
+        release:   NORMAL exit 0 → NORMAL exit 0
+        sanitized: ASAN/SIGABRT → CRASH ASAN SIGABRT (exploit_comment_bypass); NORMAL exit 0 (exploit_comment, exploit_string)
+        link:      IN_CHANGED_FUNCTION  src/cJSON.c:2642 cJSON_Minify (patch side)
+        bundle:    reproducers/F-001  6 → 3 bytes, replay 3/3
+        regression: regression/reg-exploit_comment_bypass-f8be50c1.yaml
+        notes:     HEAP_BUFFER_OVERFLOW @ cJSON_Minify (src/cJSON.c) still occurs on patch with exploit_comment_bypass; the patch blocks exploit_comment, exploit_string.
+
+RESULT     exit 10  VULN_REMAINS
 ```
 
-## Demo targets (try the tool yourself)
+How to read a finding:
 
-`targets/demo_*` are four tiny, self-contained targets meant for learning and
-hands-on testing. Each is a ~25-line C program with one easy-to-read bug, and
-each comes with three patches so you can watch the tool produce every verdict.
-They are independent of the delivered targets: CI does not run them, so you
-can change or delete them freely.
+- **Category and signature.** `INCOMPLETE_FIX` means the same bug (same
+  error type, function and file) crashes on base and still crashes on patch.
+  The signature is the error type and the top three functions of the
+  program.
+- **tests.** For each test of the finding, what it does on patch: `blocked`
+  (no crash any more), `reaches` (still crashes with this bug) or
+  `other_error`.
+- **release / sanitized.** What happened on base → patch, per profile. The
+  two profiles are never mixed. Here the release binary does not crash
+  (the over-read is silent there), and the sanitized binary shows the error.
+- **link.** How the finding relates to the diff. From strongest to weakest:
+  `IN_CHANGED_HUNK`, `IN_CHANGED_FUNCTION`, `CHANGED_FUNCTION_IN_STACK`,
+  `CHANGED_CODE_EXECUTED` (seen in a coverage trace) and `UNDETERMINED`.
+- **bundle.** The input was minimized from 6 to 3 bytes, and the bundle
+  reproduced the crash in 3 of 3 replays.
 
-| Target | Bug class | `correct` | `incomplete` | `regression` |
+The run directory holds:
+
+```
+summary.txt                  the summary above
+report.json                  everything, machine-readable (SPEC §12.4)
+inputs/                      copies of the config and the diff used
+builds/<build>/              build.json, build.log, the binary
+runs/<test>/<build>/         <n>.json, <n>.stdout, <n>.stderr for each repeat
+reproducers/<finding id>/    input.orig.*, input.min.*, bin/, metadata.json, replays.json, reproduce.sh
+regression/                  new regression tests (YAML plus input)
+variants/                    inputs of kept variants (only with --variants)
+errors.log                   only if the tool itself failed
+```
+
+`report.json` starts with the run, target, versions (with commit and tree
+hashes), environment and settings. Then come `builds`, `hardening`,
+`execution_logs` (every test on every build), `findings` (with their links
+and bundles), `regression_added`, `status` (the required checks, the
+conditions that decided the exit code, and why), `warnings` and `errors`.
+
+A reproducer bundle runs on its own, with the same command, environment and
+limits as during the run, and checks the binary's hash first:
+
+```bash
+docker compose run --rm zaraban bash results/cjson/incomplete/reproducers/F-001/reproduce.sh       # minimized input
+docker compose run --rm zaraban bash results/cjson/incomplete/reproducers/F-001/reproduce.sh orig  # original input
+```
+
+It exits `0` when the same error is reproduced, `1` when it is not, and `2`
+for a hash mismatch or bad usage.
+
+## The variant step (optional)
+
+An incomplete patch often blocks the known exploit but not a slightly
+different input. With `--variants`, after the normal runs, the tool makes
+mutated copies of each security input with a fixed seed. It uses lengths
+and characters from the diff as hints, and runs each copy once on
+`patch-sanitized`. A copy that crashes with a bug no test showed there, and
+does so again on a second run, is kept. It then runs on all four builds like
+any other test, so the normal finding, minimization and regression-test
+rules apply to it (SPEC §7.6).
+
+```bash
+docker compose run --rm zaraban \
+  python3 -m zaraban.cli -c targets/cjson/zaraban.yaml \
+  --patch targets/cjson/patches/incomplete.patch --variants --no-promote
+```
+
+It is off by default, so the delivered scenarios do not depend on it. It can
+also be turned on in the config:
+
+```yaml
+variants:
+  enabled: false     # --variants / --no-variants override this for one run
+  budget_runs: 200   # screening runs in total; no time budget, so results do not depend on machine speed
+  seed: 1            # same seed, same candidates
+  max_tests: 5       # kept variants, at most one per new bug
+```
+
+The summary then gets a `VARIANTS` line, and `report.json` records what the
+step did in `settings.variants`. On cJSON, with the hand-written bypass
+exploit removed from the config, the step alone finds an input that still
+overflows on the incomplete patch (exit `10`). On jhead it also finds older
+bugs of jhead itself that the original crash hides on base, so every jhead
+patch then gives exit `10` (see `targets/jhead/ORACLE.md`).
+
+## The delivered targets
+
+The course asks for two independent programs, at least one of them a real
+project. Each must have four versions: a vulnerable base, a correct patch
+(exit `0`), an incomplete patch (exit `10`) and a regression patch
+(exit `20`). Both of our targets are real open-source programs. The correct
+patch is the upstream fix, and we wrote the incomplete and regression
+patches.
+
+| Target | Program | Vulnerability | Input | Tests (valid / boundary / invalid / security) |
 |---|---|---|---|---|
-| `demo_stack_overflow` | stack buffer overflow (write) | exit 0 | exit 10 | exit 20 |
-| `demo_heap_overread` | heap out-of-bounds read | exit 0 | exit 10 | exit 20 |
-| `demo_divzero` | division by zero | exit 0 | exit 10 | exit 20 |
-| `demo_null_deref` | NULL pointer dereference | exit 0 | exit 10 | exit 20 |
+| [`cjson`](targets/cjson/ORACLE.md) | cJSON `v1.7.10` | CVE-2019-11834 and CVE-2019-11835: heap over-reads in `cJSON_Minify`; fixed upstream in `a43fa56` | a file, through a small driver (`src/main.c`) | 17 / 10 / 10 / 3 |
+| [`jhead`](targets/jhead/ORACLE.md) | jhead 3.04 (`56c108f`) | heap over-read in `ProcessExifDir` (EXIF DateTime); fixed upstream in `df124a4` | a JPEG file, jhead's own CLI | 12 / 10 / 10 / 2 |
 
-In every target the three patches are the same idea: `correct` fixes the bug,
-`incomplete` adds a check that misses the bug (a wrong bound or the wrong
-variable), and `regression` fixes the bug but quietly breaks a valid input.
-Open `targets/demo_stack_overflow/src/main.c` and its three `patches/*.patch`
-to see exactly what changed.
+| Scenario | cjson | jhead |
+|---|---|---|
+| correct | exit `0`: one `FIXED` | exit `0`: one `FIXED` |
+| incomplete | exit `10`: `INCOMPLETE_FIX`, `exploit_comment_bypass` still crashes | exit `10`: `INCOMPLETE_FIX`, `exploit_datetime` still crashes |
+| regression | exit `20`: two `FUNCTIONAL_REGRESSION` (strings with `/*` are cut) and `FIXED` | exit `20`: six `FUNCTIONAL_REGRESSION` (the time is dropped from dates) and `FIXED` |
 
-### Prerequisite
+Each target directory contains:
 
-On a Linux host, set the ASan randomization bits once per boot, or the
-sanitized builds crash at start-up at random (Issue #002):
-
-```bash
-sudo sysctl vm.mmap_rnd_bits=28
+```
+targets/<target>/
+  zaraban.yaml        the config: build, input method, limits, tests
+  ORACLE.md           versions, tests, and the source of every expected result
+  scenarios.yaml      the expected exit code and findings of each patch
+  Makefile            release, sanitized and coverage rules
+  src/                the vulnerable base
+  patches/*.patch     correct, incomplete and regression, as diffs
+  versions/patch_*/   the same three versions as complete trees
+  tests/              valid/, boundary/, invalid/, exploits/, regression/
 ```
 
-### Testing a demo target by hand
-
-Run the tool on one patch at a time and read the exit code it returns. Using
-`demo_stack_overflow` as the example:
+The expected results come from upstream tests and documentation, never from
+running a patched version. The saved outputs of the six scenarios (reports,
+summaries, bundles) are in `results/<target>/<scenario>/`. To regenerate
+them:
 
 ```bash
-# correct fix -> the bug is gone, nothing else breaks -> exit 0 (PASS)
+docker compose run --rm zaraban python3 scripts/run_matrix.py cjson jhead --save
+```
+
+`scripts/run_matrix.py` first checks that each `.patch` file and its
+`versions/` tree describe the same change. It then runs the tool and
+compares the exit code and the findings with `scenarios.yaml`.
+
+`targets/test_token_parser` is a small program we wrote for the tool's own
+end-to-end tests. It is not one of the two delivered targets.
+
+## Demo targets
+
+`targets/demo_*` are four tiny programs (about 25 lines each) for trying the
+tool by hand. Each has one easy-to-read bug and three patches:
+
+| Target | Bug |
+|---|---|
+| `demo_stack_overflow` | stack buffer overflow (write) |
+| `demo_heap_overread` | heap out-of-bounds read |
+| `demo_divzero` | division by zero |
+| `demo_null_deref` | NULL pointer dereference |
+
+In each one, `correct` fixes the bug (exit `0`). `incomplete` adds a check
+that misses the bug, a wrong bound or the wrong variable (exit `10`).
+`regression` fixes the bug but breaks a valid input (exit `20`). Read
+`src/main.c` and `patches/*.patch`, then run:
+
+```bash
 docker compose run --rm zaraban \
   python3 -m zaraban.cli -c targets/demo_stack_overflow/zaraban.yaml \
-  --patch targets/demo_stack_overflow/patches/correct.patch
-echo "exit code: $?"
-```
+  --patch targets/demo_stack_overflow/patches/incomplete.patch --no-promote
 
-```bash
-# incomplete fix -> the exploit still crashes -> exit 10 (VULN_REMAINS)
-docker compose run --rm zaraban \
-  python3 -m zaraban.cli -c targets/demo_stack_overflow/zaraban.yaml \
-  --patch targets/demo_stack_overflow/patches/incomplete.patch
-echo "exit code: $?"
-```
-
-```bash
-# regression -> the bug is fixed but a valid test now fails -> exit 20 (FUNC_REGRESSION)
-docker compose run --rm zaraban \
-  python3 -m zaraban.cli -c targets/demo_stack_overflow/zaraban.yaml \
-  --patch targets/demo_stack_overflow/patches/regression.patch
-echo "exit code: $?"
-```
-
-The other three targets work the same way; just change the directory name.
-
-**Reading the result.** The run prints a `summary.txt` and writes everything
-to `out/<target>/<run id>/` (see [Inspecting outputs](#inspecting-outputs)).
-In the summary, look at:
-
-- the final `RESULT` line, which is the exit code and its name;
-- the `FINDINGS` block: `FIXED` means the bug was reproduced on base and is
-  gone on patch; `INCOMPLETE_FIX` means it still crashes on patch;
-  `FUNCTIONAL_REGRESSION` means a valid test changed its output;
-- for a security finding, the `reproducers/<finding id>/` bundle holds the
-  minimized input and a `reproduce.sh` you can run on its own.
-
-Each run also prints `warning NO_INVALID_TESTS`. That is expected: these
-demos have no `invalid_tests`, and the tool reminds you that a real target
-should. It is only a warning and never changes the exit code.
-
-### Testing all demos automatically
-
-`scripts/run_matrix.py` runs every scenario of a target (listed in its
-`scenarios.yaml`) and checks both the exit code and the findings against what
-the scenario expects. Give it one or more target names, or none for all:
-
-```bash
-# one target, all three of its scenarios
-docker compose run --rm zaraban python3 scripts/run_matrix.py demo_stack_overflow
-
-# all four demo targets at once
+# all three patches of all four demos, checked against their scenarios.yaml
 docker compose run --rm zaraban python3 scripts/run_matrix.py \
   demo_stack_overflow demo_heap_overread demo_divzero demo_null_deref
 ```
 
-Each scenario prints one line ending in `PASS` or `FAIL`, and the script exits
-non-zero if any scenario did not match, so it works as a check in CI. A passing
-run looks like:
+The demos have no invalid tests, so each run prints the warning
+`NO_INVALID_TESTS`. A warning never changes the exit code.
 
-```
-demo_stack_overflow/correct    exit 0  (expected 0 )  findings ok   PASS
-demo_stack_overflow/incomplete exit 10 (expected 10)  findings ok   PASS
-demo_stack_overflow/regression exit 20 (expected 20)  findings ok   PASS
-...
-12/12 scenarios matched
-```
+## Adding a new target
 
-Add `--save` to copy each run's report, summary and bundles into
-`results/<target>/<scenario>/`.
+No tool code changes are needed:
 
-## Targets
-
-The course requires two independent C/C++ programs, at least one of them a
-real project, each with four versions in this repository: Vulnerable Base,
-Correct Patch (exit `0`), Incomplete Patch (exit `10`) and Regression Patch
-(exit `20`). Targets, patches and oracles must be approved by the instructor
-at the design stage.
-
-We use **two real open-source projects with public CVEs**. The Correct patch
-is the upstream fix. The Incomplete and Regression patches are written by us.
-`token_parser` stays in the repository as a development fixture only.
-
-| Target | Upstream | Vulnerability | Bug class | Input | Status |
-|---|---|---|---|---|---|
-| `cjson` | DaveGamble/cJSON | CVE-2019-11834 and CVE-2019-11835 (out-of-bounds reads in `cJSON_Minify`, fixed in 1.7.11) | heap buffer overflow (read) | file, via a small driver | confirmed ([repro](docs/repro/cjson.md)); target ready in `targets/cjson` |
-| `jhead` | Matthias Wandel's jhead | Heap out-of-bounds read in `ProcessExifDir` (EXIF DateTime), fixed upstream in commit `df124a4` | heap buffer overflow (read) | file, own CLI (`jhead FILE`) | confirmed; target ready in `targets/jhead` |
-
-`md4c` (CVE-2021-30027) was dropped: its CVE is a use-of-uninitialized-value
-found with MemorySanitizer, which AddressSanitizer/UBSan (our profile) does
-not catch, so it cannot reproduce cleanly as a crash. jhead replaces it: a
-real C program with its own CLI and an ASan-detectable over-read.
-
-Backups if one of these does not reproduce cleanly under ASan:
-
-- cJSON CVE-2023-50471: NULL dereference in `cJSON_InsertItemInArray`
-  (1.7.16, fixed in 1.7.17).
-- giflib CVE-2016-3977: heap overflow in the official `gif2rgb` utility.
-- zlib CVE-2022-37434: heap overflow in `inflateGetHeader` (needs a small
-  driver).
-
-How we chose them:
-
-- A real, widely used C library with a public CVE and a public fix commit.
-- Builds with a plain Makefile or a few `cc` lines, so the release and
-  sanitized profiles stay simple.
-- Takes input from a file or stdin, so no network or GUI is involved.
-- The PoC crashes under ASan in a few milliseconds.
-- Both current CVEs are heap out-of-bounds reads, reached in different code
-  (a JSON minifier vs. an EXIF directory parser) and through different input
-  paths (a small driver vs. jhead's own CLI). If a second error class is
-  wanted for the classifier, one of the backups above (a NULL dereference, or
-  a heap-overflow write) can replace a target.
-
-Every target directory must contain `zaraban.yaml`, `ORACLE.md`,
-`scenarios.yaml`, a `Makefile` with `release` and `sanitized` rules, `src/`,
-`patches/*.patch`, `versions/patch_*/` and `tests/{valid,boundary,invalid,exploits,regression}/`
-(SPEC §14.2).
-
-## Adding a target
-
-No tool code changes are needed (SPEC §4.1):
-
-1. Copy the template: `cp -r targets/_template targets/<name>`. It holds a
-   `zaraban.yaml` that lists every key the tool accepts, a `Makefile` with
-   the `release`, `sanitized`, `coverage` and `clean` rules, skeletons of
-   `ORACLE.md` and `scenarios.yaml`, and the test directories with one
-   placeholder input each.
-2. Put the base sources in `src/`, and set `SRC` and `BIN` in the `Makefile`
-   (`BIN` must match `build.binary_path`).
+1. Copy the template: `cp -r targets/_template targets/<name>`. It has a
+   `zaraban.yaml` that lists and explains every key, and a `Makefile` with
+   the `release`, `sanitized`, `coverage` and `clean` rules. It also has
+   skeletons of `ORACLE.md` and `scenarios.yaml`, and the test directories
+   with one placeholder input each.
+2. Put the base sources in `src/`, and set `SRC` and `BIN` in the
+   `Makefile`. `BIN` must match `build.binary_path`. Keep the hardening
+   flags in the Makefile, not in the config, so a patch that weakens them
+   is detected.
 3. Replace every `REPLACE` in `zaraban.yaml` with the real tests and their
-   expected behavior, and write the source of each expectation in
-   `ORACLE.md`. Delete the placeholder `example.txt` inputs.
+   expected behavior, and write in `ORACLE.md` where each expectation comes
+   from. Delete the placeholder `example.txt` inputs.
 4. Check the config:
-   `python3 -m zaraban.cli -c targets/<name>/zaraban.yaml --check-config`.
-5. Run the tool on a patch:
-   `python3 -m zaraban.cli -c targets/<name>/zaraban.yaml --patch <file>.patch`.
-6. For a delivered target only: add the three `versions/patch_*/` trees and
-   `patches/*.patch` (`ORACLE.md` shows how to make a diff from a tree), and
-   run `python3 scripts/run_matrix.py <name>`.
 
-`scripts/run_matrix.py` skips directories whose name starts with `_`, so the
-template itself is never run as a target.
+   ```bash
+   docker compose run --rm zaraban python3 -m zaraban.cli -c targets/<name>/zaraban.yaml --check-config
+   ```
+
+5. Run the tool on a patch:
+
+   ```bash
+   docker compose run --rm zaraban python3 -m zaraban.cli -c targets/<name>/zaraban.yaml --patch <file>.patch
+   ```
+
+6. For a delivered target only, add the three `versions/patch_*/` trees and
+   `patches/*.patch`. `ORACLE.md` shows how to make a diff from a tree.
+   Then run `python3 scripts/run_matrix.py <name>`.
+
+`run_matrix.py` skips directories whose name starts with `_`, so the
+template itself is never run.
+
+## Tests and CI
+
+```bash
+docker compose run --rm zaraban python3 -m pytest -q                      # everything
+docker compose run --rm zaraban python3 -m pytest -q tests/test_e2e.py    # end to end only
+docker compose run --rm zaraban bash scripts/verify_env.sh                # check the image's tools
+```
+
+Unit tests are named after the SPEC section they check, for example
+`test_7_4_…` for §7.4.
+
+`.github/workflows/zaraban.yml` runs on every push and every pull request to
+`main`. It sets `vm.mmap_rnd_bits`, builds the image, and runs the unit
+tests, the end-to-end tests and the scenarios of `test_token_parser`,
+`cjson` and `jhead`. It uploads `out/` as the `zaraban-out` artifact, with
+every report, summary and reproducer bundle, even when a step fails. Any
+failing step fails the job, so the tool's exit codes decide the pipeline
+result.
+
+## Troubleshooting
+
+### ASan crashes at random, or many results are flaky
+
+Many tests become `INCONCLUSIVE` with notes such as `CRASH SIGNAL SIGSEGV in
+repeat 2`, or sanitized binaries die with `SIGSEGV` and no ASan report. Newer
+Linux kernels use `vm.mmap_rnd_bits=32`. clang 14's AddressSanitizer
+(Ubuntu 22.04) then sometimes places memory where it does not expect it, and
+crashes itself. This is a setting of the **host** kernel:
+
+```bash
+cat /proc/sys/vm/mmap_rnd_bits                                    # 32 means affected
+sudo sysctl -w vm.mmap_rnd_bits=28                                # fix until reboot
+echo 'vm.mmap_rnd_bits=28' | sudo tee /etc/sysctl.d/99-asan.conf  # keep it after reboot
+```
+
+If you cannot change it, run the tests with address randomization turned
+off for the container instead:
+
+```bash
+docker run --rm --network none --security-opt seccomp=unconfined -v "$PWD":/workspace -w /workspace \
+  zaraban:latest setarch x86_64 -R python3 -m pytest -q
+```
+
+### `docker compose build` cannot download packages
+
+If `apt-get` or `pip` time out during the build, the build container cannot
+reach the package servers, for example when a VPN runs only on the host.
+The Dockerfile tries a direct download first, and retries through
+`BUILD_PROXY` only if that fails:
+
+1. `cp .env.example .env`, then set your VPN's local HTTP proxy, for example
+   `BUILD_PROXY=http://host.docker.internal:7890`. Turn on "Allow LAN" in
+   the VPN app, so the build container can reach it.
+2. `docker compose build`.
+
+Leave `BUILD_PROXY` empty when no proxy is needed.
+
+### Files in `out/` belong to root, or the run cannot write `out/`
+
+Build the image with your own user ids, so the container user matches you:
+`HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose build`.
+
+### A config error (exit 30)
+
+The message lists every problem at once, each with its place, for example:
+
+```
+CONFIG_INVALID: the config targets/demo_divzero/zaraban.yaml has 1 problem
+  - valid_tests[0] (valid_ten_two): unknown key 'expected_exitcode'; did you mean 'expected_exit_code'?
+```
+
+Run `--check-config` until it prints `Config OK`.
 
 ## Repository layout
 
 ```
-zaraban/                      the tool (Python package)
-tests/                        unit tests of the tool (pytest)
-targets/<target>/             one directory per target
-scripts/run_matrix.py         runs and checks all delivered scenarios
-results/<target>/<scenario>/  committed outputs of the delivered scenarios
-docs/SPEC.md                  tool specification
-docs/DECISIONS.md             design decisions
-.github/workflows/zaraban.yml CI pipeline
+zaraban/                      the tool (Python package; one module per stage, see docs/OVERVIEW.md)
+tests/                        unit and end-to-end tests (pytest)
+targets/cjson, targets/jhead  the two delivered targets
+targets/test_token_parser     small target for the end-to-end tests
+targets/demo_*                four tiny targets for trying the tool
+targets/_template             the starting point for a new target
+scripts/run_matrix.py         runs and checks every scenario in targets/*/scenarios.yaml
+scripts/verify_env.sh         checks the tools inside the image
+results/<target>/<scenario>/  saved outputs of the six delivered scenarios
+docs/                         OVERVIEW.md, SPEC.md, and the course specification
+.github/workflows/zaraban.yml the CI pipeline
 Dockerfile, docker-compose.yml
 ```
-
----
-
-## Team and ownership
-
-Each member owns one module end to end: design, code, unit tests, and the
-section of the docs that explains it. This matches the individual defense,
-where each member explains their own part, analyses a finding, and makes a
-small live change. Each member also co-owns one target.
-
-| Member | Module | SPEC sections | Grading rows it serves | Target |
-|---|---|---|---|---|
-| A: _name_ | **Orchestrator, builds, hardening, CI**: CLI, config validation, source preparation and diff derivation, the four builds and profile checks, hardening checker, Docker image, CI workflow, `run_matrix.py` | §3, §4, §6, §11, §14 | CI/JSON/exit codes (10), hardening (5), docs and modularity (5) | cJSON |
-| B: _name_ | **Runner and crash analysis**: input delivery, run environment and limits, repeats, outcome and error-type rules, stack-trace parsing, signatures, oracle matching | §5, §7 | Dynamic testing and classification (25) | cJSON |
-| C: _name_ | **Findings and patch linking**: findings from results, diff parsing, changed functions, location and comparative evidence, execution trace | §8, §9 | Patch validation and diff linking (25) | jhead |
-| D: _name_ | **Reproducibility and reporting**: minimization, reproducer bundles, replays, regression tests, `report.json`, `summary.txt`, status and exit code | §10, §12, §13 | Reproducibility and regression tests (15) | jhead |
-
-The 15 points for the scenarios on two programs and the unseen patches are
-shared. Each target pair owns its four versions, its tests and its
-`ORACLE.md`.
-
-### Shared interfaces (agree on these first)
-
-Every module depends on these types. They live in `zaraban/models.py`. A
-change to them needs a pull request reviewed by all four members.
-
-| Type | Defined in | Producer | Consumers |
-|---|---|---|---|
-| `Config`, `TestCase` | SPEC §4 | A | B, C, D |
-| `BuildRecord` | SPEC §6.4, §12.3 | A | B, D |
-| `RunRecord`, `Analysis`, `Frame` | SPEC §7, §12.3 | B | C, D |
-| `CombinedResult` | SPEC §7.5 | B | C |
-| `Finding`, `Link` | SPEC §8.8, §9.6 | C | D |
-| `Bundle`, `RegressionTest` | SPEC §10 | D | D, A |
-| `Status`, `Condition`, warnings and errors | SPEC §12.6, §13 | D | A |
-
----
-
-## Implementation plan
-
-The work runs in five phases. Inside a phase, members work in parallel on
-their own module. A phase ends at its gate: the listed checks pass on `main`.
-
-### Phase 0: Foundation (all members)
-
-- [ ] Approve `docs/SPEC.md`, including the review fixes (target rule,
-      same-bug rule, coverage-based trace, optional variant step).
-- [ ] Write `zaraban/models.py` with the shared types above, as dataclasses or
-      pydantic models with no logic.
-- [ ] **A**: update the Docker image: universal-ctags, llvm tools, non-root
-      user, compose limits, `network_mode: none`.
-- [ ] **A + B**: confirm the cJSON CVE reproduces under ASan, and pick the
-      exact base version and fix commit.
-- [ ] **C + D**: confirm the md4c CVE reproduces under ASan, and pick the
-      exact base version and fix commit.
-- [ ] Send the target proposal (projects, CVEs, four versions, oracle sources)
-      to the instructor for approval.
-
-**Gate:** models merged, image builds, both PoCs crash under ASan, and the
-target proposal is sent.
-
-### Phase 1: Modules in isolation (parallel)
-
-Each module is built and unit-tested against fixtures, without the rest of
-the pipeline.
-
-- [ ] **A**: CLI and arguments (§3), strict config validation and
-      `--check-config` (§4.5), source preparation and strip-level detection
-      (§3.2), four isolated builds with logs and hashes (§6.2), profile
-      verification (§6.3), hardening checker (§11).
-- [ ] **B**: input delivery for file, stdin and args (§5.3), clean environment
-      and sanitizer options (§7.2), limits and process groups (§7.3), outcome
-      and error-type rules (§7.4), frame parsing and signatures, repeats and
-      flakiness (§7.5), oracle matching (§5.4). Fixtures: saved stderr from
-      real ASan, UBSan, canary, fortify and glibc aborts.
-- [ ] **C**: diff parsing into hunks on both sides (§9.2), changed functions
-      with ctags, finding rules from fixture results (§8.2 to §8.6), including
-      the same-bug rule for incomplete fixes.
-- [ ] **D**: byte-level ddmin with a pluggable "same crash" check (§10.2),
-      bundle writer and `reproduce.sh` (§10.3 to §10.5), status and exit-code
-      resolution (§13), JSON and summary writers (§12).
-
-**Gate:** `pytest` is green for all four modules, and each module has at least
-one fixture test per rule in its SPEC sections.
-
-### Phase 2: Integration on `token_parser`
-
-- [ ] **A**: wire the pipeline in order: config, sources, builds, hardening,
-      runs, findings, link, bundles, report.
-- [ ] **C**: location evidence (§9.3) on real stack traces, plus the execution
-      trace. Coverage-based trace is recommended over `gdb`.
-- [ ] **D**: regression-test verification, deduplication and promotion
-      (§10.6), and loading regression tests in later runs.
-- [ ] **B**: completeness check: every abnormal result is referenced by a
-      finding (§8.7).
-
-**Gate:** the three `token_parser` scenarios give exits `0`, `10` and `20`
-with the findings of SPEC §8.9, through `run_matrix.py`.
-
-### Phase 3: Real targets
-
-**Status: done.** `targets/cjson` (17 valid, 10 boundary, 10 invalid, 3
-security tests) and `targets/jhead` (12, 10, 10, 2) are complete, all six
-scenarios pass through `run_matrix.py`, and their outputs are saved in
-`results/`.
-
-For each target, the pair prepares:
-
-- [x] `src/` at the vulnerable upstream version, with a minimal `Makefile`.
-- [x] Correct patch = the upstream fix commit.
-- [x] Incomplete patch: blocks the public PoC only. Write a second exploit
-      input that still reaches the bug, and add it to `security_tests`.
-- [x] Regression patch: removes the crash but rejects or breaks some valid
-      inputs, with no other security bug.
-- [x] Tests: about 10 to 20 valid, 10 boundary (around every threshold the
-      patches touch) and 10 invalid, each with its source in `ORACLE.md`.
-- [x] `scenarios.yaml` with the expected exit and findings for each patch.
-
-**Gate:** `run_matrix.py` passes for all scenarios of both targets. Results are
-saved to `results/` with `--save`.
-
-### Phase 4: CI, docs, and unseen-patch drill
-
-- [x] **A**: `.github/workflows/zaraban.yml`: build the image, run pytest, run
-      the matrix, upload `out/`.
-- [ ] Everyone: document your module in `docs/` (design, rules, limitations).
-- [ ] **Unseen-patch drill**: each pair writes two surprise patches for the
-      other pair's target, gives only the diff, and records the tool's verdict.
-      Fix anything it gets wrong.
-- [x] Optional: the bounded variant step for security inputs
-      (SPEC §7.6), off by default, turned on with `--variants`.
-
-**Gate:** CI is green on `main`, the drill verdicts are correct, and the README
-run guide works on a fresh clone.
-
-### Dependency flow
-
-```
-Phase 0  models.py + Docker + PoCs confirmed
-           |
-Phase 1  A builds | B runner | C findings | D repro+report     (parallel)
-           |
-Phase 2  A wires pipeline -> token_parser scenarios pass
-           |
-Phase 3  cJSON pair (A+B)  |  jhead pair (C+D)                 (parallel)
-           |
-Phase 4  CI + docs + unseen-patch drill
-```
-
-The critical path is `models.py`, then B's `RunRecord`, then C's findings,
-then D's status. Agree on the models early, because a late change there
-blocks everyone.
-
----
-
-## Working rules
-
-- One branch per task, for example `feat/runner-limits`. Open a pull request
-  into `main`, reviewed by one other member.
-- Every rule in the SPEC gets a unit test. Name the test after the SPEC
-  section, for example `test_7_4_fortify_abort`.
-- Never edit `results/` by hand. Regenerate it with
-  `run_matrix.py --save`.
-- Expected behavior comes from documentation or reference tests and is
-  written in `ORACLE.md`. Never take it from the patched program's output or
-  from an LLM.
-- LLM help is allowed for code. You must be able to explain and change your
-  own module without help at the defense.
-
-## Individual defense checklist
-
-Each member, for their own module:
-
-- [ ] Explain the overall architecture and why your module is designed this
-      way (3 points).
-- [ ] Take one finding from `results/` and explain how its evidence leads to
-      the verdict (3 points).
-- [ ] Practise a small live change, for example a new error-type rule, a
-      different repeat count, or a new boundary test (4 points).
-
-To get a grade you need at least 5 of 10 in the defense, and at least 1 point
-in each of the three parts.

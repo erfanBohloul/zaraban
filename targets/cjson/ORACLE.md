@@ -28,7 +28,7 @@ fixed by the same upstream rewrite:
 | CVE-2019-11835 | [#338](https://github.com/DaveGamble/cJSON/issues/338) | an unterminated `/*` comment | The comment loop stops at the NUL, then `json += 2` steps past it, and the main loop reads past the buffer: `heap-buffer-overflow` READ at `cJSON.c:2642`. |
 | CVE-2019-11834 | [#337](https://github.com/DaveGamble/cJSON/issues/337) | a string that ends in a backslash | The escape is copied together with the NUL, then the closing-quote copy steps past it: `heap-buffer-overflow` READ at `cJSON.c:2682`. |
 
-Reproduction: `docs/repro/cjson.md`.
+How to reproduce both by hand: see [Reproducing by hand](#reproducing-by-hand).
 
 ## The four versions
 
@@ -134,3 +134,36 @@ What the tool must report for each version, derived from the design above
 - **Regression**: the two valid tests with `/*` inside a string match on base
   and fail on patch, so two `FUNCTIONAL_REGRESSION` findings, and the
   exploits give `FIXED`. Exit `20`.
+
+## Reproducing by hand
+
+Inside the container (`docker compose run --rm zaraban bash`), build the
+sanitized base in a scratch copy and run an exploit:
+
+```bash
+cp -r targets/cjson /tmp/cjson && cd /tmp/cjson
+make sanitized
+./cjson_driver minify tests/exploits/exploit_comment.json   # CVE-2019-11835
+./cjson_driver minify tests/exploits/exploit_string.json    # CVE-2019-11834
+```
+
+Each aborts with `AddressSanitizer: heap-buffer-overflow`, a 1-byte `READ` in
+`cJSON_Minify`, at `src/cJSON.c:2642` (comment) and `src/cJSON.c:2682`
+(string). The upstream fix `a43fa56` makes both inputs exit `0`.
+
+The saved bundle of the incomplete scenario replays the remaining bug on the
+patched binary, on its own (exit `0` means reproduced):
+
+```bash
+bash results/cjson/incomplete/reproducers/F-001/reproduce.sh       # minimized input
+bash results/cjson/incomplete/reproducers/F-001/reproduce.sh orig  # original input
+```
+
+## With the variant step
+
+The delivered scenarios run without `--variants`. With `--variants` the
+verdicts stay the same (exits `0`, `10` and `20`). The step also works
+without the hand-written bypass: with `exploit_comment_bypass` removed from
+the config, it finds a 3-byte variant of `exploit_comment` that still
+overflows in `cJSON_Minify` on the incomplete patch, so that scenario still
+gives `INCOMPLETE_FIX` and exit `10`.

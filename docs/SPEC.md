@@ -1,13 +1,15 @@
-# Zaraban Tool Specification
+# Zaraban: technical reference
 
-This document defines what Zaraban does, what it takes as input, and what it
-produces. It is the single reference for the team and for anyone (human or
-agent) implementing the tool.
+This document defines exactly what Zaraban does, what it takes as input, what
+it produces, and every rule behind a verdict. The code and its tests cite its
+sections (for example `SPEC §7.4`), so each rule can be traced from here to
+the code that implements it and the test that checks it.
+
+- To run the tool, read the [README](../README.md).
+- For a short tour of the design, read [OVERVIEW.md](OVERVIEW.md).
 
 The course specification is [`project1_spec.pdf`](project1_spec.pdf). This
 document cites it as "the spec", with section numbers such as §3.1.
-
-> **Status:** version 1.
 
 ---
 
@@ -71,7 +73,7 @@ The rest of this document defines each step.
 
 ### 3.1 Invocation
 
-The tool keeps the current entry point:
+The entry point is:
 
 ```bash
 python -m zaraban.cli -c <config> --patch <patch> [options]
@@ -287,14 +289,14 @@ The following are errors:
   functional regressions or reproduce the base vulnerability.
 
 A config with no `invalid_tests` is accepted, but produces a warning, because
-§3.2 of the spec requires the team to design invalid inputs.
+§3.2 of the spec requires invalid inputs to be designed and documented.
 
 ### 4.6 Example
 
-The config of the `token_parser` target in this format, shortened: some of
-the current file's tests and its `clean_cmd` are left out to keep the example
-readable. What is new compared with the current file is `invalid_tests` and
-the exact match on `valid_set`.
+A config in the style of the `token_parser` development target, shortened
+to one or two tests of each kind. `targets/_template/zaraban.yaml` lists every
+key with a comment, and `targets/cjson/zaraban.yaml` and
+`targets/jhead/zaraban.yaml` are complete real configs.
 
 ```yaml
 name: "token_parser"
@@ -343,8 +345,6 @@ security_tests:
     input_file: "tests/exploits/exploit_secondary.txt"
     description: "82-byte SET value; passes the incomplete patch's 100-byte check"
 ```
-
-The two files under `tests/invalid/` do not exist yet and must be added.
 
 ---
 
@@ -603,8 +603,8 @@ ASAN_SYMBOLIZER_PATH=<path of llvm-symbolizer>
 |---|---|---|
 | Wall-clock time (`timeout_seconds`) | The tool kills the program's whole process group with `SIGKILL` when the time is up. | `TIMEOUT` |
 | CPU time | `RLIMIT_CPU` set to `timeout_seconds` rounded up, plus 1 second. The kernel sends `SIGXCPU`. | `RESOURCE_LIMIT` (cpu) |
-| Memory, release builds | `RLIMIT_DATA` set to `memory_limit_mb`, as in the current code. | The program's allocations fail. How it then ends is judged by the normal rules of §7.4. |
-| Memory, sanitized builds | An address-space limit cannot be used, because AddressSanitizer reserves terabytes of virtual address space. The tool sets `max_allocation_size_mb` instead, as in the current code. | `RESOURCE_LIMIT` (memory), when AddressSanitizer reports an allocation that exceeds the limit |
+| Memory, release builds | `RLIMIT_DATA` set to `memory_limit_mb`. | The program's allocations fail. How it then ends is judged by the normal rules of §7.4. |
+| Memory, sanitized builds | An address-space limit cannot be used, because AddressSanitizer reserves terabytes of virtual address space. The tool sets `max_allocation_size_mb` instead. | `RESOURCE_LIMIT` (memory), when AddressSanitizer reports an allocation that exceeds the limit |
 | Output | Standard output and standard error are each stored up to 1 MB; the rest is discarded. | Not a failure. The run is marked truncated, with the warning `OUTPUT_TRUNCATED`. |
 | Core dumps | `RLIMIT_CORE` set to 0. | |
 
@@ -1604,14 +1604,17 @@ so far, adds the error `TOOL_INTERNAL`, and exits with `30`.
 ### 14.1 Repository
 
 ```
-zaraban/                      the tool (Python package; existing packages are kept)
+zaraban/                      the tool (Python package)
 tests/                        unit tests of the tool (pytest)
 targets/<target>/             one directory per target (§14.2)
+targets/_template/            the starting point for a new target
 scripts/run_matrix.py         runs and checks all delivered scenarios (§14.3)
+scripts/verify_env.sh         checks that the image has every tool it needs
 results/<target>/<scenario>/  committed outputs of the delivered scenarios
-docs/SPEC.md                  this document
-docs/DECISIONS.md             design decisions and their reasons
 README.md                     overview and the independent run guide
+docs/OVERVIEW.md              a short tour of the design
+docs/SPEC.md                  this document
+docs/project1_spec.pdf        the course specification
 Dockerfile, docker-compose.yml
 .github/workflows/zaraban.yml the CI pipeline (§14.4)
 out/                          run outputs (ignored by git)
@@ -1638,19 +1641,19 @@ targets/<target>/
 
 **Which targets.** Section 4 of the spec requires two independent C/C++
 programs, at least one of them a real project or library, not a toy. Both
-delivered targets are real open-source projects with a public CVE, and the
-Correct patch of each is the upstream fix:
+delivered targets are real open-source projects with a publicly fixed memory
+error, and the Correct patch of each is the upstream fix:
 
 | Target | Upstream | Vulnerability | Base | Correct patch |
 |---|---|---|---|---|
 | `cjson` | DaveGamble/cJSON | CVE-2019-11834 and CVE-2019-11835, heap buffer over-reads in `cJSON_Minify` | `v1.7.10` | upstream commit `a43fa56` (in `v1.7.11`), with its follow-up `08d2bc7` (in `v1.7.12`) |
-| `md4c` | mity/md4c | CVE-2021-30027, heap buffer over-read in `md_analyze_line` | `release-0.4.7` | upstream fix, in `release-0.4.8` |
+| `jhead` | Matthias Wandel's jhead | heap buffer over-read in `ProcessExifDir` (EXIF DateTime) | `3.04`, commit `56c108f` | upstream commit `df124a4` |
 
 The Incomplete and Regression patches are written by the team, and the
-`ORACLE.md` of each target says how. The reproduction of each CVE is recorded
-in `docs/repro/`. `token_parser` (`targets/test_token_parser`) is written by the
-team, so it is a development fixture for the tool's own tests, and is not one
-of the two delivered targets.
+`ORACLE.md` of each target says how, and how to reproduce the vulnerability
+by hand. `token_parser` (`targets/test_token_parser`) and the four
+`targets/demo_*` programs are small programs written for the tool's own tests
+and for trying it out; they are not delivered targets.
 
 Section 4 of the spec requires the four versions of each target to be ready in
 the repository. Each patched version is stored both as a complete tree, which
@@ -1729,6 +1732,7 @@ Section 5 of the spec lists what must be delivered. Where each one is:
 | Generated reports | `results/<target>/<scenario>/report.json` and `summary.txt` |
 | Pipeline file | `.github/workflows/zaraban.yml` |
 | Independent run guide | `README.md` |
+| Design documentation | `docs/OVERVIEW.md`, `docs/SPEC.md`, and each target's `ORACLE.md` |
 
 Both targets, their four versions and their oracles must be approved by the
 instructor during the design phase (§4 of the spec).

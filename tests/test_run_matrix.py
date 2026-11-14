@@ -1,4 +1,4 @@
-"""Unit tests for scripts/run_matrix.py (SPEC §14.3, PHASES Task 2.5)."""
+"""Unit tests for scripts/run_matrix.py (SPEC §14.3)."""
 
 import importlib.util
 import json
