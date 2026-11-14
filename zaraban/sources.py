@@ -24,6 +24,7 @@ build or run anything, and it does not parse the diff into hunks; that is
 from __future__ import annotations
 
 import hashlib
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -187,8 +188,17 @@ def _choose_level(touched: dict[int, list[str]], base_tree: Path, diff_file: Pat
 
 
 def _git_apply(tree: Path, level: int, diff: str, *flags: str) -> subprocess.CompletedProcess:
+    """``git apply`` in ``tree``, which has no ``.git`` of its own (copy_tree).
+
+    git must not find a repository above ``tree``: inside one (for example a
+    run directory under ``out/`` of a checkout), ``git apply`` takes paths as
+    relative to that repository's root, silently skips every file outside
+    ``tree`` and still exits 0, so the patch tree would stay the base.
+    ``GIT_CEILING_DIRECTORIES`` stops the search at ``tree``.
+    """
+    env = {**os.environ, "GIT_CEILING_DIRECTORIES": str(Path(tree).resolve().parent)}
     return subprocess.run(["git", "apply", *flags, f"-p{level}", diff],
-                          cwd=tree, capture_output=True, text=True)
+                          cwd=tree, env=env, capture_output=True, text=True)
 
 
 def _numstat_paths(numstat: str) -> list[str]:
