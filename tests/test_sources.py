@@ -165,6 +165,8 @@ def test_12_4_version_and_diff_metadata(tmp_path):
 
     assert s.base.form == "directory"
     assert s.base.git_commit is not None  # base is a git repo
+    assert len(s.base.git_commit) == 40  # the full hash identifies the version exactly
+    assert isinstance(s.base.git_dirty, bool)
     assert len(s.base.tree_sha256) == 64  # sha256 hex
     assert len(s.patch.tree_sha256) == 64
     # Base and patch differ, so their tree hashes differ.

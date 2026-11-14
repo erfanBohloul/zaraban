@@ -83,13 +83,14 @@ def prepare(
         form = "diff"
         strip = _apply_diff(patch_path, base_tree, patch_tree)
         shutil.copyfile(patch_path, diff_path)
-        patch_commit = None
+        patch_commit = patch_dirty = None
     elif patch_path.is_dir():
         form = "directory"
         strip = None  # recorded only for the diff form
         copy_tree(patch_path, patch_tree)
         _diff_trees(base_tree, patch_tree, diff_path)
         patch_commit = _git_commit(patch_path)
+        patch_dirty = _git_dirty(patch_path)
     else:
         raise ZarabanError(ErrorCode.SOURCE_NOT_FOUND,
                            f"--patch {patch_arg} does not exist; give a diff file or a "
@@ -98,11 +99,11 @@ def prepare(
 
     base_info = VersionInfo(
         form="directory", ref=str(base_arg), git_commit=_git_commit(base_dir),
-        tree_sha256=_tree_sha256(base_tree),
+        tree_sha256=_tree_sha256(base_tree), git_dirty=_git_dirty(base_dir),
     )
     patch_info = VersionInfo(
         form=form, ref=str(patch_arg), git_commit=patch_commit,
-        tree_sha256=_tree_sha256(patch_tree), strip_level=strip,
+        tree_sha256=_tree_sha256(patch_tree), strip_level=strip, git_dirty=patch_dirty,
     )
     diff_info = _diff_info(diff_path, strip if strip is not None else DIR_DIFF_STRIP)
     return Sources(base_tree, patch_tree, diff_path, base_info, patch_info, diff_info)
@@ -262,11 +263,22 @@ def _root_paths(diff: str, base_name: str, patch_name: str) -> str:
 
 
 def _git_commit(path: Path) -> Optional[str]:
+    """The full commit hash of the repository that holds ``path``, or None."""
     result = subprocess.run(
-        ["git", "-C", str(path), "rev-parse", "--short", "HEAD"],
+        ["git", "-C", str(path), "rev-parse", "HEAD"],
         capture_output=True, text=True,
     )
     return result.stdout.strip() if result.returncode == 0 else None
+
+
+def _git_dirty(path: Path) -> Optional[bool]:
+    """Whether ``path`` has uncommitted changes (tracked or untracked), so
+    its commit alone does not identify it; None outside a repository."""
+    result = subprocess.run(
+        ["git", "-C", str(path), "status", "--porcelain", "--", "."],
+        capture_output=True, text=True,
+    )
+    return bool(result.stdout.strip()) if result.returncode == 0 else None
 
 
 def _tree_sha256(tree: Path) -> str:

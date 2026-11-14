@@ -397,6 +397,7 @@ def _metadata(finding: Finding, source: RunRecord, build: BuildRecord, versions:
     version = source.build.version.value
     vinfo = versions.get(version)
     diff = versions.get("diff")
+    base_info = versions.get("base")
     compilers = {}
     if environment is not None:
         compilers = {"gcc": environment.gcc, "clang": environment.clang}
@@ -408,7 +409,12 @@ def _metadata(finding: Finding, source: RunRecord, build: BuildRecord, versions:
         "version": version,
         "build": source.build.value,
         "git_commit": getattr(vinfo, "git_commit", None),
+        "git_dirty": getattr(vinfo, "git_dirty", None),
         "tree_sha256": getattr(vinfo, "tree_sha256", None),
+        # The program version: the upstream commit of the base, plus the
+        # diff (diff_sha256) for a bundle built from the patch.
+        "upstream": ({"repo": base_info.upstream_repo, "commit": base_info.upstream_commit}
+                     if getattr(base_info, "upstream_commit", None) else None),
         "diff_sha256": getattr(diff, "sha256", None),
         "binary": f"bin/{bin_name}",
         "binary_sha256": binary_sha,

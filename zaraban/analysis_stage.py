@@ -139,7 +139,9 @@ def make_bundle(ctx: RunContext, f: Finding, test: TestCase, build: BuildName,
         finding=f, bundle=bundle, input_bytes=replayed.read_bytes(),
         input_ext=test.input_ext, source_kind=test.kind, signature=source.analysis.signature,
         run_base=lambda data: run_input(ctx, test, BuildName.BASE_SANITIZED, data),
-        run_id=ctx.run_id, base_version=ctx.sources.base.git_commit,
+        run_id=ctx.run_id,
+        # the program's own version when the config names it, else the repository's
+        base_version=ctx.sources.base.upstream_commit or ctx.sources.base.git_commit,
         base_binary_sha256=base.binary.sha256, out_dir=ctx.out_dir,
         regression_dir=regression.target_regression_dir(ctx.target),
         promote=not getattr(ctx.args, "no_promote", False))

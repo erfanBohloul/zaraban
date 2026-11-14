@@ -99,7 +99,8 @@ def build_record(run_dir: Path, build=BuildName.PATCH_SANITIZED, binary: Path = 
 
 
 def versions():
-    return {"base": VersionInfo("directory", "src", "c76e9ca", "a" * 64),
+    return {"base": VersionInfo("directory", "src", "c76e9ca", "a" * 64,
+                                upstream_repo="https://example.org/prog", upstream_commit="e" * 40),
             "patch": VersionInfo("diff", "fix.patch", "c76e9ca", "b" * 64, strip_level=1),
             "diff": DiffInfo("inputs/patch.diff", "d" * 64, ["src/main.c"], 1)}
 
@@ -222,6 +223,8 @@ def test_10_3_metadata_has_everything_needed(tmp_path):
     assert m["version"] == "patch" and m["build"] == "patch-sanitized"
     assert m["git_commit"] == "c76e9ca" and m["tree_sha256"] == "b" * 64
     assert m["diff_sha256"] == "d" * 64
+    # The upstream version of the base identifies the program; a patch bundle adds the diff.
+    assert m["upstream"] == {"repo": "https://example.org/prog", "commit": "e" * 40}
     import hashlib
     assert m["binary_sha256"] == hashlib.sha256(b"\x7fELF fake binary").hexdigest()
     assert m["build_settings"] == {"cmd": "make sanitized",

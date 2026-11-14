@@ -136,6 +136,9 @@ repository first, for example to `tmp/` (git-ignored).
 > copies it to `targets/<target>/tests/regression/`, so later runs check it
 > (SPEC §10.6). When you are only experimenting, add `--no-promote` to leave
 > the target unchanged.
+> The delivered targets `cjson` and `jhead` already hold the regression tests
+> their scenarios produced, committed with the target, so every CI run checks
+> them: they must still crash on base and must not crash on a fixed patch.
 
 ## Command-line options
 
@@ -228,7 +231,7 @@ variants/                    inputs of kept variants (only with --variants)
 errors.log                   only if the tool itself failed
 ```
 
-`report.json` starts with the run, target, versions (with commit and tree
+`report.json` starts with the run, target, versions (with the upstream commit, commit and tree
 hashes), environment and settings. Then come `builds`, `hardening`,
 `execution_logs` (every test on every build), `findings` (with their links
 and bundles), `regression_added`, `status` (the required checks, the
@@ -291,8 +294,8 @@ patches.
 
 | Target | Program | Vulnerability | Input | Tests (valid / boundary / invalid / security) |
 |---|---|---|---|---|
-| [`cjson`](targets/cjson/ORACLE.md) | cJSON `v1.7.10` | CVE-2019-11834 and CVE-2019-11835: heap over-reads in `cJSON_Minify`; fixed upstream in `a43fa56` | a file, through a small driver (`src/main.c`) | 17 / 10 / 10 / 3 |
-| [`jhead`](targets/jhead/ORACLE.md) | jhead 3.04 (`56c108f`) | heap over-read in `ProcessExifDir` (EXIF DateTime); fixed upstream in `df124a4` | a JPEG file, jhead's own CLI | 12 / 10 / 10 / 2 |
+| [`cjson`](targets/cjson/ORACLE.md) | cJSON `v1.7.10` | CVE-2019-11834 and CVE-2019-11835: heap over-reads in `cJSON_Minify`; fixed upstream in `a43fa56` | a file, through a small driver (`src/main.c`) | 17 / 10 / 10 / 3, plus 2 regression |
+| [`jhead`](targets/jhead/ORACLE.md) | jhead 3.04 (`56c108f`) | heap over-read in `ProcessExifDir` (EXIF DateTime); fixed upstream in `df124a4` | a JPEG file, jhead's own CLI | 12 / 10 / 10 / 2, plus 2 regression |
 
 | Scenario | cjson | jhead |
 |---|---|---|

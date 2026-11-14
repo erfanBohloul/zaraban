@@ -336,9 +336,12 @@ class VersionInfo:
 
     form: str  # "directory" | "diff"
     ref: str  # as given on the command line
-    git_commit: Optional[str]
+    git_commit: Optional[str]  # full hash of the repository holding the tree
     tree_sha256: Optional[str]
     strip_level: Optional[int] = None  # only for form == "diff"
+    git_dirty: Optional[bool] = None  # the tree differs from git_commit
+    upstream_repo: Optional[str] = None  # base only: config ``upstream``
+    upstream_commit: Optional[str] = None
 
 
 @dataclass
