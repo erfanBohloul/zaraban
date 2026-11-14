@@ -114,6 +114,16 @@ def test_14_3_unknown_target_is_an_error(tmp_path):
     assert rm.main(["nope"], root=tmp_path, run=_fake_tool()) == 1
 
 
+def test_14_3_underscore_directories_are_not_targets(tmp_path, capsys):
+    _target(tmp_path, [_scenario()])
+    _write(tmp_path / "targets" / "_template" / "scenarios.yaml",
+           yaml.safe_dump([_scenario(patch="patches/missing.patch")]))
+    tool = _fake_tool()
+    assert rm.main([], root=tmp_path, run=tool) == 0
+    assert len(tool.calls) == 1 and "_template" not in capsys.readouterr().out
+    assert rm.main(["_template"], root=tmp_path, run=tool) == 1
+
+
 def test_14_3_save_copies_the_run_without_work_and_build_binaries(tmp_path):
     _target(tmp_path, [_scenario()])
     assert rm.main(["--save"], root=tmp_path, run=_fake_tool()) == 0

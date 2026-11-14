@@ -1,0 +1,88 @@
+# Target config template. Copy this directory to targets/<name>/ and replace
+# every value marked REPLACE. Every key the tool accepts is listed here; the
+# optional ones are commented out and show their default. Unknown keys are
+# errors, so a typo stops the run with exit 30 (SPEC §4.5).
+#
+# All paths are relative to this file's directory.
+# Check the result with:
+#   python3 -m zaraban.cli -c targets/<name>/zaraban.yaml --check-config
+
+# Used in output paths: letters, digits, _ and - only.
+name: "my_target"                  # REPLACE
+
+# Directory with the base Makefile and sources (used when --base is not given).
+# base_dir: "."
+
+# How each test's input reaches the program:
+#   file   the input is written to a file, and {input_file} in args is
+#          replaced by its path
+#   stdin  the input is the program's standard input (default)
+#   args   each test passes its input in args; no input file is needed
+input_method: "file"               # REPLACE if the program reads stdin or args
+
+# file_arg_placeholder: "{input_file}"
+# repeats: 3                        # runs of each test on each build
+# env: {}                           # extra environment, same for all builds
+# regression_dir: "tests/regression"
+
+build:
+  # Path of the program after building, relative to the source tree root.
+  binary_path: "program"           # REPLACE; must match BIN in the Makefile
+  # Call the target's own build script, never compiler flags here, so a
+  # patch that weakens the release flags is caught by the hardening check.
+  release_cmd: "make release"
+  sanitized_cmd: "make sanitized"
+  # Without coverage_cmd there is no execution trace, and links that need
+  # one stay UNDETERMINED.
+  coverage_cmd: "make coverage"
+  clean_cmd: "make clean"
+
+limits:
+  timeout_seconds: 2.0             # default 3.0
+  memory_limit_mb: 128             # default 256
+
+# Every test takes these fields:
+#   name                required, unique across all lists
+#   description         what it checks and where the expectation comes from
+#   input_file          file whose bytes are the input
+#   input_data          short inline UTF-8 input (not with input_file)
+#   args                extra arguments; may contain {input_file}
+#   expected_exit_code  not checked when left out
+#   expected_output     not checked when left out
+#   output_match        contains (default) | exact
+# Each expectation must come from the program's documentation or reference
+# tests, written down in ORACLE.md, never from running a patched version.
+
+# At least one. Normal inputs the base handles correctly.
+valid_tests:
+  - name: "valid_example"          # REPLACE
+    description: "REPLACE: what this checks; source in ORACLE.md"
+    args: ["{input_file}"]
+    input_file: "tests/valid/example.txt"
+    expected_exit_code: 0
+    expected_output: "REPLACE"
+    # output_match: exact
+
+# Valid inputs at the edges of what the program accepts, around every limit
+# the patches touch.
+boundary_tests:
+  - name: "boundary_example"       # REPLACE
+    args: ["{input_file}"]
+    input_file: "tests/boundary/example.txt"
+    expected_exit_code: 0
+
+# Malformed inputs the program must reject without crashing. Leaving this
+# list empty is allowed, but gives a warning.
+invalid_tests:
+  - name: "invalid_example"        # REPLACE
+    args: ["{input_file}"]
+    input_file: "tests/invalid/example.txt"
+    expected_exit_code: 1          # REPLACE with the documented error exit
+
+# At least one. Inputs that trigger the vulnerability on base. Give the
+# public PoC and a second input that an incomplete patch would miss.
+security_tests:
+  - name: "exploit_example"        # REPLACE
+    description: "REPLACE: the bug this input triggers on base"
+    args: ["{input_file}"]
+    input_file: "tests/exploits/example.txt"

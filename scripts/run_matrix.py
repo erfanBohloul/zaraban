@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Run and check every delivered scenario.
 
-For each ``targets/<target>/scenarios.yaml`` and each scenario in it:
+For each ``targets/<target>/scenarios.yaml`` and each scenario in it
+(directories whose name starts with ``_``, such as ``targets/_template``,
+are skipped):
 
 1. check that ``patch`` gives exactly ``version_dir`` when applied to the base
    tree, so the diff and the complete tree describe the same version;
@@ -245,7 +247,9 @@ def main(argv: Optional[list[str]] = None, *, root: Path = ROOT, run: RunTool = 
     p.add_argument("--out", default="out/run_matrix", help="where the runs are written")
     args = p.parse_args(argv)
 
-    target_dirs = sorted(d.parent for d in (root / "targets").glob("*/scenarios.yaml"))
+    # A directory whose name starts with "_" (targets/_template) is not a target.
+    target_dirs = sorted(d.parent for d in (root / "targets").glob("*/scenarios.yaml")
+                         if not d.parent.name.startswith("_"))
     if args.targets:
         target_dirs = [d for d in target_dirs if d.name in args.targets]
         unknown = set(args.targets) - {d.name for d in target_dirs}
