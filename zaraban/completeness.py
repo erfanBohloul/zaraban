@@ -58,8 +58,8 @@ def check(results: Optional[Results], findings: list[Finding]) -> None:
     if problems:
         raise ZarabanError(
             ErrorCode.TOOL_INTERNAL,
-            f"completeness check failed: {len(problems)} result(s) are not reported "
-            f"correctly; this is a bug in the tool",
+            f"internal consistency check failed: {len(problems)} test result(s) are not "
+            "reported correctly in the findings; this is a bug in the tool",
             {"problems": problems},
         )
 

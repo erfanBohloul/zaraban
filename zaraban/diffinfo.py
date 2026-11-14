@@ -52,7 +52,7 @@ def parse_hunks(diff_text: str, strip: int) -> list[Hunk]:
         patch_set = PatchSet(diff_text)
     except UnidiffParseError as exc:
         raise ZarabanError(ErrorCode.PATCH_APPLY_FAILED,
-                           f"the diff could not be parsed: {exc}")
+                           f"the patch is not a valid unified diff: {exc}")
     hunks: list[Hunk] = []
     for patched_file in patch_set:
         raw_path = patched_file.source_file if patched_file.is_removed_file \
@@ -114,7 +114,9 @@ def function_ranges(tree: str | Path, rel_path: str) -> list[tuple[str, int, int
                                 capture_output=True, text=True)
     except FileNotFoundError:
         raise ZarabanError(ErrorCode.TOOL_INTERNAL,
-                           "universal-ctags is not installed (needed to find changed functions)")
+                           "universal-ctags is not installed; it is needed to find the "
+                           "functions a patch changes (run the tool in its Docker image, "
+                           "which has it)")
     if result.returncode != 0:
         raise ZarabanError(ErrorCode.TOOL_INTERNAL,
                            f"ctags failed on {rel_path}",

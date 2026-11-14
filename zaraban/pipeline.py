@@ -149,7 +149,8 @@ def report_settings(target: "Target", settings: runner.RunSettings) -> dict:
 def internal_error(exc: BaseException) -> Issue:
     """The ``TOOL_INTERNAL`` error of an unexpected exception."""
     return Issue(ErrorCode.TOOL_INTERNAL.value,
-                 f"unexpected error in zaraban (a bug in the tool): {exc!r}",
+                 f"unexpected error in zaraban, which is a bug in the tool: {exc!r}; "
+                 f"the full traceback is in {ERRORS_LOG}",
                  {"exception": type(exc).__name__, "log": ERRORS_LOG})
 
 

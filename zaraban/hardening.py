@@ -140,7 +140,8 @@ def _compare(base: HardeningResult, patch: HardeningResult) -> tuple[list[Harden
         if kind is HardeningChangeKind.DOWNGRADE:
             warnings.append(Issue(
                 WarningCode.HARDENING_DOWNGRADE.value,
-                f"{name} is weaker on patch: {_show(b.value)} -> {_show(p.value)}",
+                f"the patch weakens {_LABEL[name]} in the release binary: "
+                f"{_show(b.value)} on base, {_show(p.value)} on patch",
                 {
                     "protection": name,
                     "from": _show(b.value), "to": _show(p.value),
@@ -148,6 +149,10 @@ def _compare(base: HardeningResult, patch: HardeningResult) -> tuple[list[Harden
                 },
             ))
     return changes, warnings
+
+
+_LABEL = {"nx": "NX (non-executable stack)", "pie": "PIE", "relro": "RELRO",
+          "canary": "the stack canary"}
 
 
 def _show(value: object) -> str:

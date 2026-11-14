@@ -233,7 +233,7 @@ def test_3_2_ambiguous_strip_level_is_an_error(tmp_path):
     with pytest.raises(ZarabanError) as e:
         prepare(base, diff, tmp_path / "work")
     assert e.value.code is ErrorCode.PATCH_APPLY_FAILED
-    assert "more than one strip level" in e.value.message
+    assert "it is ambiguous" in e.value.message
     assert any("-p0" in p and "x/src/main.c" in p for p in e.value.details["problems"])
 
 

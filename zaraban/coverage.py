@@ -116,7 +116,7 @@ def trace(
     export = export or export_lcov
 
     if not coverage_cmd:
-        return TraceResult(False, warning=_unavailable("the config has no coverage_cmd"))
+        return TraceResult(False, warning=_unavailable("the config has no build.coverage_cmd"))
 
     dest = Path(work_dir) / label
     binary = build(Path(version_tree), coverage_cmd, dest, spec.binary_rel)
@@ -149,7 +149,7 @@ def run_trace(target, version_tree, test, changed, work_dir, *, label="coverage"
     build_spec = getattr(getattr(target, "spec", None), "build", None)
     coverage_cmd = getattr(build_spec, "coverage_cmd", None)
     if not coverage_cmd:
-        return TraceResult(False, warning=_unavailable("the config has no coverage_cmd"))
+        return TraceResult(False, warning=_unavailable("the config has no build.coverage_cmd"))
     return trace(version_tree, coverage_cmd, test, changed, work_dir,
                  RunSpec.from_target(target), label=label)
 
@@ -277,7 +277,8 @@ def _path_matches(cov_path: str, rel: str) -> bool:
 def _unavailable(reason: str) -> Issue:
     return Issue(
         WarningCode.TRACE_UNAVAILABLE.value,
-        f"no execution trace could be made: {reason}",
+        f"no execution trace could be made ({reason}), so a functional regression is "
+        "linked to the patch by its changed lines only",
         {"reason": reason},
     )
 
