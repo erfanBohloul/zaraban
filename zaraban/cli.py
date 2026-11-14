@@ -53,6 +53,12 @@ def build_parser() -> argparse.ArgumentParser:
                    help="do not copy new regression tests into the target's tests/regression/")
     p.add_argument("--keep-work", action="store_true",
                    help="keep the temporary build directories after the run")
+    var = p.add_mutually_exclusive_group()
+    var.add_argument("--variants", dest="variants", action="store_const", const=True,
+                     help="run the variant step (mutated security inputs) for this run, "
+                          "even if the config leaves it off")
+    var.add_argument("--no-variants", dest="variants", action="store_const", const=False,
+                     help="skip the variant step for this run, even if the config turns it on")
     p.add_argument("--check-config", action="store_true",
                    help="only validate the config and its files, then exit 0 (valid) or 30 (invalid)")
     p.add_argument("-v", "--verbose", action="store_true", help="print progress details")

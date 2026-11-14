@@ -20,6 +20,8 @@ What is abnormal but needs no finding of its own (``expected``):
   not judged for these kinds by the finding rules. For ``security`` tests
   this is the status condition ``base_not_reproduced`` (exit 40); for
   ``regression`` tests the warning ``REGRESSION_BASE_CLEAN``.
+- the same for a ``variant`` test (variants.py): it was kept for its crash
+  on patch, and has no oracle, so its base result is not judged either.
 
 A crash is never expected: on any build and for any kind of test, it is in a
 crash finding, an unsigned-crash finding, or a flaky finding.
@@ -44,7 +46,7 @@ from .models import (
 )
 
 _SANITIZED = (BuildName.BASE_SANITIZED, BuildName.PATCH_SANITIZED)
-_BASE_NOT_JUDGED = (TestKind.SECURITY, TestKind.REGRESSION)
+_BASE_NOT_JUDGED = (TestKind.SECURITY, TestKind.REGRESSION, TestKind.VARIANT)
 # Crash finding categories -> (key seen on base, key seen on patch).
 _CRASH_CATEGORIES = {Category.FIXED: (True, False), Category.NEW_ISSUE: (False, True),
                      Category.INCOMPLETE_FIX: (True, True)}
@@ -76,8 +78,8 @@ def is_abnormal(r: CombinedResult) -> bool:
 
 def expected(r: CombinedResult) -> bool:
     """An abnormal result that is reported without a finding: a stable,
-    non-crash result of a ``security`` or ``regression`` test on a base build
-    (module docstring)."""
+    non-crash result of a ``security``, ``regression`` or ``variant`` test on a
+    base build (module docstring)."""
     return (not r.flaky and r.outcome is not Outcome.CRASH
             and r.build.version is Version.BASE and r.kind in _BASE_NOT_JUDGED)
 

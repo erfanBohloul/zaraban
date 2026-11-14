@@ -56,7 +56,7 @@ class _Ctx(SimpleNamespace):
 
 
 def _ctx(tmp_path: Path) -> _Ctx:
-    return _Ctx(target=_target(tmp_path), work_dir=tmp_path / "work", out_dir=tmp_path / "out",
+    return _Ctx(args=SimpleNamespace(), target=_target(tmp_path), work_dir=tmp_path / "work", out_dir=tmp_path / "out",
                 sources=SimpleNamespace(base_tree=tmp_path / "base", patch_tree=tmp_path / "patch"),
                 run_settings=object(), checks=Checks(), warnings=[], errors=[],
                 build_set=None, hardening=None, tests=[], results=None)

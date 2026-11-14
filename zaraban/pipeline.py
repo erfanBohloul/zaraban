@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Optional
 
-from . import analysis_stage, environment, exec_stage, runner, sources
+from . import analysis_stage, environment, exec_stage, runner, sources, variants
 from .models import ErrorCode, Issue, ZarabanError
 from .pipeline_state import CONFIG_COPY, DIFF_COPY, RunContext
 
@@ -120,7 +120,8 @@ def start_run(args: "argparse.Namespace", target: "Target", warnings: list[Issue
         args=args, target=target, work_dir=work, out_dir=run_dir, run_id=run_dir.name,
         started_at=started.strftime("%Y-%m-%dT%H:%M:%SZ"), sources=srcs,
         environment=environment.gather(settings.symbolizer), run_settings=settings,
-        settings=report_settings(target, settings), warnings=warnings,
+        settings=report_settings(target, settings, getattr(args, "variants", None)),
+        warnings=warnings,
     )
     ctx.add_warnings(settings.warnings())  # NO_SYMBOLIZER
     if error is not None:
@@ -134,15 +135,19 @@ def new_run_id(started: datetime, diff_sha256: str) -> str:
     return f"{started.strftime('%Y%m%d-%H%M%S')}-{diff_sha256[:8]}"
 
 
-def report_settings(target: "Target", settings: runner.RunSettings) -> dict:
-    """``report.settings``: repeats, limits and the sanitizer options
-    that sanitized runs get."""
+def report_settings(target: "Target", settings: runner.RunSettings,
+                    variants_flag: Optional[bool] = None) -> dict:
+    """``report.settings``: repeats, limits, the sanitizer options that
+    sanitized runs get, and the variant settings (the variant step adds
+    what it did when it runs)."""
     sanitized_env = settings.env_for(True)
     return {
         "repeats": target.spec.repeats,
         "limits": {"timeout_seconds": settings.timeout_seconds,
                    "memory_limit_mb": settings.memory_limit_mb},
         "sanitizer_options": {k: sanitized_env[k] for k in ("ASAN_OPTIONS", "UBSAN_OPTIONS")},
+        "variants": variants.resolve(getattr(target.spec, "variants", None),
+                                     variants_flag).as_report(),
     }
 
 

@@ -95,7 +95,8 @@ def test_context_has_settings_environment_and_config_warnings(tmp_path, target):
     ctx = seen["ctx"]
     assert "NO_INVALID_TESTS" in [w.code for w in ctx.warnings]
     assert ctx.environment is not None and ctx.run_settings is not None
-    assert set(ctx.settings) == {"repeats", "limits", "sanitizer_options"}
+    assert set(ctx.settings) == {"repeats", "limits", "sanitizer_options", "variants"}
+    assert ctx.settings["variants"]["enabled"] is False  # off by default
     assert "abort_on_error=1" in ctx.settings["sanitizer_options"]["ASAN_OPTIONS"]
 
 

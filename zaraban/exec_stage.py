@@ -11,7 +11,11 @@ built, like an invalid config. Then it runs, in order:
    into the context and the analyze stage still writes the report;
 2. the hardening comparison (``hardening.report``) → ``ctx.hardening``;
 3. the execution matrix: every test, on every build, ``repeats`` times
-   (``runner.run_test``) → ``ctx.tests`` and ``ctx.results``.
+   (``runner.run_test``) → ``ctx.tests`` and ``ctx.results``;
+4. the optional variant step (``variants``): mutated security inputs are
+   screened on ``patch-sanitized``, and each one kept (a new crash) runs on
+   every build like the other tests and is added to ``ctx.tests`` and
+   ``ctx.results`` as a test of kind ``variant``.
 
 It sets the build-side ``Checks`` (``builds_ok``, ``profiles_verified``,
 ``hardening_checked``, ``all_runs_completed``, ``results_stable``); the
@@ -22,19 +26,22 @@ stage.
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 from typing import Callable, Optional
 
-from . import builder, hardening, regression, runner
-from .models import BUILD_ORDER, BuildName, CombinedResult
+from . import builder, hardening, regression, runner, variants
+from .models import BUILD_ORDER, BuildName, CombinedResult, RunRecord, TestCase, TestKind
 from .pipeline_state import RunContext
+from .variants import RunCandidateFn
 
 # runner.run_test's signature; injectable so the stage is testable without a compiler.
 RunTestFn = Callable[..., CombinedResult]
 
 
-def build_and_execute(ctx: RunContext, *, run_test: Optional[RunTestFn] = None) -> RunContext:
-    """Run builds → hardening → execution and return ``ctx``."""
+def build_and_execute(ctx: RunContext, *, run_test: Optional[RunTestFn] = None,
+                      run_candidate: Optional[RunCandidateFn] = None) -> RunContext:
+    """Run builds → hardening → execution → variants and return ``ctx``."""
     run_test = run_test or runner.run_test
     target = ctx.target
 
@@ -69,6 +76,10 @@ def build_and_execute(ctx: RunContext, *, run_test: Optional[RunTestFn] = None) 
                  for b in BUILD_ORDER}
         for t in ctx.tests
     }
+
+    # 4. The optional variant step; its kept variants run like any other test.
+    run_variants(ctx, run_test, run_candidate)
+
     ctx.add_warnings(runner.output_warnings(
         [r for per_build in ctx.results.values() for c in per_build.values() for r in c.runs]))
     # A run that cannot complete raises (TOOL_INTERNAL), so reaching here means
@@ -77,6 +88,54 @@ def build_and_execute(ctx: RunContext, *, run_test: Optional[RunTestFn] = None) 
     ctx.checks.results_stable = not any(
         c.flaky for per_build in ctx.results.values() for c in per_build.values())
     return ctx
+
+
+def run_variants(ctx: RunContext, run_test: RunTestFn,
+                 run_candidate: Optional[RunCandidateFn] = None) -> None:
+    """Screen mutated security inputs on patch-sanitized, then run each kept
+    one on all four builds and add it to ``ctx.tests`` and ``ctx.results``.
+    Records what was done in ``ctx.settings["variants"]``. Does nothing when
+    the step is off."""
+    settings = variants.resolve(getattr(ctx.target.spec, "variants", None),
+                                getattr(ctx.args, "variants", None))
+    if not settings.enabled:
+        return
+    run_candidate = run_candidate or (lambda t: screening_run(ctx, t))
+    diff_text = Path(ctx.sources.diff_path).read_text(encoding="utf-8", errors="replace")
+    screened = variants.screen(
+        settings,
+        [t for t in ctx.tests if t.kind is TestKind.SECURITY],
+        variants.hints_from_diff(diff_text),
+        ctx.target.input_method,
+        variants.patch_sanitized_bugs(ctx.results, ctx.tests),
+        {t.input_bytes for t in ctx.tests if t.input_bytes is not None},
+        run_candidate,
+    )
+    variants.write_inputs(screened.kept, ctx.out_dir)
+    for t in screened.kept:
+        ctx.results[t.name] = {
+            b: run_test(binary(ctx, b), t, ctx.run_settings, b, ctx.target.spec.repeats,
+                        ctx.out_dir, source_root=source_root(ctx, b))
+            for b in BUILD_ORDER}
+        ctx.tests.append(t)
+    ctx.settings["variants"] = {
+        **settings.as_report(),
+        "screening_runs": screened.runs,
+        "screening_runs_per_test": screened.per_test,
+        "skipped_tests": screened.skipped,
+        "unconfirmed_crashes": screened.unconfirmed,
+        "kept": [{"test": t.name, "input": t.source_path} for t in screened.kept],
+    }
+
+
+def screening_run(ctx: RunContext, test: TestCase) -> RunRecord:
+    """One run of a candidate on patch-sanitized, exactly as the matrix runs
+    tests. Its files go to a temporary directory: candidates are not results
+    of the run, only the kept ones are (they run again as tests)."""
+    with tempfile.TemporaryDirectory(prefix="zaraban-variant-") as tmp:
+        return runner.run_once(binary(ctx, BuildName.PATCH_SANITIZED), test, ctx.run_settings,
+                               BuildName.PATCH_SANITIZED, 1, tmp,
+                               source_root=source_root(ctx, BuildName.PATCH_SANITIZED))
 
 
 def binary(ctx: RunContext, build: BuildName) -> Path:
