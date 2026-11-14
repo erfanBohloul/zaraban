@@ -17,35 +17,198 @@ stable replay (§10.4) this module:
 
 The program is run through an injected ``run_base`` callable, as in
 :mod:`zaraban.reproducer`, so this module does not depend on the runner.
-Loading the promoted tests in later runs belongs to the config loader.
+
+In later runs (Task 2.3), :func:`load_tests` reads every ``.yaml`` in
+``regression_dir`` back as a test of kind ``regression``, validated like the
+config (§4.5), and :func:`base_clean_warnings` records ``REGRESSION_BASE_CLEAN``
+for a test that no longer crashes on base (§8.6).
 """
 
 from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from typing import Callable, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 import yaml
+from pydantic import ValidationError
 
 from . import __version__
+from .config import MAX_INPUT_BYTES, Name, _format_errors, _read_yaml, _Strict
 from .models import (
+    BuildName,
     Bundle,
     Category,
+    ErrorCode,
     Finding,
+    InputMethod,
     Issue,
+    Outcome,
     RegressionStatus,
     RegressionTest,
+    Results,
+    TestCase,
     TestKind,
     WarningCode,
+    ZarabanError,
 )
 from .reproducer import RunOutcome
+
+if TYPE_CHECKING:
+    from .config import Target
 
 RunFn = Callable[[bytes], RunOutcome]
 
 # Categories whose input must crash on base with the finding's signature.
 _EXPECT_BASE_CRASH = {Category.FIXED: True, Category.INCOMPLETE_FIX: True,
                       Category.NEW_ISSUE: False}
+
+
+def target_regression_dir(target: "Target") -> Path:
+    """The target's ``regression_dir``; config paths are relative to the
+    config file's directory (§4.1)."""
+    return target.config_dir / target.spec.regression_dir
+
+
+def load_tests(target: "Target") -> list[TestCase]:
+    """The regression tests in the target's ``regression_dir``, as tests of
+    kind ``regression``, run after all other tests (§7.1, §10.6).
+
+    Raises ``CONFIG_INVALID`` (exit 30) listing every problem of every file,
+    like the config itself (§4.5). A missing ``regression_dir`` means no tests,
+    and so does a target without a config directory (a test double).
+    """
+    if getattr(target, "config_dir", None) is None or getattr(target, "spec", None) is None:
+        return []
+    method = getattr(target, "input_method", InputMethod.STDIN)
+    return read_tests(target_regression_dir(target), InputMethod(method), target.all_tests())
+
+
+# The YAML schema of a regression test file (§10.6); unknown keys are errors.
+class _CreatedBy(_Strict):
+    tool_version: str
+    run_id: str
+    finding: str
+    source_test: str
+
+
+class _CreatedOn(_Strict):
+    base_version: Optional[str] = None
+    base_binary_sha256: Optional[str] = None
+
+
+class _RegressionSpec(_Strict):
+    name: Name
+    input_file: str
+    expect_base_crash: bool
+    signature: Optional[str] = None
+    created_by: _CreatedBy
+    created_on: _CreatedOn
+
+
+def read_tests(regression_dir: str | Path, input_method: InputMethod,
+               config_tests: list[TestCase]) -> list[TestCase]:
+    """Every ``*.yaml`` in ``regression_dir``, in file-name order, as a
+    :class:`TestCase` of kind ``regression``.
+
+    ``input_file`` is relative to ``regression_dir`` and must stay inside it.
+    A test takes the ``args`` of its source test when that test is still in
+    the config, so it runs with the same command line (§10.6); otherwise none.
+    Names must be unique across the config tests and the regression tests.
+    """
+    regression_dir = Path(regression_dir)
+    if not regression_dir.is_dir():
+        return []
+    root = regression_dir.resolve()
+    by_name = {t.name: t for t in config_tests}
+    tests: list[TestCase] = []
+    problems: list[str] = []
+
+    for path in sorted(regression_dir.glob("*.yaml")):
+        where = f"{regression_dir.name}/{path.name}"
+        try:
+            raw = _read_yaml(path)
+        except ZarabanError as exc:
+            problems.extend(exc.details.get("problems", [exc.message]))
+            continue
+        try:
+            spec = _RegressionSpec.model_validate(raw)
+        except ValidationError as exc:
+            problems.extend(f"{where}: {p}" for p in _format_errors(exc))
+            continue
+
+        if spec.name in by_name:
+            problems.append(f"{where}: test name {spec.name!r} is already used by "
+                            f"{'another regression test' if by_name[spec.name].kind is TestKind.REGRESSION else 'a config test'}")
+            continue
+
+        fpath = (regression_dir / spec.input_file).resolve()
+        if root not in fpath.parents:
+            problems.append(f"{where}: input_file must be inside {regression_dir.name}/: "
+                            f"{spec.input_file}")
+            continue
+        if not fpath.is_file():
+            problems.append(f"{where}: input_file does not exist: {spec.input_file}")
+            continue
+        try:
+            data = fpath.read_bytes()
+        except OSError as exc:
+            problems.append(f"{where}: input_file cannot be read: {spec.input_file} "
+                            f"({exc.strerror or exc})")
+            continue
+        if len(data) > MAX_INPUT_BYTES:
+            problems.append(f"{where}: input_file is larger than 1 MB")
+            continue
+        if input_method is InputMethod.ARGS and b"\x00" in data:
+            problems.append(f"{where}: input_method is 'args' but the input contains a NUL byte")
+            continue
+
+        source = by_name.get(spec.created_by.source_test)
+        test = TestCase(
+            name=spec.name,
+            kind=TestKind.REGRESSION,
+            input_bytes=data,
+            input_ext=fpath.suffix,
+            args=list(source.args) if source is not None else [],
+            description=(f"{spec.created_by.finding} of run {spec.created_by.run_id}, "
+                         f"from {spec.created_by.source_test}"),
+            source_path=f"{regression_dir.name}/{spec.input_file}",
+            expect_base_crash=spec.expect_base_crash,
+            expected_signature=spec.signature,
+        )
+        tests.append(test)
+        by_name[test.name] = test
+
+    if problems:
+        raise ZarabanError(ErrorCode.CONFIG_INVALID,
+                           f"{len(problems)} problem(s) in the regression tests of {regression_dir}",
+                           {"problems": problems})
+    return tests
+
+
+def base_clean_warnings(tests: list[TestCase], results: Results) -> list[Issue]:
+    """``REGRESSION_BASE_CLEAN`` for each regression test that should crash on
+    base but does not crash on ``base-sanitized`` (§8.6).
+
+    In CI, base is often a commit that already holds an earlier fix, so this is
+    a warning, not a finding, and it never changes the exit code. The test still
+    runs on patch, where a crash is judged by the normal rules (§8.2). A flaky
+    base result is left to its INCONCLUSIVE finding (§8.5).
+    """
+    warnings: list[Issue] = []
+    for t in tests:
+        if t.kind is not TestKind.REGRESSION or not t.expect_base_crash:
+            continue
+        r = results.get(t.name, {}).get(BuildName.BASE_SANITIZED)
+        if r is None or r.flaky or r.outcome is Outcome.CRASH:
+            continue
+        warnings.append(Issue(
+            WarningCode.REGRESSION_BASE_CLEAN.value,
+            f"{t.name} no longer crashes on base-sanitized ({r.outcome.value}); "
+            f"base may already contain an earlier fix",
+            {"test": t.name, "expected_signature": t.expected_signature,
+             "outcome": r.outcome.value}))
+    return warnings
 
 
 def regression_name(source_test: str, input_bytes: bytes) -> str:

@@ -181,6 +181,24 @@ def write_diff(tmp_path, text, name="change.diff"):
     return p
 
 
+def test_3_2_diff_applies_when_the_work_dir_is_inside_a_git_repo(tmp_path):
+    # The default run directory out/<target>/<run id>/ lies inside the Zaraban
+    # checkout. There, `git apply` reads the paths of a git-style diff
+    # ("diff --git") as relative to the outer repository's root, skips them all
+    # ("Skipped patch") and exits 0, so the patch tree stayed the base.
+    outer = tmp_path / "checkout"
+    outer.mkdir()
+    _git(outer, "init", "-q")
+    base = make_base(tmp_path)
+    diff = write_diff(tmp_path, "diff --git a/src/main.c b/src/main.c\n"
+                                "--- a/src/main.c\n+++ b/src/main.c\n@@ -1,3 +1,3 @@\n"
+                                " int main(void) {\n-    return 0;\n+    return 3;\n }\n")
+    s = prepare(base, diff, outer / "out" / "run" / "work")
+    assert s.patch.strip_level == 1
+    assert "return 3" in (s.patch_tree / "src" / "main.c").read_text()
+    assert s.diff.files == ["src/main.c"]
+
+
 def test_3_2_diff_without_prefix_applies_at_p0(tmp_path):
     base = make_base(tmp_path)
     diff = write_diff(tmp_path, "--- src/main.c\n+++ src/main.c\n@@ -1,3 +1,3 @@\n"
