@@ -442,14 +442,14 @@ tests, and approved by the instructor. The output of the patched version, or
 the opinion of a language model, is not a valid source on its own.
 
 So each target has a file `ORACLE.md` next to its config. For every test it
-states the expected behavior and its source. For example, for the cJSON
-target (`invalid_truncated` is a test still to be written):
+states the expected behavior and its source. For example, from the cJSON
+target (`targets/cjson/ORACLE.md`):
 
 | Test | Expected behavior | Source |
 |---|---|---|
-| `valid_rfc7386` | Prints `{"title":"Hello!",…}` and exits with `0`. | RFC 7386, §3 example |
-| `valid_delete` | A key whose patch value is `null` is removed from the result. | RFC 7386, §2 |
-| `invalid_truncated` | Prints an error and exits with `1`, without crashing. | `main.c` usage contract |
+| `minify_spaces` | Prints `{"key":true}` and exits with `0`. | upstream `tests/minify_tests.c`, `cjson_minify_should_remove_spaces` |
+| `parse_test1` | Prints exactly `tests/inputs/test1.expected`. | upstream `tests/parse_examples.c` |
+| `parse_incomplete_object` | Prints `parse error` and exits with `1`, without crashing. | upstream `test12`; driver contract in `src/main.c` |
 
 The tool does not read `ORACLE.md`. It exists for review, for the instructor's
 approval, and for the defense.
@@ -1560,7 +1560,7 @@ Correct patch of each is the upstream fix:
 
 | Target | Upstream | Vulnerability | Base | Correct patch |
 |---|---|---|---|---|
-| `cjson` | DaveGamble/cJSON | CVE-2019-11835, heap buffer over-read in `cJSON_Minify` | `v1.7.10` | upstream commit `a43fa56` (in `v1.7.11`) |
+| `cjson` | DaveGamble/cJSON | CVE-2019-11834 and CVE-2019-11835, heap buffer over-reads in `cJSON_Minify` | `v1.7.10` | upstream commit `a43fa56` (in `v1.7.11`), with its follow-up `08d2bc7` (in `v1.7.12`) |
 | `md4c` | mity/md4c | CVE-2021-30027, heap buffer over-read in `md_analyze_line` | `release-0.4.7` | upstream fix, in `release-0.4.8` |
 
 The Incomplete and Regression patches are written by the team, and the

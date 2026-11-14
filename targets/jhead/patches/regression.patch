@@ -1,0 +1,29 @@
+diff --git a/src/exif.c b/src/exif.c
+index 580af07..1820daf 100644
+--- a/src/exif.c
++++ b/src/exif.c
+@@ -634,16 +634,16 @@ static void ProcessExifDir(unsigned char * DirStart, unsigned char * OffsetBase,
+                 break;
+ 
+             case TAG_DATETIME_ORIGINAL:
+-                // If we get a DATETIME_ORIGINAL, we use that one.
+-                strncpy(ImageInfo.DateTime, (char *)ValuePtr, 19);
+-                // Fallthru...
+-
+             case TAG_DATETIME_DIGITIZED:
+             case TAG_DATETIME:
+-                if (!isdigit(ImageInfo.DateTime[0])){
+-                    // If we don't already have a DATETIME_ORIGINAL, use whatever
+-                    // time fields we may have.
+-                    strncpy(ImageInfo.DateTime, (char *)ValuePtr, 19);
++                if (ValuePtr+19 >= OffsetBase+ExifLength){
++                    ErrNonfatal("Incomplete time",0,0);
++                    continue;
++                }
++                
++                if (Tag == TAG_DATETIME_ORIGINAL || !isdigit(ImageInfo.DateTime[0])){
++                    // BUG: copies only the date (10 bytes), dropping the time.
++                    strncpy(ImageInfo.DateTime, (char *)ValuePtr, 10);
+                 }
+ 
+                 if (ImageInfo.numDateTimeTags >= MAX_DATE_COPIES){
