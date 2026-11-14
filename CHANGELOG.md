@@ -2,6 +2,18 @@
 
 All notable changes to the Zaraban security patch validation engine are documented in this file.
 
+## [Unreleased] - Phase 3: Real targets
+
+### Added
+- **Targets**: `targets/cjson` (CVE-2019-11834 and CVE-2019-11835, 40 tests) and `targets/jhead` (EXIF DateTime heap over-read, 34 tests), each with base, correct, incomplete and regression versions, `ORACLE.md` and `scenarios.yaml`.
+- **Saved results**: `results/<target>/<scenario>/` holds the report, summary and reproducer bundles of the six real scenarios (`run_matrix.py cjson jhead --save`).
+- **CI**: runs the cjson and jhead scenarios after the `token_parser` ones.
+- **Demo targets**: four tiny programs (`targets/demo_*`) for trying the tool by hand.
+
+### Changed
+- The summary is printed at the end of every run, not only written to `summary.txt`. It shows each warning with its message, lists the problems of each error, and says `not run` for builds and tests that never ran.
+- Error and warning messages are written for someone new to the tool: they say what is wrong, where (for example `valid_tests[2] (name).key`), and what to change, suggest the closest key for a typo, and no longer refer to the design documents.
+
 ## [Unreleased] - Phase 2: Pipeline Integration, E2E, and CI
 
 ### Added

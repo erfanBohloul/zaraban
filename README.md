@@ -425,17 +425,22 @@ with the findings of SPEC §8.9, through `run_matrix.py`.
 
 ### Phase 3: Real targets
 
+**Status: done.** `targets/cjson` (17 valid, 10 boundary, 10 invalid, 3
+security tests) and `targets/jhead` (12, 10, 10, 2) are complete, all six
+scenarios pass through `run_matrix.py`, and their outputs are saved in
+`results/`.
+
 For each target, the pair prepares:
 
-- [ ] `src/` at the vulnerable upstream version, with a minimal `Makefile`.
-- [ ] Correct patch = the upstream fix commit.
-- [ ] Incomplete patch: blocks the public PoC only. Write a second exploit
+- [x] `src/` at the vulnerable upstream version, with a minimal `Makefile`.
+- [x] Correct patch = the upstream fix commit.
+- [x] Incomplete patch: blocks the public PoC only. Write a second exploit
       input that still reaches the bug, and add it to `security_tests`.
-- [ ] Regression patch: removes the crash but rejects or breaks some valid
+- [x] Regression patch: removes the crash but rejects or breaks some valid
       inputs, with no other security bug.
-- [ ] Tests: about 10 to 20 valid, 10 boundary (around every threshold the
+- [x] Tests: about 10 to 20 valid, 10 boundary (around every threshold the
       patches touch) and 10 invalid, each with its source in `ORACLE.md`.
-- [ ] `scenarios.yaml` with the expected exit and findings for each patch.
+- [x] `scenarios.yaml` with the expected exit and findings for each patch.
 
 **Gate:** `run_matrix.py` passes for all scenarios of both targets. Results are
 saved to `results/` with `--save`.
@@ -463,7 +468,7 @@ Phase 1  A builds | B runner | C findings | D repro+report     (parallel)
            |
 Phase 2  A wires pipeline -> token_parser scenarios pass
            |
-Phase 3  cJSON pair (A+B)  |  md4c pair (C+D)                  (parallel)
+Phase 3  cJSON pair (A+B)  |  jhead pair (C+D)                 (parallel)
            |
 Phase 4  CI + docs + unseen-patch drill
 ```
