@@ -1,0 +1,6 @@
+$ make clean
+rm -f jhead *.profraw *.profdata
+$ make release
+cd src && gcc -O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -o ../jhead exif.c gpsinfo.c iptc.c jhead.c jpgfile.c jpgqguess.c makernote.c paths.c -pie -Wl,-z,relro,-z,now -lm
+/usr/bin/ld: /tmp/ccdOTq78.o: in function `DoCommand':
+jhead.c:(.text+0x3d2): warning: the use of `mktemp' is dangerous, better use `mkstemp' or `mkdtemp'

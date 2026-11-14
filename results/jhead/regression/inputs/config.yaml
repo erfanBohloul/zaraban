@@ -1,0 +1,219 @@
+# jhead target (Matthias Wandel's jhead, public domain). CVE-class: heap
+# out-of-bounds read in ProcessExifDir (the EXIF DateTime handling).
+# jhead has its own CLI, so there is no driver. Oracle sources: ORACLE.md.
+
+name: jhead
+input_method: file
+
+build:
+  binary_path: jhead
+  release_cmd: make release
+  sanitized_cmd: make sanitized
+  clean_cmd: make clean
+  coverage_cmd: make coverage
+
+limits:
+  timeout_seconds: 2.0
+  memory_limit_mb: 256
+
+# Expected outputs come from the EXIF bytes the camera wrote into each image
+# (confirmed by jhead's own tests/expected-txt), matched with `contains` on a
+# stable field, never on the varying File date line. The *_datetime tests are
+# what the Regression version breaks (the time is dropped); the *_model tests
+# stay stable, so they confirm the regression is limited to DateTime.
+valid_tests:
+  - name: valid_s100_model
+    description: "Canon PowerShot S100: EXIF Model tag."
+    args: ["{input_file}"]
+    input_file: tests/valid/canon_s100.jpg
+    expected_exit_code: 0
+    expected_output: "Canon PowerShot S100"
+  - name: valid_s100_datetime
+    description: "Canon PowerShot S100: EXIF DateTime."
+    args: ["{input_file}"]
+    input_file: tests/valid/canon_s100.jpg
+    expected_exit_code: 0
+    expected_output: "2000:06:27 15:53:09"
+  - name: valid_kodak_model
+    description: "Kodak DX6340: EXIF Model tag."
+    args: ["{input_file}"]
+    input_file: tests/valid/kodak_dx6340.jpg
+    expected_exit_code: 0
+    expected_output: "KODAK DX6340 ZOOM DIGITAL CAMERA"
+  - name: valid_kodak_datetime
+    description: "Kodak DX6340: EXIF DateTime."
+    args: ["{input_file}"]
+    input_file: tests/valid/kodak_dx6340.jpg
+    expected_exit_code: 0
+    expected_output: "2004:01:04 18:38:15"
+  - name: valid_pro1_datetime
+    description: "Canon PowerShot Pro1: EXIF DateTime."
+    args: ["{input_file}"]
+    input_file: tests/valid/nikon_zoomed.jpg
+    expected_exit_code: 0
+    expected_output: "2004:12:28 20:47:05"
+  - name: valid_nikon_d100_model
+    description: "Nikon D100: EXIF Model tag."
+    args: ["{input_file}"]
+    input_file: tests/valid/nikon_d100.jpg
+    expected_exit_code: 0
+    expected_output: "NIKON D100"
+  - name: valid_nikon_d100_datetime
+    description: "Nikon D100: EXIF DateTime."
+    args: ["{input_file}"]
+    input_file: tests/valid/nikon_d100.jpg
+    expected_exit_code: 0
+    expected_output: "2003:12:26 09:12:21"
+  - name: valid_fuji_model
+    description: "Fujifilm DX-10: EXIF Model tag."
+    args: ["{input_file}"]
+    input_file: tests/valid/fuji_dx10.jpg
+    expected_exit_code: 0
+    expected_output: "DX-10"
+  - name: valid_sony_model
+    description: "Sony Cybershot: EXIF Model tag."
+    args: ["{input_file}"]
+    input_file: tests/valid/sony_cybershot.jpg
+    expected_exit_code: 0
+    expected_output: "CYBERSHOT"
+  - name: valid_olympus_datetime
+    description: "Olympus C830L/D340R: EXIF DateTime."
+    args: ["{input_file}"]
+    input_file: tests/valid/olympus_c830l.jpg
+    expected_exit_code: 0
+    expected_output: "1999:07:18 20:41:25"
+  - name: valid_hp_model
+    description: "HP PhotoSmart 620: EXIF Model tag."
+    args: ["{input_file}"]
+    input_file: tests/valid/hp_photosmart.jpg
+    expected_exit_code: 0
+    expected_output: "hp PhotoSmart 620"
+  - name: valid_canon_g2_model
+    description: "Canon PowerShot G2: EXIF Model tag."
+    args: ["{input_file}"]
+    input_file: tests/valid/canon_g2.jpg
+    expected_exit_code: 0
+    expected_output: "Canon PowerShot G2"
+
+boundary_tests:
+  - name: boundary_bigendian_model
+    description: "Big-endian (Motorola order) EXIF, Canon A710 IS: model read correctly."
+    args: ["{input_file}"]
+    input_file: tests/boundary/bigendian.jpg
+    expected_exit_code: 0
+    expected_output: "Canon PowerShot A710 IS"
+  - name: boundary_bigendian_datetime
+    description: "Big-endian EXIF: DateTime read correctly."
+    args: ["{input_file}"]
+    input_file: tests/boundary/bigendian.jpg
+    expected_exit_code: 0
+    expected_output: "2010:01:24 12:31:13"
+  - name: boundary_minolta_model
+    description: "Minolta DiMAGE E223, an unusual DateTime punctuation in the file: the Model still reads correctly."
+    args: ["{input_file}"]
+    input_file: tests/boundary/minolta_odd_datetime.jpg
+    expected_exit_code: 0
+    expected_output: "DiMAGE E223"
+  - name: boundary_no_exif
+    description: "A JPEG with no EXIF at all: jhead prints the JPEG's own fields and exits 0."
+    args: ["{input_file}"]
+    input_file: tests/boundary/no_exif.jpg
+    expected_exit_code: 0
+    expected_output: "987 x 518"
+  - name: boundary_corrupt_exif
+    description: "A JPEG with a malformed EXIF subdirectory is handled without crashing (exit 0)."
+    args: ["{input_file}"]
+    input_file: tests/boundary/corrupt_exif.jpg
+    expected_exit_code: 0
+  - name: boundary_progressive
+    description: "A progressive-scan JPEG with no EXIF: jhead reports its size and exits 0."
+    args: ["{input_file}"]
+    input_file: tests/boundary/progressive.jpg
+    expected_exit_code: 0
+    expected_output: "640 x 480"
+  - name: boundary_grayscale
+    description: "A single-channel (grayscale) JPEG: read without crashing, exit 0."
+    args: ["{input_file}"]
+    input_file: tests/boundary/grayscale.jpg
+    expected_exit_code: 0
+    expected_output: "320 x 200"
+  - name: boundary_tiny_1x1
+    description: "The smallest possible image, 1x1: the size parsing handles the lower bound."
+    args: ["{input_file}"]
+    input_file: tests/boundary/tiny_1x1.jpg
+    expected_exit_code: 0
+    expected_output: "1 x 1"
+  - name: boundary_with_comment
+    description: "A JPEG carrying a COM comment segment: the extra marker is skipped and the image still read, exit 0."
+    args: ["{input_file}"]
+    input_file: tests/boundary/with_comment.jpg
+    expected_exit_code: 0
+    expected_output: "200 x 120"
+  - name: boundary_large_baseline
+    description: "A larger high-quality baseline JPEG: read without crashing, exit 0."
+    args: ["{input_file}"]
+    input_file: tests/boundary/large_baseline.jpg
+    expected_exit_code: 0
+    expected_output: "1024 x 768"
+
+invalid_tests:
+  - name: invalid_not_jpeg
+    description: "A short text file is not a JPEG: exit 1 without crashing."
+    args: ["{input_file}"]
+    input_file: tests/invalid/not_jpeg.txt
+    expected_exit_code: 1
+  - name: invalid_textfile
+    description: "jhead's own non-JPEG test file: exit 1 without crashing."
+    args: ["{input_file}"]
+    input_file: tests/invalid/textfile.txt
+    expected_exit_code: 1
+  - name: invalid_truncated
+    description: "A JPEG cut mid-stream: error, exit 1."
+    args: ["{input_file}"]
+    input_file: tests/invalid/truncated.jpg
+    expected_exit_code: 1
+  - name: invalid_truncated_header
+    description: "Only the first three bytes of a JPEG: exit 1 without crashing."
+    args: ["{input_file}"]
+    input_file: tests/invalid/truncated_header.jpg
+    expected_exit_code: 1
+  - name: invalid_empty
+    description: "An empty file: exit 1 without crashing."
+    args: ["{input_file}"]
+    input_file: tests/invalid/empty.jpg
+    expected_exit_code: 1
+  - name: invalid_png
+    description: "A real PNG image (wrong format): rejected as not a JPEG, exit 1."
+    args: ["{input_file}"]
+    input_file: tests/invalid/png_image.png
+    expected_exit_code: 1
+  - name: invalid_gif
+    description: "A real GIF image (wrong format): rejected as not a JPEG, exit 1."
+    args: ["{input_file}"]
+    input_file: tests/invalid/gif_image.gif
+    expected_exit_code: 1
+  - name: invalid_bmp
+    description: "A real BMP image (wrong format): rejected as not a JPEG, exit 1."
+    args: ["{input_file}"]
+    input_file: tests/invalid/bmp_image.bmp
+    expected_exit_code: 1
+  - name: invalid_random_bytes
+    description: "Random bytes with a .jpg name and no JPEG marker: rejected, exit 1."
+    args: ["{input_file}"]
+    input_file: tests/invalid/random_bytes.jpg
+    expected_exit_code: 1
+  - name: invalid_soi_then_garbage
+    description: "A valid start-of-image marker followed by garbage: jhead reaches the end of the file and exits 1 without crashing."
+    args: ["{input_file}"]
+    input_file: tests/invalid/soi_then_garbage.jpg
+    expected_exit_code: 1
+
+security_tests:
+  - name: exploit_datetime_original
+    description: "Crafted EXIF with a DATETIME_ORIGINAL (0x9003) tag whose value is within 19 bytes of the EXIF buffer end; ProcessExifDir's fixed strncpy(...,19) reads past the buffer (heap over-read)."
+    args: ["{input_file}"]
+    input_file: tests/exploits/exploit_datetime_original.jpg
+  - name: exploit_datetime
+    description: "Same over-read reached through a plain DATETIME (0x0132) tag. Used to show an incomplete fix that only guards the ORIGINAL tag."
+    args: ["{input_file}"]
+    input_file: tests/exploits/exploit_datetime.jpg

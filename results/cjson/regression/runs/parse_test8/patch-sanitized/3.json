@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "test": "parse_test8",
+  "kind": "valid",
+  "build": "patch-sanitized",
+  "repeat": 3,
+  "cmd": [
+    "/tmp/run_matrix/cjson/regression/cjson/20261114-093427-f42ffd37/builds/patch-sanitized/bin/cjson_driver",
+    "parse",
+    "input.json"
+  ],
+  "env": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "ASAN_OPTIONS": "abort_on_error=1:detect_leaks=0:symbolize=1:disable_coredump=1:max_allocation_size_mb=256",
+    "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1",
+    "ASAN_SYMBOLIZER_PATH": "/usr/bin/llvm-symbolizer"
+  },
+  "cwd": "/tmp/zaraban-run-fzzlxy68",
+  "input": {
+    "method": "file",
+    "name": "input.json",
+    "size": 247,
+    "sha256": "8f12cafffed5858bcf1db7add4f96e7ddf302ce0920b4262f925720dfe756aea"
+  },
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "limit_hit": null,
+  "duration_s": 0.0062,
+  "stdout": {
+    "path": "runs/parse_test8/patch-sanitized/3.stdout",
+    "bytes": 228,
+    "sha256": "cf91affe773c43b3301e666b01bbcf96b7cfe24e607a5cdd5807454e25c19bb0",
+    "truncated": false
+  },
+  "stderr": {
+    "path": "runs/parse_test8/patch-sanitized/3.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "truncated": false
+  },
+  "analysis": {
+    "outcome": "NORMAL",
+    "detection": null,
+    "error_type": null,
+    "summary": null,
+    "frames": [],
+    "signature": null
+  },
+  "oracle": {
+    "checked": true,
+    "passed": true,
+    "reasons": []
+  }
+}

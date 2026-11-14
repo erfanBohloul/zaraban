@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "build": "patch-release",
+  "status": "ok",
+  "cmd": "make release",
+  "env": {
+    "PATH": "/usr/local/bin:/usr/bin:/bin",
+    "HOME": "/tmp",
+    "LANG": "C"
+  },
+  "cwd": "/tmp/run_matrix/cjson/correct/cjson/20261114-093410-61fcf2ba/work/patch-release",
+  "exit_code": 0,
+  "duration_s": 0.423,
+  "log": "builds/patch-release/build.log",
+  "binary": {
+    "path": "builds/patch-release/bin/cjson_driver",
+    "size": 37328,
+    "sha256": "0079798955c9c094fa6c5f9d2388d38d64aec1b98bdea652233e99eac77f22d6"
+  },
+  "sanitizers_verified": null,
+  "has_debug_info": null
+}

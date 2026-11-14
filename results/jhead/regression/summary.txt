@@ -1,0 +1,56 @@
+ZARABAN 0.2.0  jhead  run 20261114-093502-8b5ba02a
+base:  /workspace/targets/jhead (directory)
+patch: /workspace/targets/jhead/patches/regression.patch (diff, -p1)
+
+BUILDS     base-release ok · base-sanitized ok · patch-release ok · patch-sanitized ok
+HARDENING  NX on→on · PIE on→on · RELRO full→full · canary on→on   (no changes)
+TESTS      34 tests × 4 builds × 3 repeats   flaky: 0
+
+FINDINGS
+  F-001 FUNCTIONAL_REGRESSION
+        tests:     valid_s100_datetime
+        release:   NORMAL exit 0 → NORMAL exit 0
+        sanitized: NORMAL exit 0 → NORMAL exit 0
+        link:      CHANGED_CODE_EXECUTED (patch side)
+        notes:     valid_s100_datetime matches its oracle on base but not on patch (patch-release: output does not contains-match; patch-sanitized: output does not contains-match).
+  F-002 FUNCTIONAL_REGRESSION
+        tests:     valid_kodak_datetime
+        release:   NORMAL exit 0 → NORMAL exit 0
+        sanitized: NORMAL exit 0 → NORMAL exit 0
+        link:      CHANGED_CODE_EXECUTED (patch side)
+        notes:     valid_kodak_datetime matches its oracle on base but not on patch (patch-release: output does not contains-match; patch-sanitized: output does not contains-match).
+  F-003 FUNCTIONAL_REGRESSION
+        tests:     valid_pro1_datetime
+        release:   NORMAL exit 0 → NORMAL exit 0
+        sanitized: NORMAL exit 0 → NORMAL exit 0
+        link:      CHANGED_CODE_EXECUTED (patch side)
+        notes:     valid_pro1_datetime matches its oracle on base but not on patch (patch-release: output does not contains-match; patch-sanitized: output does not contains-match).
+  F-004 FUNCTIONAL_REGRESSION
+        tests:     valid_nikon_d100_datetime
+        release:   NORMAL exit 0 → NORMAL exit 0
+        sanitized: NORMAL exit 0 → NORMAL exit 0
+        link:      CHANGED_CODE_EXECUTED (patch side)
+        notes:     valid_nikon_d100_datetime matches its oracle on base but not on patch (patch-release: output does not contains-match; patch-sanitized: output does not contains-match).
+  F-005 FUNCTIONAL_REGRESSION
+        tests:     valid_olympus_datetime
+        release:   NORMAL exit 0 → NORMAL exit 0
+        sanitized: NORMAL exit 0 → NORMAL exit 0
+        link:      CHANGED_CODE_EXECUTED (patch side)
+        notes:     valid_olympus_datetime matches its oracle on base but not on patch (patch-release: output does not contains-match; patch-sanitized: output does not contains-match).
+  F-006 FUNCTIONAL_REGRESSION
+        tests:     boundary_bigendian_datetime
+        release:   NORMAL exit 0 → NORMAL exit 0
+        sanitized: NORMAL exit 0 → NORMAL exit 0
+        link:      CHANGED_CODE_EXECUTED (patch side)
+        notes:     boundary_bigendian_datetime matches its oracle on base but not on patch (patch-release: output does not contains-match; patch-sanitized: output does not contains-match).
+  F-007 FIXED  HEAP_BUFFER_OVERFLOW @ ProcessExifDir < process_EXIF < ReadJpegSections
+        tests:     exploit_datetime_original blocked · exploit_datetime blocked
+        release:   NORMAL exit 0 → NORMAL exit 0
+        sanitized: ASAN/SIGABRT → NORMAL exit 0
+        link:      IN_CHANGED_HUNK  src/exif.c:638 ProcessExifDir (base side)
+        bundle:    reproducers/F-007  4636 → 43 bytes, replay 3/3
+        regression: regression/reg-exploit_datetime_original-02f8f7b0.yaml
+        notes:     HEAP_BUFFER_OVERFLOW @ ProcessExifDir (src/exif.c) occurs on base with exploit_datetime_original, exploit_datetime and on patch with none of them.
+
+RESULT     exit 20  FUNC_REGRESSION
+report:    /tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/report.json

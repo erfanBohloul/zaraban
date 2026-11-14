@@ -1,0 +1,20 @@
+ZARABAN 0.2.0  cjson  run 20261114-093419-5d31d06f
+base:  /workspace/targets/cjson (directory)
+patch: /workspace/targets/cjson/patches/incomplete.patch (diff, -p1)
+
+BUILDS     base-release ok · base-sanitized ok · patch-release ok · patch-sanitized ok
+HARDENING  NX on→on · PIE on→on · RELRO full→full · canary on→on   (no changes)
+TESTS      40 tests × 4 builds × 3 repeats   flaky: 0
+
+FINDINGS
+  F-001 INCOMPLETE_FIX  HEAP_BUFFER_OVERFLOW @ cJSON_Minify < main
+        tests:     exploit_comment blocked · exploit_string blocked · exploit_comment_bypass reaches
+        release:   NORMAL exit 0 → NORMAL exit 0
+        sanitized: ASAN/SIGABRT → CRASH ASAN SIGABRT (exploit_comment_bypass); NORMAL exit 0 (exploit_comment, exploit_string)
+        link:      IN_CHANGED_FUNCTION  src/cJSON.c:2642 cJSON_Minify (patch side)
+        bundle:    reproducers/F-001  6 → 3 bytes, replay 3/3
+        regression: regression/reg-exploit_comment_bypass-f8be50c1.yaml
+        notes:     HEAP_BUFFER_OVERFLOW @ cJSON_Minify (src/cJSON.c) still occurs on patch with exploit_comment_bypass; the patch blocks exploit_comment, exploit_string.
+
+RESULT     exit 10  VULN_REMAINS
+report:    /tmp/run_matrix/cjson/incomplete/cjson/20261114-093419-5d31d06f/report.json
