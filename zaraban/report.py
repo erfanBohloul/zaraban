@@ -215,6 +215,9 @@ def _version_line(v: Any) -> str:
     form = _get(v, "form")
     strip = _get(v, "strip_level")
     extra = f", -p{strip}" if form == "diff" and strip is not None else ""
+    upstream = _get(v, "upstream_commit")
+    if upstream:
+        extra += f", upstream {upstream[:12]}"
     return f"{_get(v, 'ref')} ({form}{extra})"
 
 

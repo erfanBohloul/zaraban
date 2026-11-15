@@ -14,7 +14,7 @@
         "cJSON_Minify",
         "main"
       ],
-      "duration_s": 0.0671
+      "duration_s": 0.0664
     },
     {
       "n": 2,
@@ -26,7 +26,7 @@
         "cJSON_Minify",
         "main"
       ],
-      "duration_s": 0.0675
+      "duration_s": 0.0668
     },
     {
       "n": 3,
@@ -38,7 +38,7 @@
         "cJSON_Minify",
         "main"
       ],
-      "duration_s": 0.067
+      "duration_s": 0.0667
     }
   ],
   "attempts": [
@@ -56,7 +56,7 @@
             "cJSON_Minify",
             "main"
           ],
-          "duration_s": 0.0671
+          "duration_s": 0.0664
         },
         {
           "n": 2,
@@ -68,7 +68,7 @@
             "cJSON_Minify",
             "main"
           ],
-          "duration_s": 0.0675
+          "duration_s": 0.0668
         },
         {
           "n": 3,
@@ -80,7 +80,7 @@
             "cJSON_Minify",
             "main"
           ],
-          "duration_s": 0.067
+          "duration_s": 0.0667
         }
       ]
     }

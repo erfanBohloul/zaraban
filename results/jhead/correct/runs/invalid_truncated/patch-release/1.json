@@ -5,13 +5,13 @@
   "build": "patch-release",
   "repeat": 1,
   "cmd": [
-    "/tmp/run_matrix/jhead/correct/jhead/20261114-093436-3f9def97/builds/patch-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/correct/jhead/20261114-204728-3f9def97/builds/patch-release/bin/jhead",
     "input.jpg"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-i70h4e4p",
+  "cwd": "/tmp/zaraban-run-rkvrapgi",
   "input": {
     "method": "file",
     "name": "input.jpg",

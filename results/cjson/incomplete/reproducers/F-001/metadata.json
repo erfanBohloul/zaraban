@@ -6,10 +6,15 @@
   "version": "patch",
   "build": "patch-sanitized",
   "git_commit": null,
-  "tree_sha256": "bdd2a0fec8e2b60458012a1894dbfe03fec645d59b076994ead7fa49cb25a0ca",
+  "git_dirty": null,
+  "tree_sha256": "d71b71a60c0dcf5d4454696b08e861581e5a8289a32ec3d08bd7e46baed911e1",
+  "upstream": {
+    "repo": "https://github.com/DaveGamble/cJSON",
+    "commit": "c69134d01746dcf551dd7724b4edb12f922eb0d1"
+  },
   "diff_sha256": "5d31d06fed2e0242488e306f8e6c8ad665329d8d1e5bc74576296bf80242d232",
   "binary": "bin/cjson_driver",
-  "binary_sha256": "96aaa6187bf856c7f3cdbd7fc6942fbfa5a84bc8103ea13d741c39911562ac7f",
+  "binary_sha256": "0eabfc6ad5a36ade1a66e59ac0d95104a9d6e389e3750c1aaea9123008098222",
   "build_settings": {
     "cmd": "make sanitized",
     "env": {
@@ -29,7 +34,7 @@
     "ASAN_SYMBOLIZER_PATH": "/usr/bin/llvm-symbolizer"
   },
   "cmd": [
-    "/tmp/run_matrix/cjson/incomplete/cjson/20261114-093419-5d31d06f/builds/patch-sanitized/bin/cjson_driver",
+    "/workspace/out/run_matrix/cjson/incomplete/cjson/20261114-204712-5d31d06f/builds/patch-sanitized/bin/cjson_driver",
     "minify",
     "input.json"
   ],

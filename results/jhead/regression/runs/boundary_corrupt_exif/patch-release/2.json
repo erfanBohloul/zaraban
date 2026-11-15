@@ -5,13 +5,13 @@
   "build": "patch-release",
   "repeat": 2,
   "cmd": [
-    "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/builds/patch-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/regression/jhead/20261114-204751-8b5ba02a/builds/patch-release/bin/jhead",
     "input.jpg"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-wyspo30f",
+  "cwd": "/tmp/zaraban-run-fr7k2j9z",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -22,11 +22,11 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0034,
+  "duration_s": 0.003,
   "stdout": {
     "path": "runs/boundary_corrupt_exif/patch-release/2.stdout",
     "bytes": 403,
-    "sha256": "0c37e552ab7308b640f4be1de08e796ba525f3844b9904355bea8e5d7b546fca",
+    "sha256": "e15e04a5dca9ff78770903ad3d85f91ca941404dc90454516f0565ba3b67db95",
     "truncated": false
   },
   "stderr": {

@@ -5,13 +5,13 @@
   "build": "base-release",
   "repeat": 3,
   "cmd": [
-    "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/builds/base-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/regression/jhead/20261114-204751-8b5ba02a/builds/base-release/bin/jhead",
     "input.jpg"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-3td6ix17",
+  "cwd": "/tmp/zaraban-run-7tx06at9",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -26,7 +26,7 @@
   "stdout": {
     "path": "runs/valid_fuji_model/base-release/3.stdout",
     "bytes": 422,
-    "sha256": "854751c51a189acb29041aa0360d27d7c59ca033954a4481bcdabdb1ceaa7d7d",
+    "sha256": "95cf30048e7201e1fd200bb6a14e6126fd92b471558ad03aa2f83b82bc59475f",
     "truncated": false
   },
   "stderr": {

@@ -8,14 +8,14 @@
     "HOME": "/tmp",
     "LANG": "C"
   },
-  "cwd": "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/work/base-sanitized",
+  "cwd": "/workspace/out/run_matrix/jhead/regression/jhead/20261114-204751-8b5ba02a/work/base-sanitized",
   "exit_code": 0,
-  "duration_s": 2.2789,
+  "duration_s": 1.6752,
   "log": "builds/base-sanitized/build.log",
   "binary": {
     "path": "builds/base-sanitized/bin/jhead",
-    "size": 1898048,
-    "sha256": "5024fd6444f06ce51353b7843d3bb2dc0399832890c2284d0a1edf785aed3744"
+    "size": 1898072,
+    "sha256": "d6e0f5a9216793ef3390274ee09e4360575359a561db5edc1440a2cdbd5033a8"
   },
   "sanitizers_verified": true,
   "has_debug_info": true

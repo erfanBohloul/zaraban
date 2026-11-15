@@ -8,9 +8,9 @@
     "HOME": "/tmp",
     "LANG": "C"
   },
-  "cwd": "/tmp/run_matrix/jhead/correct/jhead/20261114-093436-3f9def97/work/patch-release",
+  "cwd": "/workspace/out/run_matrix/jhead/correct/jhead/20261114-204728-3f9def97/work/patch-release",
   "exit_code": 0,
-  "duration_s": 0.8239,
+  "duration_s": 0.6736,
   "log": "builds/patch-release/build.log",
   "binary": {
     "path": "builds/patch-release/bin/jhead",

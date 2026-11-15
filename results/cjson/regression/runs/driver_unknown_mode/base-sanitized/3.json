@@ -5,7 +5,7 @@
   "build": "base-sanitized",
   "repeat": 3,
   "cmd": [
-    "/tmp/run_matrix/cjson/regression/cjson/20261114-093427-f42ffd37/builds/base-sanitized/bin/cjson_driver",
+    "/workspace/out/run_matrix/cjson/regression/cjson/20261114-204720-f42ffd37/builds/base-sanitized/bin/cjson_driver",
     "bogus",
     "input.json"
   ],
@@ -15,7 +15,7 @@
     "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1",
     "ASAN_SYMBOLIZER_PATH": "/usr/bin/llvm-symbolizer"
   },
-  "cwd": "/tmp/zaraban-run-8wen2c7g",
+  "cwd": "/tmp/zaraban-run-fmxstvi9",
   "input": {
     "method": "file",
     "name": "input.json",
@@ -26,7 +26,7 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0065,
+  "duration_s": 0.0064,
   "stdout": {
     "path": "runs/driver_unknown_mode/base-sanitized/3.stdout",
     "bytes": 0,
@@ -35,8 +35,8 @@
   },
   "stderr": {
     "path": "runs/driver_unknown_mode/base-sanitized/3.stderr",
-    "bytes": 128,
-    "sha256": "842bc4bd45c9bc96728ffd297e3b307022dd2df7c225d3f31bcf3937768ed333",
+    "bytes": 138,
+    "sha256": "3d8ae19d4ab05d21fd9c7fc7a7b629378e4b16f7eb513ddca35c4776031807a9",
     "truncated": false
   },
   "analysis": {

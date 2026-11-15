@@ -8,9 +8,9 @@
     "HOME": "/tmp",
     "LANG": "C"
   },
-  "cwd": "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/work/patch-release",
+  "cwd": "/workspace/out/run_matrix/jhead/regression/jhead/20261114-204751-8b5ba02a/work/patch-release",
   "exit_code": 0,
-  "duration_s": 0.975,
+  "duration_s": 0.6731,
   "log": "builds/patch-release/build.log",
   "binary": {
     "path": "builds/patch-release/bin/jhead",

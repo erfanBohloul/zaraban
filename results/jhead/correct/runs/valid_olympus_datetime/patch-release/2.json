@@ -5,13 +5,13 @@
   "build": "patch-release",
   "repeat": 2,
   "cmd": [
-    "/tmp/run_matrix/jhead/correct/jhead/20261114-093436-3f9def97/builds/patch-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/correct/jhead/20261114-204728-3f9def97/builds/patch-release/bin/jhead",
     "input.jpg"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-r85_gc2l",
+  "cwd": "/tmp/zaraban-run-xff7hylh",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -26,7 +26,7 @@
   "stdout": {
     "path": "runs/valid_olympus_datetime/patch-release/2.stdout",
     "bytes": 365,
-    "sha256": "291d4202bc2fbb4e039574d3944f6a2f2947251e119295eceb08159cf80158b1",
+    "sha256": "5a9b254862acaf754439a490bd3917d70b29d257701a770f98b52ae89cdd4d82",
     "truncated": false
   },
   "stderr": {

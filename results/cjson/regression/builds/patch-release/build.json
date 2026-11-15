@@ -8,9 +8,9 @@
     "HOME": "/tmp",
     "LANG": "C"
   },
-  "cwd": "/tmp/run_matrix/cjson/regression/cjson/20261114-093427-f42ffd37/work/patch-release",
+  "cwd": "/workspace/out/run_matrix/cjson/regression/cjson/20261114-204720-f42ffd37/work/patch-release",
   "exit_code": 0,
-  "duration_s": 0.4233,
+  "duration_s": 0.3231,
   "log": "builds/patch-release/build.log",
   "binary": {
     "path": "builds/patch-release/bin/cjson_driver",

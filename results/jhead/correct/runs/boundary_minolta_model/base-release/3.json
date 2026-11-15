@@ -5,13 +5,13 @@
   "build": "base-release",
   "repeat": 3,
   "cmd": [
-    "/tmp/run_matrix/jhead/correct/jhead/20261114-093436-3f9def97/builds/base-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/correct/jhead/20261114-204728-3f9def97/builds/base-release/bin/jhead",
     "input.jpg"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-mb92_6i7",
+  "cwd": "/tmp/zaraban-run-cmt5028k",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -22,11 +22,11 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0045,
+  "duration_s": 0.0023,
   "stdout": {
     "path": "runs/boundary_minolta_model/base-release/3.stdout",
     "bytes": 376,
-    "sha256": "ecd0045377d1731471905dd55b43aa82018706981fdf1e66240b71d524f112ac",
+    "sha256": "9f784e7e5a6b7239d02fc9118795da9716746d793a4d7061a8d58cb9721292fd",
     "truncated": false
   },
   "stderr": {

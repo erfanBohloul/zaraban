@@ -4,28 +4,34 @@
     "name": "zaraban",
     "version": "0.2.0"
   },
-  "run_id": "20261114-093427-f42ffd37",
-  "started_at": "2026-11-14T09:34:27Z",
-  "duration_s": 9.1583,
+  "run_id": "20261114-204720-f42ffd37",
+  "started_at": "2026-11-14T20:47:20Z",
+  "duration_s": 8.2339,
   "target": {
     "name": "cjson",
     "config": "inputs/config.yaml",
-    "config_sha256": "4230ddbfc432068c9e2dc98a5a605a22412ea530efd11f80611bd159119cc03e"
+    "config_sha256": "ace4345926bd48fc7d15f45036f020d1b55832a6461332294993c4df37e2ee2e"
   },
   "versions": {
     "base": {
       "form": "directory",
       "ref": "/workspace/targets/cjson",
-      "git_commit": "30df7cf",
-      "tree_sha256": "7e0f2f0f94fe3f36529bad37f9e827e228d82e8fc78eeb4eaa217f99edcb4575",
-      "strip_level": null
+      "git_commit": "dca9efc32e499da77c891f99ab1926d4040a4a48",
+      "tree_sha256": "d822e0f37702a6d3b16e2116dff66195beae5bfa0ff2e0862b2b3c10b440e6ca",
+      "strip_level": null,
+      "git_dirty": false,
+      "upstream_repo": "https://github.com/DaveGamble/cJSON",
+      "upstream_commit": "c69134d01746dcf551dd7724b4edb12f922eb0d1"
     },
     "patch": {
       "form": "diff",
       "ref": "/workspace/targets/cjson/patches/regression.patch",
       "git_commit": null,
-      "tree_sha256": "f971b2f651a52da42c811af48ce15171ba72c66f35b8a17601c3d1c6e3ec4a9a",
-      "strip_level": 1
+      "tree_sha256": "1dd0045083bebd4b5af71ddda359f9e3b1a3177dd6b6c772ffdacf1ca7629350",
+      "strip_level": 1,
+      "git_dirty": null,
+      "upstream_repo": null,
+      "upstream_commit": null
     },
     "diff": {
       "path": "inputs/patch.diff",
@@ -55,6 +61,12 @@
     "sanitizer_options": {
       "ASAN_OPTIONS": "abort_on_error=1:detect_leaks=0:symbolize=1:disable_coredump=1:max_allocation_size_mb=256",
       "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1"
+    },
+    "variants": {
+      "enabled": false,
+      "budget_runs": 200,
+      "seed": 1,
+      "max_tests": 5
     }
   },
   "builds": {
@@ -65,7 +77,7 @@
     },
     "base-sanitized": {
       "status": "ok",
-      "binary_sha256": "89093fcfa4b47826e1feaa98239bfb3f4472cdcaef142170be158d9e4174f010",
+      "binary_sha256": "6d5d6e34430f0b25209bdfb5450ea90d968d94cdd380223db07f80fa07e3245d",
       "details": "builds/base-sanitized/build.json"
     },
     "patch-release": {
@@ -75,7 +87,7 @@
     },
     "patch-sanitized": {
       "status": "ok",
-      "binary_sha256": "287986aede4777b0ef5f19fff063bedf1239b7818a69cdec7ba8c3c1d7b751e4",
+      "binary_sha256": "49fa1aae695977f3dad6cea47ffe41d1371b27a7c9e476d7bb17682fec83ad21",
       "details": "builds/patch-sanitized/build.json"
     }
   },
@@ -643,6 +655,32 @@
         "oracle_passed": true,
         "flaky": false,
         "runs": "runs/exploit_comment_bypass/base-release/"
+      },
+      "reg-exploit_comment-766e0153": {
+        "kind": "regression",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/reg-exploit_comment-766e0153/base-release/"
+      },
+      "reg-exploit_comment_bypass-f8be50c1": {
+        "kind": "regression",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/reg-exploit_comment_bypass-f8be50c1/base-release/"
       }
     },
     "base-sanitized": {
@@ -1165,6 +1203,32 @@
         "oracle_passed": false,
         "flaky": false,
         "runs": "runs/exploit_comment_bypass/base-sanitized/"
+      },
+      "reg-exploit_comment-766e0153": {
+        "kind": "regression",
+        "outcome": "CRASH",
+        "exit_code": null,
+        "signal": "SIGABRT",
+        "detection": "ASAN",
+        "error_type": "HEAP_BUFFER_OVERFLOW",
+        "signature": "HEAP_BUFFER_OVERFLOW @ cJSON_Minify < main",
+        "top_frame": "cJSON_Minify src/cJSON.c:2642",
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/reg-exploit_comment-766e0153/base-sanitized/"
+      },
+      "reg-exploit_comment_bypass-f8be50c1": {
+        "kind": "regression",
+        "outcome": "CRASH",
+        "exit_code": null,
+        "signal": "SIGABRT",
+        "detection": "ASAN",
+        "error_type": "HEAP_BUFFER_OVERFLOW",
+        "signature": "HEAP_BUFFER_OVERFLOW @ cJSON_Minify < main",
+        "top_frame": "cJSON_Minify src/cJSON.c:2642",
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/reg-exploit_comment_bypass-f8be50c1/base-sanitized/"
       }
     },
     "patch-release": {
@@ -1687,6 +1751,32 @@
         "oracle_passed": true,
         "flaky": false,
         "runs": "runs/exploit_comment_bypass/patch-release/"
+      },
+      "reg-exploit_comment-766e0153": {
+        "kind": "regression",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/reg-exploit_comment-766e0153/patch-release/"
+      },
+      "reg-exploit_comment_bypass-f8be50c1": {
+        "kind": "regression",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/reg-exploit_comment_bypass-f8be50c1/patch-release/"
       }
     },
     "patch-sanitized": {
@@ -2209,6 +2299,32 @@
         "oracle_passed": true,
         "flaky": false,
         "runs": "runs/exploit_comment_bypass/patch-sanitized/"
+      },
+      "reg-exploit_comment-766e0153": {
+        "kind": "regression",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/reg-exploit_comment-766e0153/patch-sanitized/"
+      },
+      "reg-exploit_comment_bypass-f8be50c1": {
+        "kind": "regression",
+        "outcome": "NORMAL",
+        "exit_code": 0,
+        "signal": null,
+        "detection": null,
+        "error_type": null,
+        "signature": null,
+        "top_frame": null,
+        "oracle_passed": null,
+        "flaky": false,
+        "runs": "runs/reg-exploit_comment_bypass-f8be50c1/patch-sanitized/"
       }
     }
   },
@@ -2542,6 +2658,100 @@
             }
           },
           "on_patch": "blocked"
+        },
+        {
+          "test": "reg-exploit_comment-766e0153",
+          "kind": "regression",
+          "results": {
+            "base-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": null,
+              "flaky": false
+            },
+            "base-sanitized": {
+              "outcome": "CRASH",
+              "detection": "ASAN",
+              "signal": "SIGABRT",
+              "exit_code": null,
+              "error_type": "HEAP_BUFFER_OVERFLOW",
+              "signature": "HEAP_BUFFER_OVERFLOW @ cJSON_Minify < main",
+              "oracle_passed": null,
+              "flaky": false
+            },
+            "patch-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": null,
+              "flaky": false
+            },
+            "patch-sanitized": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": null,
+              "flaky": false
+            }
+          },
+          "on_patch": "blocked"
+        },
+        {
+          "test": "reg-exploit_comment_bypass-f8be50c1",
+          "kind": "regression",
+          "results": {
+            "base-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": null,
+              "flaky": false
+            },
+            "base-sanitized": {
+              "outcome": "CRASH",
+              "detection": "ASAN",
+              "signal": "SIGABRT",
+              "exit_code": null,
+              "error_type": "HEAP_BUFFER_OVERFLOW",
+              "signature": "HEAP_BUFFER_OVERFLOW @ cJSON_Minify < main",
+              "oracle_passed": null,
+              "flaky": false
+            },
+            "patch-release": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": null,
+              "flaky": false
+            },
+            "patch-sanitized": {
+              "outcome": "NORMAL",
+              "detection": null,
+              "signal": null,
+              "exit_code": 0,
+              "error_type": null,
+              "signature": null,
+              "oracle_passed": null,
+              "flaky": false
+            }
+          },
+          "on_patch": "blocked"
         }
       ],
       "signature": "HEAP_BUFFER_OVERFLOW @ cJSON_Minify < main",
@@ -2566,28 +2776,32 @@
         "comparative_tests": [
           "exploit_comment",
           "exploit_string",
-          "exploit_comment_bypass"
+          "exploit_comment_bypass",
+          "reg-exploit_comment-766e0153",
+          "reg-exploit_comment_bypass-f8be50c1"
         ],
-        "explanation": "The crash on base happens in frame #0 cJSON_Minify (src/cJSON.c:2642), a function the patch changed, outside its hunks. exploit_comment, exploit_string and exploit_comment_bypass crash on base and not on patch."
+        "explanation": "The crash on base happens in frame #0 cJSON_Minify (src/cJSON.c:2642), a function the patch changed, outside its hunks. exploit_comment, exploit_string, exploit_comment_bypass, reg-exploit_comment-766e0153 and reg-exploit_comment_bypass-f8be50c1 crash on base and not on patch."
       },
       "evidence": [
         "runs/exploit_comment/",
         "runs/exploit_string/",
-        "runs/exploit_comment_bypass/"
+        "runs/exploit_comment_bypass/",
+        "runs/reg-exploit_comment-766e0153/",
+        "runs/reg-exploit_comment_bypass-f8be50c1/"
       ],
       "reproducer": "reproducers/F-003/",
-      "regression_test": "regression/reg-exploit_comment-766e0153.yaml",
-      "notes": "HEAP_BUFFER_OVERFLOW @ cJSON_Minify (src/cJSON.c) occurs on base with exploit_comment, exploit_string, exploit_comment_bypass and on patch with none of them."
+      "regression_test": null,
+      "notes": "HEAP_BUFFER_OVERFLOW @ cJSON_Minify (src/cJSON.c) occurs on base with exploit_comment, exploit_string, exploit_comment_bypass, reg-exploit_comment-766e0153, reg-exploit_comment_bypass-f8be50c1 and on patch with none of them."
     }
   ],
   "regression_added": [
     {
       "name": "reg-exploit_comment-766e0153",
       "from_finding": "F-003",
-      "path": "regression/reg-exploit_comment-766e0153.yaml",
+      "path": "/workspace/targets/cjson/tests/regression/reg-exploit_comment-766e0153.yaml",
       "input_sha256": "766e0153d3f7ec95c97e755b1ea7b1681566923b9299365fdc8399443ca20c1d",
-      "status": "added",
-      "promoted_to": null
+      "status": "already_present",
+      "promoted_to": "/workspace/targets/cjson/tests/regression"
     }
   ],
   "status": {

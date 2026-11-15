@@ -8,9 +8,9 @@
     "HOME": "/tmp",
     "LANG": "C"
   },
-  "cwd": "/tmp/run_matrix/cjson/correct/cjson/20261114-093410-61fcf2ba/work/base-release",
+  "cwd": "/workspace/out/run_matrix/cjson/correct/cjson/20261114-204704-61fcf2ba/work/base-release",
   "exit_code": 0,
-  "duration_s": 0.4231,
+  "duration_s": 0.3736,
   "log": "builds/base-release/build.log",
   "binary": {
     "path": "builds/base-release/bin/cjson_driver",

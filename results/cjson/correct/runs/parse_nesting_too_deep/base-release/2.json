@@ -5,14 +5,14 @@
   "build": "base-release",
   "repeat": 2,
   "cmd": [
-    "/tmp/run_matrix/cjson/correct/cjson/20261114-093410-61fcf2ba/builds/base-release/bin/cjson_driver",
+    "/workspace/out/run_matrix/cjson/correct/cjson/20261114-204704-61fcf2ba/builds/base-release/bin/cjson_driver",
     "parse",
     "input.json"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-i6ux5hu6",
+  "cwd": "/tmp/zaraban-run-0wcesuvw",
   "input": {
     "method": "file",
     "name": "input.json",
@@ -23,7 +23,7 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0023,
+  "duration_s": 0.0025,
   "stdout": {
     "path": "runs/parse_nesting_too_deep/base-release/2.stdout",
     "bytes": 0,

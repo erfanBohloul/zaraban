@@ -5,13 +5,13 @@
   "build": "base-release",
   "repeat": 1,
   "cmd": [
-    "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/builds/base-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/regression/jhead/20261114-204751-8b5ba02a/builds/base-release/bin/jhead",
     "input.txt"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-zfytxj4t",
+  "cwd": "/tmp/zaraban-run-9rhsz4ea",
   "input": {
     "method": "file",
     "name": "input.txt",
@@ -22,7 +22,7 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0027,
+  "duration_s": 0.0044,
   "stdout": {
     "path": "runs/invalid_textfile/base-release/1.stdout",
     "bytes": 0,

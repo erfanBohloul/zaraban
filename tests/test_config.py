@@ -310,3 +310,20 @@ def test_4_1_target_template_config_is_valid():
     text = path.read_text(encoding="utf-8")
     for key in type(target.spec).model_fields:
         assert f"{key}:" in text, f"the template does not mention {key}"
+
+
+def test_4_2_upstream_is_recorded(tmp_path):
+    text = GOOD.replace("input_method: file\n", "input_method: file\nupstream:\n"
+                        "  repo: https://example.org/prog\n  commit: " + "a" * 40 + "\n")
+    target, _ = Target.load(write(tmp_path, text))
+    assert target.spec.upstream.repo == "https://example.org/prog"
+    assert target.spec.upstream.commit == "a" * 40
+
+
+def test_4_2_upstream_needs_a_full_commit_hash(tmp_path):
+    text = GOOD.replace("input_method: file\n", "input_method: file\nupstream:\n"
+                        "  repo: https://example.org/prog\n  commit: c69134d\n")
+    with pytest.raises(ZarabanError) as e:
+        Target.load(write(tmp_path, text))
+    assert e.value.code is ErrorCode.CONFIG_INVALID
+    assert "full commit hash" in str(e.value.details)

@@ -5,14 +5,14 @@
   "build": "base-release",
   "repeat": 2,
   "cmd": [
-    "/tmp/run_matrix/cjson/incomplete/cjson/20261114-093419-5d31d06f/builds/base-release/bin/cjson_driver",
+    "/workspace/out/run_matrix/cjson/incomplete/cjson/20261114-204712-5d31d06f/builds/base-release/bin/cjson_driver",
     "minify",
     "input.json"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-2zy4ieos",
+  "cwd": "/tmp/zaraban-run-s49m0w8a",
   "input": {
     "method": "file",
     "name": "input.json",
@@ -23,7 +23,7 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.003,
+  "duration_s": 0.0033,
   "stdout": {
     "path": "runs/minify_glob_in_string/base-release/2.stdout",
     "bytes": 40,

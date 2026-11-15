@@ -91,9 +91,28 @@ class _VariantsSpec(_Strict):
     max_tests: int = Field(default=5, ge=1)  # kept variants, each run like a test
 
 
+_COMMIT_RE = re.compile(r"[0-9a-f]{40}")
+
+
+def _check_commit(v: str) -> str:
+    if not _COMMIT_RE.fullmatch(v):
+        raise ValueError(f"{v!r} is not a full commit hash: give all 40 lowercase hex "
+                         "digits, so the version is identified exactly")
+    return v
+
+
+class _UpstreamSpec(_Strict):
+    """Where the base sources come from: the upstream project and its exact
+    commit. Recorded in the report and in every reproducer bundle."""
+
+    repo: str
+    commit: Annotated[str, AfterValidator(_check_commit)]
+
+
 class _ConfigSpec(_Strict):
     name: Name
     base_dir: str = "."
+    upstream: Optional[_UpstreamSpec] = None
     input_method: Literal["file", "stdin", "args"] = "stdin"
     file_arg_placeholder: str = "{input_file}"
     repeats: int = Field(default=3, ge=1)

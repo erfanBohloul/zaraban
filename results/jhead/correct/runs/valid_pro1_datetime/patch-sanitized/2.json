@@ -5,7 +5,7 @@
   "build": "patch-sanitized",
   "repeat": 2,
   "cmd": [
-    "/tmp/run_matrix/jhead/correct/jhead/20261114-093436-3f9def97/builds/patch-sanitized/bin/jhead",
+    "/workspace/out/run_matrix/jhead/correct/jhead/20261114-204728-3f9def97/builds/patch-sanitized/bin/jhead",
     "input.jpg"
   ],
   "env": {
@@ -14,7 +14,7 @@
     "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1",
     "ASAN_SYMBOLIZER_PATH": "/usr/bin/llvm-symbolizer"
   },
-  "cwd": "/tmp/zaraban-run-ni3lobz_",
+  "cwd": "/tmp/zaraban-run-bzp6ins7",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -29,7 +29,7 @@
   "stdout": {
     "path": "runs/valid_pro1_datetime/patch-sanitized/2.stdout",
     "bytes": 501,
-    "sha256": "acbb4fa5e558747c25c661fc8f237bb498a552c7742734a78d87fe0b971e14ad",
+    "sha256": "d9f0dc22a6cd42a15b03342667d86f766d1d6ed4e0566821f0d8b4ac3bb511f5",
     "truncated": false
   },
   "stderr": {

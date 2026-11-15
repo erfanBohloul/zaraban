@@ -5,13 +5,13 @@
   "build": "base-release",
   "repeat": 1,
   "cmd": [
-    "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/builds/base-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/regression/jhead/20261114-204751-8b5ba02a/builds/base-release/bin/jhead",
     "input.bmp"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-ihzg3fbi",
+  "cwd": "/tmp/zaraban-run-ar4oxqy3",
   "input": {
     "method": "file",
     "name": "input.bmp",

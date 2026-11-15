@@ -5,13 +5,13 @@
   "build": "patch-release",
   "repeat": 2,
   "cmd": [
-    "/tmp/run_matrix/jhead/regression/jhead/20261114-093502-8b5ba02a/builds/patch-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/regression/jhead/20261114-204751-8b5ba02a/builds/patch-release/bin/jhead",
     "input.jpg"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-ymzeh7f9",
+  "cwd": "/tmp/zaraban-run-ppdflb79",
   "input": {
     "method": "file",
     "name": "input.jpg",
@@ -22,11 +22,11 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0034,
+  "duration_s": 0.0027,
   "stdout": {
     "path": "runs/valid_kodak_datetime/patch-release/2.stdout",
     "bytes": 462,
-    "sha256": "c9828579a92e6a895eb2f449fe62f695b9b24ad1f852d9fc75cd051e21146c83",
+    "sha256": "63e94b4784770fba434cdc7c0bb16faa01bbcc2dd5a0de1fa23b7d899155783c",
     "truncated": false
   },
   "stderr": {

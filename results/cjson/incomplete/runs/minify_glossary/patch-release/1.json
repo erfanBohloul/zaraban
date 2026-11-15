@@ -5,14 +5,14 @@
   "build": "patch-release",
   "repeat": 1,
   "cmd": [
-    "/tmp/run_matrix/cjson/incomplete/cjson/20261114-093419-5d31d06f/builds/patch-release/bin/cjson_driver",
+    "/workspace/out/run_matrix/cjson/incomplete/cjson/20261114-204712-5d31d06f/builds/patch-release/bin/cjson_driver",
     "minify",
     "input.json"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-uttnxzlk",
+  "cwd": "/tmp/zaraban-run-l8fobxui",
   "input": {
     "method": "file",
     "name": "input.json",
@@ -23,7 +23,7 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0031,
+  "duration_s": 0.0029,
   "stdout": {
     "path": "runs/minify_glossary/patch-release/1.stdout",
     "bytes": 228,

@@ -5,7 +5,7 @@
   "build": "patch-sanitized",
   "repeat": 2,
   "cmd": [
-    "/tmp/run_matrix/cjson/regression/cjson/20261114-093427-f42ffd37/builds/patch-sanitized/bin/cjson_driver",
+    "/workspace/out/run_matrix/cjson/regression/cjson/20261114-204720-f42ffd37/builds/patch-sanitized/bin/cjson_driver",
     "parse",
     "input.json"
   ],
@@ -15,7 +15,7 @@
     "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1",
     "ASAN_SYMBOLIZER_PATH": "/usr/bin/llvm-symbolizer"
   },
-  "cwd": "/tmp/zaraban-run-_v2v3vxo",
+  "cwd": "/tmp/zaraban-run-ynf746p5",
   "input": {
     "method": "file",
     "name": "input.json",
@@ -26,7 +26,7 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0068,
+  "duration_s": 0.0063,
   "stdout": {
     "path": "runs/parse_incomplete_object/patch-sanitized/2.stdout",
     "bytes": 0,

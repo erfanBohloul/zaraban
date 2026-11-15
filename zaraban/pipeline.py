@@ -100,6 +100,11 @@ def start_run(args: "argparse.Namespace", target: "Target", warnings: list[Issue
     try:
         base = getattr(args, "base", None) or target.base_dir
         srcs = sources.prepare(base, args.patch, tmp_work)
+        upstream = target.spec.upstream
+        if upstream is not None and not getattr(args, "base", None):
+            # The config's upstream describes its own base_dir, not a --base tree.
+            srcs.base.upstream_repo = upstream.repo
+            srcs.base.upstream_commit = upstream.commit
     except ZarabanError as exc:
         error = exc.to_issue()
     except Exception as exc:  # a bug in the tool

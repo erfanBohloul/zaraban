@@ -13,6 +13,13 @@ name: "my_target"                  # REPLACE
 # Directory with the base Makefile and sources (used when --base is not given).
 # base_dir: "."
 
+# Where the base sources come from: the upstream project and its full
+# 40-digit commit hash. Recorded in the report and every reproducer bundle.
+# Not used when --base is given.
+# upstream:
+#   repo: "https://github.com/owner/project"
+#   commit: "0123456789abcdef0123456789abcdef01234567"
+
 # How each test's input reaches the program:
 #   file   the input is written to a file, and {input_file} in args is
 #          replaced by its path

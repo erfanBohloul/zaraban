@@ -5,7 +5,7 @@
   "build": "patch-sanitized",
   "repeat": 1,
   "cmd": [
-    "/tmp/run_matrix/cjson/correct/cjson/20261114-093410-61fcf2ba/builds/patch-sanitized/bin/cjson_driver",
+    "/workspace/out/run_matrix/cjson/correct/cjson/20261114-204704-61fcf2ba/builds/patch-sanitized/bin/cjson_driver",
     "bogus",
     "input.json"
   ],
@@ -15,7 +15,7 @@
     "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:symbolize=1",
     "ASAN_SYMBOLIZER_PATH": "/usr/bin/llvm-symbolizer"
   },
-  "cwd": "/tmp/zaraban-run-7ibhs2bg",
+  "cwd": "/tmp/zaraban-run-xnrf5n11",
   "input": {
     "method": "file",
     "name": "input.json",
@@ -26,7 +26,7 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0063,
+  "duration_s": 0.006,
   "stdout": {
     "path": "runs/driver_unknown_mode/patch-sanitized/1.stdout",
     "bytes": 0,
@@ -35,8 +35,8 @@
   },
   "stderr": {
     "path": "runs/driver_unknown_mode/patch-sanitized/1.stderr",
-    "bytes": 126,
-    "sha256": "7f12d3fe1f44cddb98859f4ba5a59142c5b91ad7daa33e20e386f2185b132732",
+    "bytes": 136,
+    "sha256": "21033600d0f815cb06a1535355bc31541a6b4f268c3667617e65ea13fff57144",
     "truncated": false
   },
   "analysis": {

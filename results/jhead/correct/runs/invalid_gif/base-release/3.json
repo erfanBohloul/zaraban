@@ -5,13 +5,13 @@
   "build": "base-release",
   "repeat": 3,
   "cmd": [
-    "/tmp/run_matrix/jhead/correct/jhead/20261114-093436-3f9def97/builds/base-release/bin/jhead",
+    "/workspace/out/run_matrix/jhead/correct/jhead/20261114-204728-3f9def97/builds/base-release/bin/jhead",
     "input.gif"
   ],
   "env": {
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
-  "cwd": "/tmp/zaraban-run-7m47zzds",
+  "cwd": "/tmp/zaraban-run-uce_2gk_",
   "input": {
     "method": "file",
     "name": "input.gif",
@@ -22,7 +22,7 @@
   "signal": null,
   "timed_out": false,
   "limit_hit": null,
-  "duration_s": 0.0029,
+  "duration_s": 0.0028,
   "stdout": {
     "path": "runs/invalid_gif/base-release/3.stdout",
     "bytes": 0,

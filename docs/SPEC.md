@@ -214,6 +214,7 @@ the config file.
 |---|---|---|---|---|
 | `name` | string | yes | | Target name. Used in output paths, so it may contain only letters, digits, `_` and `-`. |
 | `base_dir` | path | no | `.` | The default base source tree, used when `--base` is not given. It is the directory that contains the target's Makefile and sources. |
+| `upstream` | object | no | none | Where the base sources come from: `repo` (string) and `commit` (the full 40-digit hash). Recorded as the base version in the report and in every reproducer bundle (§10.3, §12.4). Ignored when `--base` is given. |
 | `input_method` | `file` \| `stdin` \| `args` | no | `stdin` | How each test's input reaches the program (§5). |
 | `file_arg_placeholder` | string | no | `{input_file}` | Placeholder that is replaced by the input file path inside a test's `args` (§5). |
 | `repeats` | integer ≥ 1 | no | `3` | How many times each test runs on each build (§7). |
@@ -1154,8 +1155,12 @@ Each bundle is a directory `reproducers/<finding id>/` in the run's output:
 `metadata.json` contains, as §3.3 of the spec requires:
 
 - the finding id, the source test, the version (`base` or `patch`) and build;
-- the **exact version identifier**: the commit of the repository at run time,
-  plus a SHA-256 hash of the source tree, plus the SHA-256 hash of the diff;
+- the **exact version identifier**: `upstream`, the upstream project and the
+  full commit hash of the base (from the config, §4.2); `git_commit`, the full
+  commit of the repository at run time, with `git_dirty` when the tree has
+  uncommitted changes; a SHA-256 hash of the source tree; and the SHA-256 hash
+  of the diff. A patch bundle's version is the base's upstream commit plus
+  that diff;
 - the **binary hash** (SHA-256);
 - the **build settings**: build command, build environment, and compiler
   versions;
@@ -1250,7 +1255,8 @@ created_on:
 ```
 
 `created_on` records the base version on which the error was shown when the
-test was created. This is the proof required by the spec, and it stays valid
+test was created: the config's `upstream` commit when it is given (§4.2), else
+the repository's commit. This is the proof required by the spec, and it stays valid
 in later CI runs where base may already contain a fix (§8.6).
 
 **Where they are written**: to `regression/` in the run's output directory,
@@ -1383,7 +1389,7 @@ Top-level fields, in this order:
 | `schema_version`, `tool` | Format version; tool name and version. |
 | `run_id`, `started_at`, `duration_s` | The run. |
 | `target` | `name`, `config` (path of the copy), `config_sha256`. |
-| `versions` | `base` and `patch`: `form` (`directory` or `diff`), `ref` (as given), `git_commit` (of the repository at run time), `tree_sha256`, and for a diff `strip_level`. `diff`: `path`, `sha256`, changed `files`, number of `hunks`. |
+| `versions` | `base` and `patch`: `form` (`directory` or `diff`), `ref` (as given), `git_commit` (the full hash of the repository at run time), `git_dirty` (the tree has uncommitted changes, so the commit alone does not identify it), `tree_sha256`, and for a diff `strip_level`. `base` also has `upstream_repo` and `upstream_commit` from the config's `upstream` (§4.2). `diff`: `path`, `sha256`, changed `files`, number of `hunks`. |
 | `environment` | `os`, `kernel`, `arch`, `docker_image`, `python`, `gcc`, `clang`, `llvm_symbolizer` (path or `null`). |
 | `settings` | `repeats`, `limits`, `sanitizer_options`, and `variants`: `enabled`, `budget_runs`, `seed`, `max_tests`, and when the step ran, `screening_runs`, `screening_runs_per_test`, `skipped_tests`, `unconfirmed_crashes` and `kept` (each kept variant's `test` and `input`) (§7.6). |
 | `builds` | For each build: `status`, `binary_sha256`, `details` (path of `build.json`). |
